@@ -1,0 +1,44 @@
+name: Pubblica la versione web (iPhone, Chrome)
+
+# Sito: https://amicoen-ops.github.io/strumento-i-a517/
+# Una volta sola: Settings › Pages › Source: «GitHub Actions».
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "40 3 * * *"          # ogni notte: copia aggiornata degli spazi aerei d'Italia (openAIP)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  sito:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Pagine
+        run: |
+          mkdir -p sito/dati
+          cp -r www/. sito/
+          rm -f sito/capacitor.js
+          sed -i 's#<script src="capacitor.js"></script>##' sito/index.html
+          echo "window.IA517_BUILD={version:'web',build:'web',channel:'web'};" > sito/version.js
+          # spazi aerei d'Italia da openAIP (CC BY-NC 4.0): copia sullo stesso sito, leggibile anche dal browser
+          curl -sSfL --max-time 120 -o sito/dati/it_asp_v2.txt https://storage.openaip.net/openaip-system-exports/it_asp_v2.txt || echo "openAIP non raggiungibile: resta senza copia"
+          ls -la sito sito/dati
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: sito
+      - id: deploy
+        uses: actions/deploy-pages@v4

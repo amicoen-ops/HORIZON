@@ -3,6 +3,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#07080a">
 <meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="I-A517">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <style>[hidden]{display:none!important}</style>
 <script src="version.js"></script>
@@ -1235,7 +1240,9 @@ addEventListener('online',()=>fetchModel(false));
   const DAY=864e5, EP=Date.UTC(2020,0,2);                                  // inizio del ciclo AIRAC 2001
   const airac=t=>{ const n=Math.floor((t-EP)/(28*DAY)), s=EP+n*28*DAY, y=new Date(s).getUTCFullYear();
     return {start:s,code:String(y%100).padStart(2,'0')+String(Math.floor((s-Date.UTC(y,0,1))/(28*DAY))+1).padStart(2,'0')}; };
-  const FILES=['https://storage.openaip.net/openaip-system-exports/it_asp_v2.txt'];   // lo stesso file che usa XCSoar, aggiornato ogni notte
+  // nell'app installata il file di openAIP; nel browser (iPhone, Chrome) la copia notturna sullo stesso sito, perché openAIP non permette la lettura diretta
+  const FILES=(PHONE&&parent.IA517&&parent.IA517.native)?['https://storage.openaip.net/openaip-system-exports/it_asp_v2.txt']
+    :['dati/it_asp_v2.txt','https://storage.openaip.net/openaip-system-exports/it_asp_v2.txt'];
   const API='https://api.core.openaip.net/api/airspaces';
   const saved=()=>store.get('ia517_openair',null)||{};
   const keyGet=()=>store.get('ia517_openaip_key','');

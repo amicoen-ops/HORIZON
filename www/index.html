@@ -4,6 +4,11 @@
 <meta name="theme-color" content="#07080a">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="I-A517">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <style>[hidden]{display:none!important}</style>
 <script src="version.js"></script>
@@ -2040,12 +2045,29 @@ PH.level=function(groundPitchDeg){
 };
 // ---- bussola del telefono (orientamento assoluto: magnetometro + giroscopio + accelerometro di Android) ----
 PH.onOrient=function(e){
+  if(e.webkitCompassHeading!=null && !PH.mag.native){ PH.onOrientIOS(e); return; }
   const abs=e.type==='deviceorientationabsolute'||e.absolute===true;
   if(!abs) return; if(e.type==='deviceorientationabsolute') PH.mag.abs=true; else if(PH.mag.abs) return;
   const al=e.alpha, be=e.beta, ga=e.gamma; if(al==null||be==null||ga==null) return;
   if(PH.mag.native) return;                                                // c'è il modulo nativo: vale quello
   const ca=Math.cos(al*D2R), sa=Math.sin(al*D2R), cb=Math.cos(be*D2R), sb=Math.sin(be*D2R), cg=Math.cos(ga*D2R), sg=Math.sin(ga*D2R);
   PH.magFromR([[ca*cg-sa*sb*sg,-sa*cb,ca*sg+sa*sb*cg],[sa*cg+ca*sb*sg,ca*cb,sa*sg-ca*sb*cg],[-cb*sg,sb,cb*cg]],'browser');   // telefono -> Terra (Est, Nord, Su)
+};
+// iPhone: alpha è relativo; il riferimento al nord si ricava da webkitCompassHeading quando il lato alto del telefono
+// non è verticale (telefono non dritto), e poi resta valido anche col telefono dritto in cabina
+PH.onOrientIOS=function(e){
+  const al=e.alpha, be=e.beta, ga=e.gamma; if(al==null||be==null||ga==null) return;
+  const ca=Math.cos(al*D2R), sa=Math.sin(al*D2R), cb=Math.cos(be*D2R), sb=Math.sin(be*D2R), cg=Math.cos(ga*D2R), sg=Math.sin(ga*D2R);
+  const Rm=[[ca*cg-sa*sb*sg,-sa*cb,ca*sg+sa*sb*cg],[sa*cg+ca*sb*sg,ca*cb,sa*sg-ca*sb*cg],[-cb*sg,sb,cb*cg]];
+  const top=[Rm[0][1],Rm[1][1],Rm[2][1]];                                   // lato alto del telefono nella terna relativa
+  if(Math.hypot(top[0],top[1])>0.6 && e.webkitCompassAccuracy!==-1){
+    const rel=Math.atan2(top[0],top[1])*R2D, off=angDiff(e.webkitCompassHeading,rel);
+    PH.mag.iosOff=PH.mag.iosOff==null?off:wrap360(PH.mag.iosOff+angDiff(off,PH.mag.iosOff)*0.1); }
+  if(PH.mag.iosOff==null){ PH.mag.iosNeed=true; return; }
+  PH.mag.iosNeed=false; if(e.webkitCompassAccuracy!=null) PH.mag.acc=e.webkitCompassAccuracy>25?1:3;
+  const o=PH.mag.iosOff*D2R, co=Math.cos(o), so=Math.sin(o);                // rotazione attorno alla verticale: relativo -> nord magnetico
+  PH.magFromR([[co*Rm[0][0]+so*Rm[1][0],co*Rm[0][1]+so*Rm[1][1],co*Rm[0][2]+so*Rm[1][2]],
+               [-so*Rm[0][0]+co*Rm[1][0],-so*Rm[0][1]+co*Rm[1][1],-so*Rm[0][2]+co*Rm[1][2]],Rm[2]],'ios');
 };
 PH.magFromR=function(Rm,src){
   const scr=PH.scrAng()*D2R, c=Math.cos(scr), sn=Math.sin(scr);
@@ -2478,7 +2500,7 @@ PH.status=function(){
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
     ['ok','Posizione in uso',PH.demo?'simulata':(PH.src==='glo'?'Garmin GLO 2':(PH.src==='phone'?'GPS del telefono':'nessuna'))+' · scelta '+{auto:'automatica',phone:'solo telefono',glo:'solo GLO 2'}[PH.srcPref]],
     [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz':'nessun dato'],
-    [PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?'ok':'warn','Bussola',PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?`${String(Math.round(PH.mag.hdg)).padStart(3,'0')}° vera · ${PH.magInUse()?'in uso':(PH.compassMode==='never'?'spenta':'in volo usa la traccia GPS')}${PH.mag.acc!=null&&PH.mag.acc<2?' · da calibrare (muovi a otto)':''}`:(PH.mag.err?'non disponibile: '+PH.mag.err:'nessun dato')],
+    [PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?'ok':'warn','Bussola',PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?`${String(Math.round(PH.mag.hdg)).padStart(3,'0')}° vera · ${PH.magInUse()?'in uso':(PH.compassMode==='never'?'spenta':'in volo usa la traccia GPS')}${PH.mag.acc!=null&&PH.mag.acc<2?' · da calibrare (muovi a otto)':''}`:(PH.mag.iosNeed?'inclina un momento il telefono in avanti (quasi in piano) per trovare il nord':(PH.mag.err?'non disponibile: '+PH.mag.err:'nessun dato'))],
     [PH.mountCal?'ok':'warn','Montaggio',PH.mountCal?('livellato'+(PH.groundPitch?` · a terra ${PH.groundPitch}°`:'')):'telefono verticale (predefinito)'],
     [PH.altCal?'ok':'warn','Quota GPS',PH.altCal?`tarata a ${PH.altCal.field}`:'geoide '+PH.geoid+' m, non tarata'],
     [PH.dem.size?'ok':'warn','Terreno (DEM)',PH.dem.size?`${PH.dem.size} riquadri in memoria`:'non ancora scaricato'],
@@ -3044,6 +3066,14 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
   try{ screen.orientation&&screen.orientation.addEventListener('change',PH.onRotate); }catch(e){}
   addEventListener('orientationchange',PH.onRotate); addEventListener('resize',PH.onRotate);
   addEventListener('devicemotion',PH.onMotion);
+  PH.iosPermNeeded=typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function';
+  PH.iosPerm=async function(){ if(!PH.iosPermNeeded || PH.iosPermAsked) return; PH.iosPermAsked=true;
+    try{ const a=await DeviceMotionEvent.requestPermission();
+      const b=(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission)?await DeviceOrientationEvent.requestPermission():'granted';
+      if(a==='granted'&&b==='granted') toast('SENSORI ATTIVI'); else toast('SENSORI NEGATI: IMPOSTAZIONI › SAFARI › MOVIMENTO E ORIENTAMENTO'); }
+    catch(e){ PH.iosPermAsked=false; } };
+  if(PH.iosPermNeeded){ const once=()=>{ PH.iosPerm(); }; document.addEventListener('click',once,true); document.addEventListener('touchend',once,true);
+    const w=el('phWait'); if(w){ const sp=w.querySelector('span'); if(sp) sp.textContent='Su iPhone e iPad tocca lo schermo una volta per consentire i sensori di movimento, poi consenti la posizione. All\'aperto il primo fix arriva in pochi secondi.'; } }
   addEventListener('deviceorientationabsolute',PH.onOrient); addEventListener('deviceorientation',PH.onOrient);
   if(PH.native && PH.native.compass){ try{
     PH.native.compass.addListener('rot',d=>{ const R=d&&d.R; if(!R||R.length<9) return; PH.mag.native=true; PH.mag.acc=d.acc;
@@ -3074,11 +3104,13 @@ const PH_INFO={
   author:'Enry · I-A517',
   mail:'amicoen@gmail.com',                       // le segnalazioni arrivano qui (FormSubmit, poi posta)
   paypal:'https://www.paypal.me/amicoen',
+  web:'https://amicoen-ops.github.io/strumento-i-a517/',
   releases:'https://api.github.com/repos/amicoen-ops/strumento-i-a517/releases/latest',
   termsVersion:2,                                 // 2: aggiunta la licenza
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['1.0.18','Versione per browser e iPhone/iPad: link in Info (apri, copia, condividi); su iPhone un tocco consente i sensori di movimento e la bussola usa quella di iOS. Spazi aerei openAIP anche dal browser, da una copia aggiornata ogni notte.'],
   ['1.0.17','Riga dello spazio aereo: uno spazio che parte dal suolo (SFC) risulta «dentro» anche a terra, quando la quota GPS è sotto il terreno.'],
   ['1.0.16','Tipo di volo (VDS basico, VDS avanzato, aviazione generale VFR) in Impostazioni e nel Briefing: la rotta viene controllata con le sue regole (DPR 133/2010 per il VDS: spazi controllati e ATZ, 500/1000 ft sull\'ostacolo più alto entro 5 km, 5 km dagli aeroporti). Sotto lo strumento una riga dice sempre in che spazio aereo sei e se è consentito, anche in simulazione; gli avvisi degli spazi aerei funzionano anche simulando. Le aree FMC sono indicate come raccomandazione, non come divieto. Nel menu dello strumento, barra fissa con «Indietro» e «✕». Nel Piano i campi si scelgono anche scrivendo nome o sigla.'],
   ['1.0.15','Spazi aerei d\'Italia da openAIP corretti: il file giusto (lo stesso di XCSoar, aggiornato ogni notte, senza chiave) e lettura del formato OpenAir 2.0, con zone R, P e pericolose riconosciute (1555 spazi). Le aree per attività sportive si vedono ma non danno avvisi.'],
@@ -3197,6 +3229,11 @@ PH.renderInfo=function(){
   <section><h3>Aggiornamenti</h3><div id="phUpd">${b.channel==='apk'?upHtml(up):(b.channel==='play'?'<p class="ph-sub">Gli aggiornamenti arrivano dal Play Store.</p>':'<p class="ph-sub">L\'app dal browser si aggiorna da sola: la nuova versione si carica al lancio successivo.</p>')}</div>
     ${b.channel==='apk'?'<div class="ph-btns"><button class="ph-btn" id="phUpdGo">Controlla ora</button></div>':''}
   </section>
+  <section><h3>Sul browser, anche iPhone e iPad</h3>
+    <p class="ph-sub">La stessa app gira in Chrome o Safari da questo indirizzo. Su iPhone aprilo con Safari, poi Condividi › <b>Aggiungi alla schermata Home</b>: si apre a schermo intero e funziona anche senza internet.</p>
+    <div class="ph-row ph-col"><b style="word-break:break-all">${PH_INFO.web}</b></div>
+    <div class="ph-btns"><a class="ph-btn pri" href="${PH_INFO.web}" target="_blank" rel="noopener">Apri</a><button class="ph-btn" id="phWebCopy">Copia il link</button><button class="ph-btn" id="phWebShare">Condividi</button></div>
+  </section>
   <section><h3>Novità</h3>${PH_CHANGES.map(([v,t])=>`<div class="ph-row ph-col"><b>${v}</b><small>${t}</small></div>`).join('')}</section>
   <section><h3>Segnala un problema o un'idea</h3>
     <p class="ph-sub">Arriva per posta all'autore. Se sei in volo o senza rete resta in coda e parte da sola.</p>
@@ -3232,6 +3269,10 @@ PH.renderInfo=function(){
   </section>`}`;
   el('phLicDet').ontoggle=async e=>{ const pre=el('phLicTxt'); if(!e.target.open || pre.dataset.ok) return;
     try{ const r=await fetch('LICENZE.txt'); pre.textContent=(await r.text()).replace(/([a-zà-ù0-9,;:'")])\n(?=[^\n\s])/g,'$1 ').replace(/([a-zà-ù0-9,;:'")])\n {2,}(?![a-z]\) )/g,'$1 '); pre.style.whiteSpace='pre-wrap'; pre.dataset.ok=1; }catch(_){ pre.textContent='Testo non disponibile: lo trovi nel file LICENSE del repository amicoen-ops/strumento-i-a517.'; } };
+  el('phWebCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText(PH_INFO.web); toast('LINK COPIATO'); }catch(e){ prompt('Copia il link:',PH_INFO.web); } };
+  el('phWebShare').onclick=async()=>{ const d={title:'I-A517 Strumento di volo',text:'Strumento di volo I-A517 per telefono e tablet',url:PH_INFO.web};
+    try{ if(PH.native&&PH.native.share){ await PH.native.share.share(d); return; } if(navigator.share){ await navigator.share(d); return; } }catch(e){ return; }
+    try{ await navigator.clipboard.writeText(PH_INFO.web); toast('LINK COPIATO'); }catch(e){} };
   let kind='Problema';
   el('phRepKind').querySelectorAll('button').forEach(x=>x.onclick=()=>{ kind=x.dataset.k; el('phRepKind').querySelectorAll('button').forEach(y=>y.setAttribute('aria-pressed',y===x)); });
   el('phRepPre').textContent=PH.diag();
