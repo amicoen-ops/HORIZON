@@ -124,6 +124,11 @@ if ws:
         const b=X.RD.info.map(l=>({km:Math.round(l.d/1000),sicura:l.safeFt,quota:l.altFt,zone:l.hits.filter(h=>h.avoid).map(h=>h.a.name)}));
         const out=JSON.stringify({prima:a,dopo:b,msg:X.RD.msg}); X.close(false); PH.show('volo'); return out; })()"""))
     shot("06c_rotta")
+    log("profilo verticale", ev("""(async()=>{ document.getElementById('phAsp').click(); await new Promise(r=>setTimeout(r,2500));
+        const o=JSON.stringify({aperto:!document.getElementById('phProf').hidden, info:document.getElementById('phProfInfo').innerText.slice(0,200)}); return o; })()"""))
+    shot("06d_profilo")
+    ev("PH.show('volo'),1")
+    log("terreno 3D", ev("JSON.stringify({livello:PH.terrLvl,ms:+PH.perf.avg.toFixed(1),fps:PH.fps})"))
     log("bussola", ev("JSON.stringify({prua:PH.mag.hdg!=null?Math.round(PH.mag.hdg):null,fonte:PH.mag.src||null,errore:PH.mag.err||null,in_uso:PH.magInUse()})"))
     log("prestazioni", ev("JSON.stringify({ms:PH.perf.avg.toFixed(1),blocchi:PH.perf.stalls,fps:PH.fps,vicini:PH.nearF&&PH.nearF.length,terreno:PH.dem.size,tessere:PH.tiles.size})"))
     step("08_demo", "(typeof PH.setDemo==='function'?(PH.setDemo(true),'demo'):'manca setDemo')", pause=25)
