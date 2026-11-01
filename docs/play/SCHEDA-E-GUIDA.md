@@ -45,7 +45,8 @@ Le regole sui pagamenti di Google Play non permettono di chiedere donazioni dent
 
 Per questo la versione per il Play Store (`channel: play`):
 - non mostra PayPal né l'invito all'avvio;
-- non controlla gli aggiornamenti su GitHub.
+- non controlla gli aggiornamenti su GitHub: si aggiorna con il sistema di Google (Play In-App Updates, libreria `app-update`), che propone «Aggiorna ora» all'avvio;
+- non ha il permesso `REQUEST_INSTALL_PACKAGES` (installare app): lo aggiunge la compilazione solo all'APK di GitHub, e la compilazione del Play Store controlla che non ci sia.
 
 Tutto il resto è identico. La donazione resta nell'APK di GitHub.
 

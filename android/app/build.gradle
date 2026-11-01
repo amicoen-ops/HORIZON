@@ -46,6 +46,7 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
     implementation "com.android.billingclient:billing:8.0.0"   // acquisto della licenza su Google Play
+    implementation "com.google.android.play:app-update:2.1.0"   // aggiornamenti dal Play Store dentro l'app
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

@@ -112,6 +112,10 @@ if ws:
     # invio vero di una segnalazione di prova (solo quando c'è il file tools/prova_segnalazione: manda una mail a Enry)
     if (Path(__file__).parent / "prova_segnalazione").exists():
         log("segnalazione (invio vero)", ev("""(async()=>{ try{ await PH.sendReport({kind:'Prova',text:'Prova automatica dal collaudo su emulatore: se leggi questa mail il tasto Invia segnalazione funziona.',reply:'',diag:PH.diag(),t:Date.now()}); return 'inviata'; }catch(e){ return 'ERRORE: '+(e&&e.message||e); } })()"""))
+    # aggiornamenti: controllo all'avvio e download vero dell'APK pubblicato con il modulo nativo (senza installarlo)
+    log("aggiornamento (controllo)", ev("""(async()=>{ const u=await PH.checkUpdate(true); return JSON.stringify({stato:u.state,ultima:u.latest,apk:u.apk,size:u.size,modulo:!!(PH.native&&PH.native.upd),finestra:!!document.getElementById('phUpdAsk')}); })()"""))
+    log("aggiornamento (download APK)", ev("""(async()=>{ try{ const U=PH.native.upd, u=PH.upd; let n=0; const l=await U.addListener('progress',()=>n++);
+        const r=await U.apkDownload({url:u.url}); l.remove(); return JSON.stringify({ok:true,size:r.size,attesa:u.size,uguale:r.size===u.size,eventi:n}); }catch(e){ return 'ERRORE: '+(e&&e.message||e); } })()"""), )
     time.sleep(2); log("spazio qui", ev("document.getElementById('phAsp').textContent"))
     # rotta disegnata: Carolina › Aosta con terreno vero (DEM) e spazi aerei veri, poi «Evita zone»
     log("rotta disegnata", ev("""(async()=>{ PH.show('piano'); await new Promise(r=>setTimeout(r,1500));

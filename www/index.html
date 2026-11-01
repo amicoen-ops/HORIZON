@@ -2059,7 +2059,7 @@ OBST.length=0;                                           // ostacoli sintetici: 
 // ---- app installata (APK Capacitor): funzioni native al posto di quelle del browser ----
 PH.native=(()=>{ const C=window.Capacitor; if(!C||!C.isNativePlatform||!C.isNativePlatform()) return null;
   const P=n=>{ try{ return (C.Plugins&&C.Plugins[n])||C.registerPlugin(n); }catch(e){ return null; } };
-  return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass')}; })();
+  return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass'),upd:P('Updater')}; })();
 // ---- voce e vibrazione ----
 PH.say=function(text,urgent){
   if(!PH.voice || (!window.speechSynthesis && !(PH.native&&PH.native.tts))) return;
@@ -2882,7 +2882,7 @@ PH.renderImp=function(){
     <p class="ph-sub">Più dettaglio = riquadri più piccoli nella vista sintetica. In automatico parte dal massimo e scende da solo se il telefono non tiene i fotogrammi al secondo.</p>
   </section>
   <section><h3>Tipo di volo</h3>
-    <div class="ph-seg" id="phProf">${Object.entries(IA517_RULES.PROFILES).map(([k2,v])=>`<button data-p="${k2}" aria-pressed="${IA517_RULES.get()===k2}">${v.name}</button>`).join('')}</div>
+    <div class="ph-seg" id="phFlType">${Object.entries(IA517_RULES.PROFILES).map(([k2,v])=>`<button data-p="${k2}" aria-pressed="${IA517_RULES.get()===k2}">${v.name}</button>`).join('')}</div>
     <p class="ph-sub">Decide che cosa è consentito. <b>VDS basico</b>: fuori dagli spazi controllati (A–E) e dalle ATZ, ad almeno 5 km dagli aeroporti, fino a 500 ft sull'ostacolo più alto entro 5 km (1000 ft sabato, domenica e festivi). <b>VDS avanzato</b> e <b>aviazione generale VFR</b>: tutto lo spazio aperto al VFR, con autorizzazione ATC in C e D; classe A vietata. Fonte: DPR 133/2010 art. 8–9. Salvo autorizzazioni ENAC; valgono l'AIP e i NOTAM.</p>
   </section>
   <section><h3>Bussola</h3>
@@ -2938,8 +2938,8 @@ PH.renderImp=function(){
   el('phTq').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.terrQ=b.dataset.q; lsSet('ia517p_terrq',PH.terrQ); el('phTq').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.tqNow(); });
   PH.tqNow();
   el('phUi').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.setUi(b.dataset.u); el('phUi').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
-  el('phProf').querySelectorAll('button').forEach(b=>b.onclick=()=>{ IA517_RULES.set(b.dataset.p); el('phProf').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.renderAsp();
-    try{ const w=el('phAppFrame').contentWindow; w.IA517_profChanged&&w.IA517_profChanged(); }catch(e){} toast('TIPO DI VOLO: '+IA517_RULES.PROFILES[b.dataset.p].short); });
+  el('phFlType').querySelectorAll('button').forEach(b=>b.onclick=()=>{ IA517_RULES.set(b.dataset.p); el('phFlType').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.renderAsp();
+    try{ const w=el('phAppFrame').contentWindow; w.IA517_profChanged&&w.IA517_profChanged(); }catch(e){} const pr=IA517_RULES.PROFILES[b.dataset.p]; toast('TIPO DI VOLO: '+(pr?pr.short:b.dataset.p)); });
   el('phCmp').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.compassMode=b.dataset.c; lsSet('ia517p_compass',PH.compassMode); el('phCmp').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); stat(); });
   el('phDecl').onchange=()=>{ const v=+el('phDecl').value; if(v>=-30&&v<=30){ PH.decl=v; lsSet('ia517p_decl',v); } };
   el('phAltSet').onclick=()=>{ const v=+el('phAltKnown').value, src=PH.src||'phone';
@@ -2981,7 +2981,7 @@ PH.renderImp=function(){
   el('phVib').onchange=e=>{ PH.vib=e.target.checked; lsSet('ia517p_vib',PH.vib); };
   el('phWake').onchange=e=>{ PH.wakeOn=e.target.checked; lsSet('ia517p_wake',PH.wakeOn); if(PH.wakeOn) PH.wakeLock(); else if(PH.wake) PH.wake.release(); };
   el('phVoiceTest').onclick=()=>PH.say('Carolina, pista 3 6, circuito sinistro, 800 piedi',true);
-  el('phFull').onclick=()=>{ try{ document.documentElement.requestFullscreen({navigationUI:'hide'}); }catch(e){} };
+  el('phFull').onclick=()=>{ try{ const q=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen({navigationUI:'hide'}); if(q&&q.catch) q.catch(()=>toast(PH.native?'L\'APP È GIÀ A SCHERMO INTERO':'SCHERMO INTERO NON DISPONIBILE')); else if(!q) toast('SCHERMO INTERO NON DISPONIBILE'); }catch(e){} };
   el('phToInfo').onclick=()=>PH.show('info');
   el('phDemo').onclick=()=>{ PH.setDemo(!PH.demo); PH.renderImp(); };
   PH.renderLog();
@@ -3369,6 +3369,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['1.0.37','Controllo della versione a ogni avvio e tasto «Aggiorna ora»: l\'app scarica e installa da sola la versione nuova (dal Play Store nella versione del Play Store, ricarica sul browser). Mai in volo. Le segnalazioni arrivano per posta in italiano, con oggetto chiaro e campi in ordine. Corretto il tipo di volo nelle impostazioni, che non si cambiava.'],
   ['1.0.36','Calcola rotta più veloce sulle rotte lunghe con parchi e zone dai confini molto dettagliati: lo schermo resta sempre reattivo durante il calcolo.'],
   ['1.0.34','Calcola rotta: una tratta lunga resta sotto la base delle zone anche sul suo punto più alto; i punti si tolgono solo se la tratta, alla quota che le dà l\'app, non entra in zone.'],
   ['1.0.33','Parchi e aree protette (OFR, come il Parco Nazionale del Gran Paradiso): ora sono zone da non sorvolare per ogni tipo di volo, con avviso in volo; «Calcola rotta» li gira intorno. Campi delle Alpi oltre confine (Francia, Svizzera, Austria, Slovenia), per esempio l\'altiporto della Tovière; spazi aerei openAIP anche dei Paesi vicini, nella fascia alpina. Calcola rotta: la pulizia dei punti non fa più entrare in zone nuove. Il cerchio di planata sulla mappa si accende e si spegne in Impostazioni › Velivoli.'],
@@ -3410,20 +3411,89 @@ PH.versionHistory=function(){
   if(!h.length || h[0].v!==b.version){ h.unshift({v:b.version,build:b.build,t:Date.now()}); lsSet('ia517p_versions',h.slice(0,20)); }
   return h;
 };
-// controllo degli aggiornamenti (versioni pubblicate su GitHub)
+// controllo degli aggiornamenti all'avvio e aggiornamento dall'app
+//  · APK di GitHub: legge l'ultima versione pubblicata, scarica l'APK e apre l'installazione di Android
+//  · Google Play: chiede al Play Store se c'è una versione nuova e la installa dentro l'app (In-App Updates)
+//  · browser / iPhone: confronta l'impronta delle pagine pubblicate e ricarica
+PH.updBusy=false;
 PH.checkUpdate=async function(manual){
-  const b=PH.version(), out={state:'?'};
+  const b=PH.version(), out={state:'?',channel:b.channel};
   try{
-    const r=await window.IA517.http(PH_INFO.releases);
-    if(r.status===404){ out.state='privato'; }
-    else if(r.status!==200){ out.state='errore'; out.msg='risposta '+r.status; }
-    else { const j=JSON.parse(r.text), n=parseInt(String(j.tag_name||'').replace(/\D+/g,''))||0, cur=parseInt(b.build)||0;
-      const apk=(j.assets||[]).find(a=>/\.apk$/i.test(a.name));
-      Object.assign(out,{state:n>cur?'nuova':'ok',latest:(j.name||j.tag_name||'').replace(/^HORIZON\s*/,''),build:n,url:apk?apk.browser_download_url:j.html_url,date:j.published_at,notes:j.body||''}); }
+    if(!navigator.onLine){ out.state='offline'; }
+    else if(b.channel==='play'){
+      const U=PH.native&&PH.native.upd; if(!U) throw new Error('modulo aggiornamenti assente');
+      const r=await U.playCheck();
+      if(r.error && !r.available){ out.state='errore'; out.msg=r.error; }
+      else Object.assign(out,{state:r.available?'nuova':'ok',build:r.versionCode||0,latest:r.available?'1.0.'+r.versionCode:b.version,stale:r.staleDays}); }
+    else if(b.channel==='web'){
+      const r=await fetch('version.js?chk='+Date.now(),{cache:'no-store'}); if(!r.ok) throw new Error('risposta '+r.status);
+      const t=await r.text(), bu=(t.match(/build:'([^']*)'/)||[])[1]||'', ve=(t.match(/version:'([^']*)'/)||[])[1]||'';
+      Object.assign(out,{state:bu&&bu!==String(b.build)&&b.build!=='web'?'nuova':'ok',latest:ve||b.version,build:bu}); }
+    else {
+      const r=await window.IA517.http(PH_INFO.releases);
+      if(r.status===404){ out.state='privato'; }
+      else if(r.status!==200){ out.state='errore'; out.msg='risposta '+r.status; }
+      else { const j=JSON.parse(r.text), n=parseInt(String(j.tag_name||'').replace(/\D+/g,''))||0, cur=parseInt(b.build)||0;
+        const apk=(j.assets||[]).find(a=>/\.apk$/i.test(a.name)&&!/play/i.test(a.name));
+        Object.assign(out,{state:n>cur?'nuova':'ok',latest:(j.name||j.tag_name||'').replace(/^HORIZON\s*/,''),build:n,
+          url:apk?apk.browser_download_url:j.html_url,apk:!!apk,size:apk?apk.size:0,date:j.published_at,notes:j.body||''}); } }
   }catch(e){ out.state=navigator.onLine?'errore':'offline'; out.msg=e&&e.message; }
-  out.t=Date.now(); lsSet('ia517p_update',out);
-  if(out.state==='nuova' && !manual) toast('AGGIORNAMENTO DISPONIBILE · '+out.latest);
+  out.t=Date.now(); lsSet('ia517p_update',out); PH.upd=out;
+  if(out.state==='nuova' && !manual) PH.updPrompt(out);
   return out;
+};
+PH.updMoving=()=>!!(PH.flight || PH.sim || (S.gpsReal && S.gs>35));
+// la finestra «Nuova versione»: mai sopra lo strumento in volo, aspetta l'atterraggio
+PH.updPrompt=function(u){
+  if(!u || u.state!=='nuova' || PH.updLater===u.build || document.getElementById('phUpdAsk')) return;
+  if(PH.updMoving() || document.getElementById('phTerms') || document.getElementById('licWall')){ clearTimeout(PH.updWait); PH.updWait=setTimeout(()=>PH.updPrompt(u),60e3); return; }
+  const nag=document.getElementById('phNag'); if(nag) nag.remove();
+  const esc=x=>String(x||'').replace(/</g,'&lt;');
+  const notes=u.notes?esc(u.notes).split('\n').filter(l=>l.trim()).slice(0,8).join('<br>'):'';
+  const d=document.createElement('div'); d.className='ph-sheet ph-terms'; d.id='phUpdAsk';
+  d.innerHTML=`<div class="ph-imp"><section><h3>Nuova versione disponibile</h3>
+    <p><b class="ph-new">HORIZON ${esc(u.latest)}</b> · ora hai la ${esc(PH.version().version)}</p>
+    ${notes?`<p class="ph-sub">${notes}</p>`:''}
+    <p class="ph-sub">${u.channel==='web'?'Si ricarica la pagina con la versione nuova.':u.channel==='play'?'L\'aggiornamento arriva dal Play Store e si installa qui dentro.':'Si scarica e si installa sopra quella attuale: rotte, campi, velivoli, impostazioni e diario restano.'}</p>
+    <div id="phUpdMsg" class="ph-sub"></div>
+    <div class="ph-btns" style="justify-content:center"><button class="ph-btn pri" id="phUpdNow">Aggiorna ora</button><button class="ph-btn" id="phUpdLater">Più tardi</button></div></section></div>`;
+  document.body.appendChild(d);
+  el('phUpdLater').onclick=()=>{ PH.updLater=u.build; d.remove(); };
+  el('phUpdNow').onclick=()=>PH.doUpdate(u,el('phUpdMsg'),el('phUpdNow'));
+};
+PH.doUpdate=async function(u,msg,btn){
+  u=u||PH.upd||lsGet('ia517p_update',null); if(!u || PH.updBusy) return;
+  const say=t=>{ if(msg) msg.innerHTML=t; };
+  if(PH.updMoving()){ say('In volo non si aggiorna: riprova a terra.'); return; }
+  PH.updBusy=true; if(btn) btn.disabled=true; PH.act&&PH.act('aggiorna '+(u.latest||''));
+  try{
+    if(u.channel==='web'){
+      say('Carico la versione nuova…');
+      try{ const ks=await caches.keys(); await Promise.all(ks.filter(k=>k.startsWith('ia517-app-')).map(k=>caches.delete(k))); }catch(e){}
+      try{ const r=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration(); if(r) await r.update(); }catch(e){}
+      location.reload(); return; }
+    const U=PH.native&&PH.native.upd;
+    if(u.channel==='play'){
+      if(!U) throw new Error('aggiorna dal Play Store');
+      say('Apro l\'aggiornamento del Play Store…'); await U.playStart(); say('Segui le istruzioni del Play Store.'); return; }
+    // APK di GitHub
+    if(!U || !u.apk){ window.open(u.url,'_blank'); say('Si apre la pagina della versione: scarica l\'APK e installalo.'); return; }
+    let lis=null;
+    try{ lis=await U.addListener('progress',p=>{ const mb=v=>(v/1048576).toFixed(1);
+      say(p.total>0?`Scarico… ${Math.round(p.done*100/p.total)}% · ${mb(p.done)} di ${mb(p.total)} MB`:`Scarico… ${mb(p.done)} MB`); }); }catch(e){}
+    say('Scarico la versione nuova…');
+    const r=await U.apkDownload({url:u.url});
+    try{ lis&&lis.remove&&lis.remove(); }catch(e){}
+    if(u.size && Math.abs(r.size-u.size)>0) throw new Error('file incompleto, riprova');
+    PH.updFile=r.path;
+    const inst=async()=>{ const x=await U.apkInstall({path:PH.updFile});
+      if(x.needPermission){ say('Android chiede il permesso: attiva <b>«Consenti da questa fonte»</b> per HORIZON e torna qui, l\'installazione riparte da sola.');
+        const back=()=>{ if(document.visibilityState==='visible'){ document.removeEventListener('visibilitychange',back); setTimeout(inst,600); } };
+        document.addEventListener('visibilitychange',back); return; }
+      say('Conferma «Aggiorna» nella finestra di Android. L\'app si riapre aggiornata.'); };
+    await inst();
+  }catch(e){ say('Aggiornamento non riuscito: '+String(e&&e.message||e).replace(/</g,'').slice(0,120)+(u.url?` · <a href="${u.url}" target="_blank" rel="noopener">scaricalo a mano</a>`:'')); }
+  finally{ PH.updBusy=false; if(btn) btn.disabled=false; }
 };
 // registro degli errori, da allegare alle segnalazioni
 PH.errLog=lsGet('ia517p_errlog',[]);
@@ -3439,8 +3509,23 @@ PH.diag=function(){
     'Ultime azioni della sessione precedente:', ...((PH.hbPrev&&PH.hbPrev.trail&&PH.hbPrev.trail.length)?PH.hbPrev.trail:['—']),
     'Ultimi errori:', ...(PH.errLog.length?PH.errLog.slice(0,12):['nessuno'])].join('\n');
 };
-// segnalazioni: inviate per posta tramite FormSubmit; senza rete restano in coda e partono dopo
+// segnalazioni: inviate per posta tramite Web3Forms (FormSubmit di riserva); senza rete restano in coda e partono dopo
 PH.reports=lsGet('ia517p_reports',[]);
+// la posta che arriva a Enry: oggetto chiaro, campi in italiano e in ordine, dati tecnici in fondo
+PH.repMail=function(rep){
+  const b=PH.version(), d=new Date(rep.t), diag=rep.diag||'';
+  const two=n=>String(n).padStart(2,'0'), when=`${two(d.getDate())}/${two(d.getMonth()+1)}/${d.getFullYear()} alle ${two(d.getHours())}:${two(d.getMinutes())}`;
+  const ua=navigator.userAgent, m=ua.match(/Android\s+([\d.]+);\s*([^;)]+?)(?:\s+Build|\))/), ios=ua.match(/(iPhone|iPad)[^)]*OS\s+([\d_]+)/);
+  const tel=m?`${m[2].trim()} · Android ${m[1]}`:ios?`${ios[1]} · iOS ${ios[2].replace(/_/g,'.')}`:(PH.isIOS?'iPhone':'browser');
+  const acL=(diag.match(/^Velivolo:\s*(.+)$/m)||[])[1]||'—';
+  const canale={apk:'APK da GitHub',play:'Google Play',web:'web / iPhone'}[b.channel]||b.channel;
+  const short=rep.text.replace(/\s+/g,' ').trim(), cut=short.length>70?short.slice(0,70)+'…':short;
+  return {access_key:PH_INFO.w3f, from_name:'HORIZON · segnalazioni', subject:`HORIZON · ${rep.kind} · ${b.version} — ${cut}`,
+    replyto:rep.reply||undefined,
+    'Segnalazione':rep.kind, 'Messaggio':rep.text, 'Rispondere a':rep.reply||'non indicato',
+    'Velivolo':acL, 'Versione':`HORIZON ${b.version} · ${canale}`, 'Telefono':tel, 'Inviata il':when,
+    'Dati tecnici':diag?diag.split('\n').filter(l=>!/^Velivolo:/.test(l)).join('\n'):'non allegati'};
+};
 PH.sendReport=async function(rep){
   const subj=`[HORIZON] ${rep.kind}: ${rep.text.slice(0,60)}`, ver=PH.version().version, when=new Date(rep.t).toLocaleString('it-IT');
   const post=async(url,body,extra)=>{ const h=Object.assign({'Content-Type':'application/json','Accept':'application/json'},extra||{});
@@ -3451,8 +3536,7 @@ PH.sendReport=async function(rep){
     // dal WebView come da un browser (Web3Forms gratuito accetta solo invii da pagina web), il modulo nativo solo se fetch non passa
     const postW=async(url,body)=>{ try{ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)});
         let d=null; try{ d=await r.json(); }catch(e){} return {status:r.status,d}; }catch(e){ if(PH.native&&PH.native.http) return post(url,body); throw e; } };
-    const r=await postW('https://api.web3forms.com/submit',{access_key:PH_INFO.w3f,subject:subj,from_name:'HORIZON '+ver,
-      email:rep.reply||undefined,replyto:rep.reply||undefined,tipo:rep.kind,messaggio:rep.text,rispondi_a:rep.reply||'(non indicato)',versione:ver,data:when,dati_tecnici:rep.diag||'(non allegati)'});
+    const r=await postW('https://api.web3forms.com/submit',PH.repMail(rep));
     if(r.status>=200&&r.status<300&&r.d&&yes(r.d.success)) return;
     throw new Error((r.d&&r.d.message)||('risposta '+r.status)); }
   const body={_subject:subj,_template:'box',_captcha:'false',tipo:rep.kind,messaggio:rep.text,rispondi_a:rep.reply||'(non indicato)',versione:ver,data:when,dati_tecnici:rep.diag||'(non allegati)'};
@@ -3495,12 +3579,13 @@ PH.renderInfo=function(){
   const dt=t=>t?new Date(t).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
   const upHtml=u=>{ if(!u) return '<p class="ph-sub">Non ancora controllato.</p>';
     const when=`controllato il ${new Date(u.t).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}`;
-    if(u.state==='nuova') return `<p><b class="ph-new">Disponibile la versione ${u.latest}</b> (${dt(u.date)})</p>${u.notes?`<p class="ph-sub">${u.notes.replace(/</g,'&lt;').slice(0,300)}</p>`:''}
-      <div class="ph-btns"><a class="ph-btn pri" href="${u.url}" target="_blank" rel="noopener">Scarica e installa</a></div><p class="ph-sub">Si installa sopra la versione attuale: rotte, campi, impostazioni e diario restano. ${when}.</p>`;
+    if(u.state==='nuova') return `<p><b class="ph-new">Disponibile la versione ${u.latest}</b>${u.date?' ('+dt(u.date)+')':''}</p>${u.notes?`<p class="ph-sub">${u.notes.replace(/</g,'&lt;').slice(0,300)}</p>`:''}
+      <div class="ph-btns"><button class="ph-btn pri" id="phUpdNowI">Aggiorna ora</button></div><div id="phUpdMsgI" class="ph-sub"></div><p class="ph-sub">${b.channel==='web'?'Ricarica la pagina con la versione nuova.':'Si installa sopra la versione attuale: rotte, campi, velivoli, impostazioni e diario restano.'} ${when}.</p>`;
     if(u.state==='ok') return `<p>✓ Hai l'ultima versione (${u.latest||b.version}). <span class="ph-sub">${when}</span></p>`;
     if(u.state==='privato') return `<p class="ph-sub">Le versioni non sono ancora pubblicate in modo pubblico: il controllo automatico non può leggerle. ${when}.</p>`;
-    if(u.state==='offline') return `<p class="ph-sub">Senza internet: ricontrollo appena torna la rete. ${when}.</p>`;
-    return `<p class="ph-sub">Controllo non riuscito${u.msg?' ('+String(u.msg).replace(/</g,'')+')':''}. ${when}.</p>`; };
+    if(u.state==='offline') return `<p class="ph-sub">Senza internet: ricontrollo al prossimo avvio con la rete. ${when}.</p>`;
+    return `<p class="ph-sub">Controllo non riuscito${u.msg?' ('+String(u.msg).replace(/</g,'').slice(0,100)+')':''}. ${when}.</p>`; };
+  const upWire=()=>{ const x=el('phUpdNowI'); if(x) x.onclick=()=>PH.doUpdate(null,el('phUpdMsgI'),x); };
   const box=el('phInfoBody');
   box.innerHTML=`
   <section class="ph-hero"><img src="icon-192.png" alt="" width="64" height="64"><div><b>HORIZON · strumento di volo</b><span>${PH_INFO.author}</span><span class="ph-sub">© 2026 ${PH_INFO.owner} · Tutti i diritti riservati</span></div></section>
@@ -3511,8 +3596,8 @@ PH.renderInfo=function(){
     <div class="ph-row"><span>Avvertenze accettate</span><small>${acc?dt(acc.t):'no'}</small></div>
   </section>
   ${window.IA517_LIC?IA517_LIC.infoHtml():''}
-  <section><h3>Aggiornamenti</h3><div id="phUpd">${b.channel==='apk'?upHtml(up):(b.channel==='play'?'<p class="ph-sub">Gli aggiornamenti arrivano dal Play Store.</p>':'<p class="ph-sub">L\'app dal browser si aggiorna da sola: la nuova versione si carica al lancio successivo.</p>')}</div>
-    ${b.channel==='apk'?'<div class="ph-btns"><button class="ph-btn" id="phUpdGo">Controlla ora</button></div>':''}
+  <section><h3>Aggiornamenti</h3><p class="ph-sub">Controllo a ogni avvio con internet${b.channel==='play'?', dal Play Store':b.channel==='web'?'':', dalle versioni pubblicate su GitHub'}.</p><div id="phUpd">${upHtml(up)}</div>
+    <div class="ph-btns"><button class="ph-btn" id="phUpdGo">Controlla ora</button></div>
   </section>
   <section><h3>Sul browser, anche iPhone e iPad</h3>
     <p class="ph-sub">La stessa app gira in Chrome o Safari da questo indirizzo. Su iPhone aprilo con Safari, poi Condividi › <b>Aggiungi alla schermata Home</b>: si apre a schermo intero e funziona anche senza internet.</p>
@@ -3578,7 +3663,8 @@ PH.renderInfo=function(){
         if(await PH.shareReport(r)) el('phRepText').value=''; } }
     finally{ el('phRepSend').disabled=false; }
   };
-  if(el('phUpdGo')) el('phUpdGo').onclick=async()=>{ el('phUpd').innerHTML='<p class="ph-sub">Controllo…</p>'; el('phUpd').innerHTML=upHtml(await PH.checkUpdate(true)); };
+  if(el('phUpdGo')) el('phUpdGo').onclick=async()=>{ el('phUpd').innerHTML='<p class="ph-sub">Controllo…</p>'; el('phUpd').innerHTML=upHtml(await PH.checkUpdate(true)); upWire(); };
+  upWire();
 };
 // donazione: invito nei primi 5 avvii (non nella versione del Play Store, che non permette donazioni nell'app)
 PH.donateNag=function(){
@@ -3598,12 +3684,12 @@ PH.donateNag=function(){
   el('phNagDone').onclick=()=>{ lsSet('ia517p_donated',true); close(); toast('GRAZIE!'); };
   el('phNagPay').addEventListener('click',()=>{ PH.act&&PH.act('dona'); setTimeout(close,400); });
 };
-// avvio: avvertenze, storico versioni, controllo aggiornamenti una volta al giorno, coda segnalazioni
+// avvio: avvertenze, storico versioni, controllo aggiornamenti a ogni avvio, coda segnalazioni
 (function(){
   PH.versionHistory(); PH.launchN=(lsGet('ia517p_launches',0)|0)+1; lsSet('ia517p_launches',PH.launchN);
   PH.terms(); if(!document.getElementById('phTerms')) setTimeout(()=>PH.donateNag(),2500);
-  const up=lsGet('ia517p_update',null);
-  if(PH.version().channel==='apk' && (!up || Date.now()-up.t>20*3600e3)) setTimeout(()=>PH.checkUpdate(false),8000);
+  setTimeout(()=>PH.checkUpdate(false),4000);                        // controllo della versione a ogni avvio
+  addEventListener('online',()=>{ const u=lsGet('ia517p_update',null); if(!u||u.state==='offline'||u.state==='errore') PH.checkUpdate(false); });
   setTimeout(()=>PH.flushReports(),5000);
 })();
 

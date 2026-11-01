@@ -32,7 +32,10 @@ jobs:
           cp -r www/. sito/
           rm -f sito/capacitor.js
           sed -i 's#<script src="capacitor.js"></script>##' sito/index.html
-          echo "window.IA517_BUILD={version:'web',build:'web',channel:'web'};" > sito/version.js
+          # impronta delle pagine: cambia solo quando cambia l'app, così il controllo all'avvio propone di ricaricare solo se serve
+          h=$(cat www/index.html www/app.html www/regole.js www/licenza.js | sha1sum | cut -c1-8)
+          d=$(git log -1 --format=%cd --date=format:%d.%m.%Y)
+          echo "window.IA517_BUILD={version:'web ${d}',build:'${h}',channel:'web'};" > sito/version.js
           # spazi aerei d'Italia da openAIP (CC BY-NC 4.0): copia sullo stesso sito, leggibile anche dal browser
           for cc in it fr ch at si; do
             curl -sSfL --max-time 120 -o sito/dati/${cc}_asp_v2.txt https://storage.openaip.net/openaip-system-exports/${cc}_asp_v2.txt || echo "openAIP $cc non raggiungibile"

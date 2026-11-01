@@ -24,6 +24,7 @@ async function staleWhileRevalidate(req){
 self.addEventListener('fetch',e=>{
   const req=e.request; if(req.method!=='GET') return;
   const u=new URL(req.url);
+  if(u.searchParams.has('chk')) return;                     // controllo della versione: sempre dalla rete
   if(u.hostname==='s3.amazonaws.com' && u.pathname.includes('/elevation-tiles-prod/')) e.respondWith(cacheFirst(req,'ia517-dem',4000));
   else if(/tile\.opentopomap\.org$|tile\.openstreetmap\.org$/.test(u.hostname)) e.respondWith(cacheFirst(req,'ia517-map',3000));
   else if(u.hostname==='api.open-meteo.com') e.respondWith(networkFirst(req,'ia517-wx'));

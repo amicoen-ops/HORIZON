@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.33"
+VER = "1.0.37"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -141,12 +141,14 @@ s += [Paragraph("APK da GitHub (con aggiornamenti e donazione)", H3)]
 s += steps(["Sul telefono apri la pagina delle release: github.com/amicoen-ops/HORIZON/releases. Scarica il file <b>HORIZON-1.0.N.apk</b> della release più recente.",
             "Apri il file. La prima volta Android chiede di consentire l'installazione da questa fonte, cioè dal browser o dall'app File: consenti.",
             "Installa. Le versioni successive si installano sopra la precedente: rotte, campi, impostazioni e diario restano."])
-s += [P("Gli aggiornamenti li segnala l'app stessa: in <b>Info › Aggiornamenti</b> compare la versione nuova con il pulsante «Scarica e installa». L'app controlla una volta al giorno, oppure quando premi «Controlla ora».")]
+s += [P("A ogni avvio con internet l'app controlla se c'è una versione nuova. Se c'è, compare la finestra <b>«Nuova versione disponibile»</b> con le novità e il tasto <b>«Aggiorna ora»</b>: l'app scarica l'APK e apre l'installazione di Android, tu confermi «Aggiorna» e l'app si riapre aggiornata, con rotte, campi, velivoli, impostazioni e diario intatti. "
+        "La prima volta Android chiede il permesso <b>«Consenti da questa fonte»</b> per HORIZON: attivalo e torna nell'app, l'installazione riparte da sola. «Più tardi» rimanda al prossimo avvio. Lo stesso tasto c'è in <b>Info › Aggiornamenti</b>, con «Controlla ora». In volo la finestra non compare mai: aspetta che tu sia a terra.")]
 s += [Paragraph("Versione del Play Store", H3)]
 s += [P("È la stessa app, ma senza la donazione e senza il controllo degli aggiornamenti su GitHub: le regole di Google Play vietano tutte e due le cose. "
-        "Si aggiorna dal Play Store. Le due versioni non si installano l'una sopra l'altra, perché quella del Play Store è firmata da Google. "
+        "Si aggiorna dal Play Store, anche da dentro l'app: all'avvio, se il Play Store ha una versione nuova, compare «Aggiorna ora» e l'aggiornamento si installa con la finestra di Google. Le due versioni non si installano l'una sopra l'altra, perché quella del Play Store è firmata da Google. "
         "Per passare dall'una all'altra esporta rotte e diario, disinstalla quella che hai e installa l'altra.")]
 s += [Paragraph("Versione da browser", H3)]
+s += [P("All'avvio controlla se le pagine pubblicate sono cambiate: se sì propone «Aggiorna ora», che ricarica la versione nuova.")]
 s += [P("La stessa app può girare anche nel browser Chrome, da un indirizzo https, e si installa con il menu ⋮ › <i>Installa app</i>. "
         "Ha qualche limite in più: il GLO 2 funziona solo con Chrome recente, i METAR vanno incollati a mano e le mappe solo http, come l'IGM, possono essere bloccate.")]
 
