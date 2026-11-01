@@ -16,14 +16,31 @@ jobs:
       - name: Prova gli indirizzi
         run: |
           {
-          for h in api.polar.sh sandbox-api.polar.sh; do
-            for o in https://amicoen-ops.github.io https://localhost; do
-              echo "=== $h preflight da $o"
-              curl -sS -o /dev/null -D - -X OPTIONS -H "Origin: $o" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: content-type" "https://$h/v1/customer-portal/license-keys/validate" | grep -i -E "^HTTP|access-control"
+          for cc in it fr ch at si; do
+            for f in ${cc}_apt.json ${cc}_apt_v2.json ${cc}_apt.geojson; do
+              code=$(curl -sS -o $f -w "%{http_code}" --max-time 120 https://storage.openaip.net/openaip-system-exports/$f); echo "=== $f $code $(stat -c %s $f 2>/dev/null)"
             done
-            echo "=== $h validate chiave finta"
-            curl -sS -H "Origin: https://localhost" -H "Content-Type: application/json" -d '{"key":"IA517-FINTA","organization_id":"00000000-0000-0000-0000-000000000000"}' -D - "https://$h/v1/customer-portal/license-keys/validate" | grep -i -E "^HTTP|access-control|detail|error" | head -8
           done
+          python3 - <<'PY'
+          import json,os
+          for cc in ['it','fr','ch','at','si']:
+              f=cc+'_apt.json'
+              if not os.path.exists(f) or os.path.getsize(f)<100: print(cc,'manca'); continue
+              try: d=json.load(open(f))
+              except Exception as e: print(cc,'json?',e, open(f).read(300)); continue
+              items=d if isinstance(d,list) else d.get('items',d)
+              print(cc,'voci',len(items))
+              if cc=='it':
+                  print(json.dumps(items[0],ensure_ascii=False)[:2500])
+              fu=[x for x in items if (x.get('services') or {}).get('fuelTypes')]
+              print(cc,'con carburante',len(fu))
+              from collections import Counter
+              print(cc,'tipi',Counter(x.get('type') for x in items).most_common(12))
+              print(cc,'tipi con carburante',Counter(x.get('type') for x in fu).most_common(12))
+              print(cc,'codici',Counter(t for x in fu for t in x['services']['fuelTypes']).most_common())
+              for x in fu[:40] if cc=='it' else fu[:5]:
+                  print('  ',x.get('icaoCode'),x.get('name'),x.get('type'),x['services']['fuelTypes'],x.get('geometry',{}).get('coordinates'))
+          PY
           } > sonda.txt 2>&1
           cat sonda.txt
       - name: Copia del file nella pre-release diagnostica
@@ -36,4 +53,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           { echo '```'; head -c 60000 sonda.txt; echo '```'; } > corpo.md
-          gh issue create -R ${{ github.repository }} --title "Sonda spazi aerei" --body-file corpo.md
+          gh issue create -R ${{ github.repository }} --title "Sonda carburante openAIP" --body-file corpo.md
