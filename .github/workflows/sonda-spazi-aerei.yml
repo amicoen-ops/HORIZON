@@ -16,19 +16,21 @@ jobs:
       - name: Prova gli indirizzi
         run: |
           {
-          B=https://storage.openaip.net/openaip-system-exports
-          for n in it_rpp it_rpp_v2 it_nav it_hot it_apt it_obs; do for x in geojson json ndgeojson cup cupx aip txt; do
-            c=$(curl -sS -L -o "$n.$x" -w "%{http_code} %{size_download}" --max-time 60 "$B/$n.$x" || echo "err")
-            echo "$n.$x  $c"; case "$c" in 200*) ;; *) rm -f "$n.$x";; esac
-          done; done
-          echo "=== prime righe dei punti di riporto"; for f in it_rpp*; do echo "--- $f"; head -c 1500 "$f"; echo; done
+          for h in api.polar.sh sandbox-api.polar.sh; do
+            for o in https://amicoen-ops.github.io https://localhost; do
+              echo "=== $h preflight da $o"
+              curl -sS -o /dev/null -D - -X OPTIONS -H "Origin: $o" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: content-type" "https://$h/v1/customer-portal/license-keys/validate" | grep -i -E "^HTTP|access-control"
+            done
+            echo "=== $h validate chiave finta"
+            curl -sS -H "Origin: https://localhost" -H "Content-Type: application/json" -d '{"key":"IA517-FINTA","organization_id":"00000000-0000-0000-0000-000000000000"}' -D - "https://$h/v1/customer-portal/license-keys/validate" | grep -i -E "^HTTP|access-control|detail|error" | head -8
+          done
           } > sonda.txt 2>&1
           cat sonda.txt
       - name: Copia del file nella pre-release diagnostica
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for f in it_rpp*; do gh release upload diagnostica -R ${{ github.repository }} --clobber "$f" || true; done
+          true
       - name: Risultato in una issue
         env:
           GH_TOKEN: ${{ github.token }}
