@@ -131,7 +131,7 @@ if ws:
         w.document.getElementById('rdAv').click(); for(let i=0;i<60;i++){ await new Promise(r=>setTimeout(r,1000)); if(!X.RD.busy && i>2) break; }
         await new Promise(r=>setTimeout(r,1500));
         const b=X.RD.info.map(l=>({km:Math.round(l.d/1000),sicura:l.safeFt,quota:l.altFt,zone:l.hits.filter(h=>h.avoid).map(h=>h.a.name)}));
-        const out=JSON.stringify({spazi:w.ASP_SRC.name,prima:a,dopo:b}); X.close(false); PH.show('volo'); return out; })()"""))
+        const out=JSON.stringify({spazi:w.IA517_asp().length,prima:a,dopo:b}); X.close(false); PH.show('volo'); return out; })()"""))
     log("profilo verticale", ev("""(async()=>{ document.getElementById('phAsp').click(); await new Promise(r=>setTimeout(r,2500));
         const o=JSON.stringify({aperto:!document.getElementById('phProf').hidden, info:document.getElementById('phProfInfo').innerText.slice(0,200)}); return o; })()"""))
     shot("06d_profilo")
