@@ -16,23 +16,19 @@ jobs:
       - name: Prova gli indirizzi
         run: |
           {
-          for u in https://storage.openaip.net/openaip-system-exports/it_asp_v2.txt https://storage.openaip.net/openaip-system-exports/it_asp.txt https://storage.openaip.net/openaip-system-exports/it_apt.cupx; do
-            echo "=== $u"
-            curl -sS -L -o "$(basename $u)" -D head.txt -w "codice %{http_code} · %{size_download} byte · %{content_type}\n" --max-time 60 "$u" || echo "errore curl"
-            grep -i -E "^(content-type|access-control|last-modified|cache-control):" head.txt
-          done
-          echo "=== intestazioni CORS con Origin"
-          curl -sS -o /dev/null -D - -H "Origin: https://localhost" https://storage.openaip.net/openaip-system-exports/it_asp_v2.txt | grep -i -E "access-control|^HTTP"
-          echo "=== prime righe"; head -40 it_asp_v2.txt
-          echo "=== tipi AC"; grep -E "^AC " it_asp_v2.txt | sort | uniq -c | sort -rn | head -30
-          echo "=== chiavi usate"; cut -c1-2 it_asp_v2.txt | sort | uniq -c | sort -rn | head -20
+          B=https://storage.openaip.net/openaip-system-exports
+          for n in it_rpp it_rpp_v2 it_nav it_hot it_apt it_obs; do for x in geojson json ndgeojson cup cupx aip txt; do
+            c=$(curl -sS -L -o "$n.$x" -w "%{http_code} %{size_download}" --max-time 60 "$B/$n.$x" || echo "err")
+            echo "$n.$x  $c"; case "$c" in 200*) ;; *) rm -f "$n.$x";; esac
+          done; done
+          echo "=== prime righe dei punti di riporto"; for f in it_rpp*; do echo "--- $f"; head -c 1500 "$f"; echo; done
           } > sonda.txt 2>&1
           cat sonda.txt
       - name: Copia del file nella pre-release diagnostica
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload diagnostica -R ${{ github.repository }} --clobber it_asp_v2.txt || true
+          for f in it_rpp*; do gh release upload diagnostica -R ${{ github.repository }} --clobber "$f" || true; done
       - name: Risultato in una issue
         env:
           GH_TOKEN: ${{ github.token }}
