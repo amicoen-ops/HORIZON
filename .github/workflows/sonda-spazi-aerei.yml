@@ -13,36 +13,13 @@ jobs:
   sonda:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - name: Prova gli indirizzi
         run: |
-          {
-          for cc in it fr ch at si; do
-            for f in ${cc}_apt.json ${cc}_apt_v2.json ${cc}_apt.geojson; do
-              code=$(curl -sS -o $f -w "%{http_code}" --max-time 120 https://storage.openaip.net/openaip-system-exports/$f); echo "=== $f $code $(stat -c %s $f 2>/dev/null)"
-            done
-          done
-          python3 - <<'PY'
-          import json,os
-          for cc in ['it','fr','ch','at','si']:
-              f=cc+'_apt.json'
-              if not os.path.exists(f) or os.path.getsize(f)<100: print(cc,'manca'); continue
-              try: d=json.load(open(f))
-              except Exception as e: print(cc,'json?',e, open(f).read(300)); continue
-              items=d if isinstance(d,list) else d.get('items',d)
-              print(cc,'voci',len(items))
-              if cc=='it':
-                  print(json.dumps(items[0],ensure_ascii=False)[:2500])
-              fu=[x for x in items if (x.get('services') or {}).get('fuelTypes')]
-              print(cc,'con carburante',len(fu))
-              from collections import Counter
-              print(cc,'tipi',Counter(x.get('type') for x in items).most_common(12))
-              print(cc,'tipi con carburante',Counter(x.get('type') for x in fu).most_common(12))
-              print(cc,'codici',Counter(t for x in fu for t in x['services']['fuelTypes']).most_common())
-              for x in fu[:40] if cc=='it' else fu[:5]:
-                  print('  ',x.get('icaoCode'),x.get('name'),x.get('type'),x['services']['fuelTypes'],x.get('geometry',{}).get('coordinates'))
-          PY
-          } > sonda.txt 2>&1
-          cat sonda.txt
+          mkdir -p oa
+          for cc in it fr ch at si; do curl -sSfL --max-time 120 -o oa/${cc}_apt.json https://storage.openaip.net/openaip-system-exports/${cc}_apt.json || echo "manca $cc"; done
+          { python3 tools/carburante_openaip.py oa carburante.json; echo; cat carburante.json; } > sonda.txt 2>&1
+          head -c 3000 sonda.txt
       - name: Copia del file nella pre-release diagnostica
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,4 +30,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           { echo '```'; head -c 60000 sonda.txt; echo '```'; } > corpo.md
-          gh issue create -R ${{ github.repository }} --title "Sonda carburante openAIP" --body-file corpo.md
+          gh issue create -R ${{ github.repository }} --title "Sonda carburante JSON" --body-file corpo.md
