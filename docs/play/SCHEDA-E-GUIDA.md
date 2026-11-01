@@ -9,7 +9,7 @@
    - In Play Console scegli *Crea app*.
    - Nome: «I-A517 Strumento di volo».
    - Lingua predefinita: italiano.
-   - Tipo: app, gratuita.
+   - Tipo: app, gratuita (si scarica gratis; dopo 30 giorni di prova serve l'abbonamento, vedi il capitolo 6).
 3. **Firma dell'app**
    - Accetta *Firma dell'app di Google Play*, che è la scelta proposta.
    - Il file .aab che compila GitHub è già firmato con la nostra chiave. Per Google quella diventa la *chiave di caricamento*.
@@ -132,3 +132,33 @@ Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sost
 | `grafica-in-evidenza-1024x500.png` | Grafica in evidenza |
 | `schermata-1-orizzonte.png` … `schermata-5-piano.png` | Schermate del telefono (1080 × 1920) |
 | `tablet-1-orizzonte-e-mappa.png` | Schermata per tablet da 10 pollici (2560 × 1600) |
+
+
+## 6. Abbonamento annuale da 20 € (licenza d'uso)
+
+Come funziona nell'app (versione Play Store):
+- 30 giorni di prova senza carta dal primo avvio; avvisi negli ultimi 7 giorni.
+- Poi l'app chiede l'abbonamento: **20 € all'anno**, rinnovo automatico, su tutti i telefoni dello stesso account Google. Si disdice dal Play Store (Abbonamenti) e resta attiva fino alla fine dell'anno pagato.
+- L'app ricontrolla l'abbonamento con Google a ogni avvio; senza rete resta valido 7 giorni dall'ultimo controllo.
+- **In volo non si blocca mai**: la richiesta compare solo a terra.
+- Finché l'abbonamento non esiste nella Play Console, l'app resta completa (nessun blocco).
+
+Passi nella Play Console (una volta sola):
+1. **Profilo pagamenti**: Play Console › Impostazioni › Profilo pagamenti › crea o collega il profilo commerciante (dati fiscali e conto per gli incassi). Senza, non si possono creare prodotti a pagamento.
+2. **Carica l'AAB** (`I-A517-Strumento-1.0.N-play-store.aab`) in Test › Test interni: la Play Console permette di creare abbonamenti solo dopo aver caricato una versione che contiene Google Play Billing.
+3. Monetizzazione › Prodotti › **Abbonamenti** › Crea abbonamento:
+   - ID prodotto: **`licenza_annuale`** (esattamente così)
+   - Nome: «Licenza annuale I-A517 Strumento»
+4. Nell'abbonamento › **Aggiungi un piano base**:
+   - ID piano base: **`annuale`** (esattamente così)
+   - Tipo: rinnovo automatico · Periodo di fatturazione: **1 anno**
+   - Prezzo: **20,00 EUR** (Google propone i prezzi per gli altri Paesi: puoi accettarli)
+   - Periodo di tolleranza e sospensione dell'account: lascia i valori proposti
+   - Nessuna offerta di prova gratuita di Google (la prova di 30 giorni è già nell'app) → **Attiva** il piano base.
+5. Impostazioni › **Test delle licenze**: aggiungi la tua Gmail (e quelle dei tester). Con quegli account l'acquisto è finto e l'abbonamento annuale si rinnova ogni 30 minuti: serve per provare acquisto, disdetta e scadenza senza pagare.
+6. Monetizzazione › Configurazione › **Licenze**: copia la «chiave pubblica con codifica Base64» e mandamela: la metto nell'app per controllare la firma di Google su ogni acquisto.
+7. Configurazione › Integrità dell'app › **Firma dell'app**: copia l'impronta **SHA-256 del certificato della chiave di firma dell'app** e mandamela: l'app verifica di essere firmata da Google per te (una copia modificata non si sblocca).
+
+Commissione di Google sugli abbonamenti: 15%. Il prezzo comprende l'IVA, che Google versa per te. Su 20 €: circa 3,61 € di IVA, 2,46 € di commissione, a te circa 13,90 € a cliente all'anno. Per la dichiarazione dei guadagni senti il tuo commercialista.
+
+Attenzione: finché l'APK di GitHub e la versione web restano gratuite, chi le trova può usare l'app senza abbonamento. Quando la versione del Play Store è pubblicata conviene togliere l'APK pubblico, oppure attivare anche lì la licenza (per esempio con Polar.sh).
