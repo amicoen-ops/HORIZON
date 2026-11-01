@@ -1658,7 +1658,7 @@ function rdAnalyze(){
     let ceilFt=null, ceilName='';
     const samp=[]; for(let k=0;k<=n;k+=2){ const t=k/n, p={lat:a.lat+(b.lat-a.lat)*t, lon:a.lon+(b.lon-a.lon)*t}, zt=rdDem(p.lat,p.lon,10); samp.push({p,tf:zt===zt?zt/0.3048:0}); }
     for(const x of cand){ if(!rdAvoid(x)) continue;
-      for(const sp of samp){ if(!rdPip(sp.p,x.pts)) continue; const lo=rdLim(x.lo,sp.tf);
+      for(const sp of samp){ const bb=x.bb; if(sp.p.lat<bb[0]||sp.p.lat>bb[1]||sp.p.lon<bb[2]||sp.p.lon>bb[3]||!rdPip(sp.p,x.pts)) continue; const lo=rdLim(x.lo,sp.tf);
         if(lo-100>=sp.tf+RD.margin && (ceilFt==null || lo-100<ceilFt)){ ceilFt=Math.floor((lo-100)/100)*100; ceilName=`${x.cls} ${x.name}`; } } }
     // quota ideale: dentro la finestra [quota sicura sul terreno, base delle zone da evitare], quella con il vento migliore
     const cc=rdWxCloudCap((a.lat+b.lat)/2,(a.lon+b.lon)/2);              // nubi basse dal controllo meteo: si resta 500 ft sotto la base
@@ -1673,7 +1673,7 @@ function rdAnalyze(){
       why=altFt<PLAN.cruiseFt&&ceilFt!=null&&altFt>=ceilFt-50?'sotto':(best.gs-gs0>=4?'vento':''); }
     Object.assign(L,rdLeg(a,b,altFt));
     const hits=new Map();
-    if(cand.length) for(const sp of samp){ for(const x of cand){ if(hits.has(x)) continue; if(!rdPip(sp.p,x.pts)) continue;
+    if(cand.length) for(const sp of samp){ for(const x of cand){ if(hits.has(x)) continue; const bb=x.bb; if(sp.p.lat<bb[0]||sp.p.lat>bb[1]||sp.p.lon<bb[2]||sp.p.lon>bb[3]||!rdPip(sp.p,x.pts)) continue;
         const lo=rdLim(x.lo,sp.tf), hi=rdLim(x.hi,sp.tf);
         if(altFt>=lo-50 && altFt<=hi+50){ let v={status:'warn',text:''}; try{ v=IA517_RULES.verdict(x); }catch(e){} hits.set(x,{a:x,v,avoid:rdAvoid(x)}); } } }
     for(const z of rdNoflyHit(a,b)) hits.set(z,{a:{cls:'NO',name:z.name},v:{status:'bad',text:'Punto da non sorvolare'},avoid:true});
@@ -1850,10 +1850,10 @@ function rdLegCheck(a,b){
   const safe=mx>-1e8?Math.ceil((mx/0.3048+RD.margin)/100)*100:0;
   const lat0=Math.min(a.lat,b.lat), lat1=Math.max(a.lat,b.lat), lon0=Math.min(a.lon,b.lon), lon1=Math.max(a.lon,b.lon);
   const cand=rdAspAll().filter(x=>rdAvoid(x)&&x.bb&&!(x.bb[1]<lat0||x.bb[0]>lat1||x.bb[3]<lon0||x.bb[2]>lon1));
-  let ceil=Infinity; for(const x of cand) for(const q of smp){ if(!rdPip(q.p,x.pts)) continue; const lo=rdLim(x.lo,q.tf); if(lo-100>=q.tf+RD.margin && lo-100<ceil) ceil=lo-100; }
+  let ceil=Infinity; for(const x of cand) for(const q of smp){ const bb=x.bb; if(q.p.lat<bb[0]||q.p.lat>bb[1]||q.p.lon<bb[2]||q.p.lon>bb[3]||!rdPip(q.p,x.pts)) continue; const lo=rdLim(x.lo,q.tf); if(lo-100>=q.tf+RD.margin && lo-100<ceil) ceil=lo-100; }
   const alt=Math.max(safe,Math.min(PLAN.cruiseFt,ceil));                 // la stessa quota che sceglie l'analisi della tratta
   const zones=new Set(rdNoflyHit(a,b).map(z=>'NO '+z.name));
-  for(const x of cand) for(const q of smp){ if(!rdPip(q.p,x.pts)) continue; const lo=rdLim(x.lo,q.tf), hi=rdLim(x.hi,q.tf); if(alt>=lo-50&&alt<=hi+50){ zones.add(x.cls+' '+x.name); break; } }
+  for(const x of cand) for(const q of smp){ const bb=x.bb; if(q.p.lat<bb[0]||q.p.lat>bb[1]||q.p.lon<bb[2]||q.p.lon>bb[3]||!rdPip(q.p,x.pts)) continue; const lo=rdLim(x.lo,q.tf), hi=rdLim(x.hi,q.tf); if(alt>=lo-50&&alt<=hi+50){ zones.add(x.cls+' '+x.name); break; } }
   return {safe,alt,avoid:zones.size,zones};
 }
 // tieni premuto sulla mappa: punto da non sorvolare, punto di rotta qui, oppure togli un punto da non sorvolare
@@ -1949,6 +1949,7 @@ async function rdAvoidAll(){
   for(let pass=0;pass<3;pass++){ let removed=0;
     for(let i=1;i<RD.pts.length-1;i++){ const p=RD.pts[i]; if(!(p.name&&/^R\d+$/.test(p.name))) continue;
       const A=RD.pts[i-1], B=RD.pts[i+1], d1=dist(A,p).d, d2=dist(p,B).d; if(d1>4000 && d2>4000 && pass<2) continue;
+      await new Promise(r=>setTimeout(r,0)); RD.busy='Rifinisco la rotta…'; rdDraw();
       const c1=rdLegCheck(A,p), c2=rdLegCheck(p,B), c=rdLegCheck(A,B);
       if([...c.zones].some(z=>!c1.zones.has(z)&&!c2.zones.has(z))) continue;          // senza il punto si entrerebbe in una zona nuova if(c.safe>Math.max(c1.safe,c2.safe)+300) continue;
       RD.pts.splice(i,1); i--; removed++; }
