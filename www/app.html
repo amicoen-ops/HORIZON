@@ -457,7 +457,7 @@ function arrivalHTML(f,wind,src){
   const p=pickRunway(f,wind), n=noteOf(f);
   if(!p) return `<div><b>${esc(f.name)}</b> <span class="sub">${KIND_TXT[f.kind]||''}</span></div><div class="sub">${f.kind==='glac'?'Superficie su ghiacciaio: solo con aereo su sci e abilitazione per il volo in montagna.':(f.kind==='alti'?'Altiporto: pista in pendenza non presente nei dati. Si atterra in salita e si decolla in discesa: verifica direzione, pendenza e quota prima di partire.':'Pista non presente nei dati: sorvola e verifica manica a vento e radio.')}</div>${elevLine(f)}`;
   return `<div class="rwy"><b>${p.end.id}</b><span>${esc(f.name)} · circuito ${p.side==='L'?'sinistro':'destro'} · ${p.hc} ft sopra il campo</span></div>
-    <div class="sub">Scelta: ${p.why}${wind?` · vento ${src} ${String(wind.dir).padStart(3,'0')}°/${Math.round(wind.kmh)} km/h: ${p.hw>=0?'contrario':'in coda'} ${Math.abs(p.hw).toFixed(0)}, traverso ${p.xw.toFixed(0)} km/h`:''}.</div>
+    <div class="sub">Scelta: ${p.why}${wind?` · vento ${src} ${windDir(wind.dir,1)} · ${Math.round(wind.kmh)} km/h: ${p.hw>=0?'contrario':'in coda'} ${Math.abs(p.hw).toFixed(0)}, traverso ${p.xw.toFixed(0)} km/h`:''}.</div>
     ${p.warn?`<div class="alertline">${esc(p.warn)}</div>`:''}
     ${f.kind==='alti'?'<div class="alertline">Altiporto: verifica pendenza e senso di atterraggio, di solito in salita a prescindere dal vento.</div>':''}
     ${n&&n.obst?`<div class="sub">Ostacoli: ${esc(n.obst)}</div>`:''}
@@ -1135,6 +1135,10 @@ function wxStamp(t,label){ if(!t) return `<span class="warn">${label||'Meteo'}: 
   return `<span class="pill ${cls}" style="font-weight:700">${label||'Meteo'} aggiornato alle ${hh}${dd} · ${min<1?'adesso':min+' min fa'}${min>30?' · aggiorna prima di partire':''}</span>`; }
 const utcHM=iso=>{ if(!iso) return ''; const d=new Date(/Z$/.test(iso)?iso:iso+'Z'); return isNaN(d)?'':d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}); };
 const d3=v=>String(Math.round(v)).padStart(3,'0');
+// direzione del vento anche a parole: da dove viene (N, NE, E, SE, S, SO, O, NO) e il nome tradizionale
+const W8=['N','NE','E','SE','S','SO','O','NO'], W8N=['tramontana','grecale','levante','scirocco','ostro','libeccio','ponente','maestrale'];
+function windCard(dir){ const i=Math.round((((+dir)%360)+360)%360/45)%8; return W8[i]; }
+function windDir(dir,long){ const i=Math.round((((+dir)%360)+360)%360/45)%8; return `${d3(dir)}° da ${W8[i]}${long?' ('+W8N[i]+')':''}`; }
 function renderWx(){
   const age=MODEL.t?Math.round((Date.now()-MODEL.t)/60000):null;
   const fs=wxFields();
@@ -1142,8 +1146,8 @@ function renderWx(){
     <div class="btnrow"><button class="btn" type="button" id="wxRefresh">${MODEL_BUSY?'Aggiorno…':'Aggiorna meteo'}</button></div>`;
   html+=fs.map(f=>{ const m=MODEL.data[f.id]; if(!m) return `<div class="metar"><div class="mh"><b>${esc(f.short)}</b></div><div class="sub">non ancora scaricato</div></div>`;
     return `<div class="metar"><div class="mh"><b>${esc(f.short)} · ${esc(f.name)}</b>${m.time?`<span class="sub">previsione per le ${utcHM(m.time)}</span>`:''}${m.qnh?`<button class="btn" type="button" data-q="${m.qnh}">Invia QNH ${m.qnh}</button>`:''}</div>
-      <div class="dec"><span>Vento <b>${d3(m.dir)}° ${Math.round(m.kmh)} km/h${m.gust>m.kmh+9?' raffiche '+Math.round(m.gust):''}</b></span>
-      ${m.w925?`<span>~2500 ft <b>${d3(m.w925.dir)}°/${Math.round(m.w925.kmh)}</b></span>`:''}${m.w850?`<span>~5000 ft <b>${d3(m.w850.dir)}°/${Math.round(m.w850.kmh)}</b></span>`:''}
+      <div class="dec"><span>Vento <b>${windDir(m.dir,1)} · ${Math.round(m.kmh)} km/h${m.gust>m.kmh+9?' raffiche '+Math.round(m.gust):''}</b></span>
+      ${m.w925?`<span>~2500 ft <b>${windDir(m.w925.dir)} · ${Math.round(m.w925.kmh)}</b></span>`:''}${m.w850?`<span>~5000 ft <b>${windDir(m.w850.dir)} · ${Math.round(m.w850.kmh)}</b></span>`:''}
       <span>Nubi <b>${m.cc!=null?m.cc+'%':'n.d.'}${m.ccLow!=null?' (basse '+m.ccLow+'%)':''}</b></span>
       <span>Vis. <b>${m.vis!=null?(m.vis>=10000?'≥10 km':(m.vis/1000).toFixed(1)+' km'):'n.d.'}</b></span>
       <span>T <b>${m.t!=null?Math.round(m.t)+'°':'n.d.'}</b></span><span>QNH <b>${m.qnh||'n.d.'}</b></span></div></div>`; }).join('');
@@ -1157,7 +1161,7 @@ function renderWx(){
     <div class="btnrow"><a class="btn" href="https://aviationweather.gov/data/metar/?ids=LIMF,LIMC,LIMW,LILE,LIMZ,LIMA,LILI&hours=0" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">Apri i METAR della zona</a></div>
     <textarea id="metarIn" rows="3" placeholder="Incolla qui i METAR, uno per riga">${esc(PASTED)}</textarea>`+
     pm.map(w=>`<div class="metar"><div class="mh"><b>${esc(w.id)}</b>${w.qnh?`<button class="btn" type="button" data-q="${w.qnh}">Invia QNH ${w.qnh}</button>`:''}</div><div class="raw">${esc(w.raw)}</div>
-      <div class="dec"><span>Vento <b>${w.vrb?'variabile':d3(w.dir)+'°'} ${Math.round(w.kmh||0)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
+      <div class="dec"><span>Vento <b>${w.vrb?'variabile':windDir(w.dir,1)} · ${Math.round(w.kmh||0)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
       <span>Nubi <b>${w.cl?w.cl.join(', '):(w.vis==='CAVOK'?'nessuna':'n.d.')}</b></span><span>QNH <b>${w.qnh||'n.d.'}</b></span><span class="sub">${w.time||''}</span></div></div>`).join('');
   $('metarOff').querySelectorAll('button[data-q]').forEach(b=>b.addEventListener('click',()=>sendQnh(+b.dataset.q)));
   $('metarIn').addEventListener('change',()=>{ PASTED=$('metarIn').value; store.set('ia517_metar_paste',PASTED); renderWx(); });
@@ -1196,7 +1200,7 @@ function renderLiveMetar(){
   $('metarOff').innerHTML=`<div style="margin:4px 0 8px">${wxStamp(LIVE_METAR.t,'METAR')}</div><div class="sub">Da aviationweather.gov${LIVE_METAR.err?` · <span class="warn">${esc(LIVE_METAR.err)}</span>`:''}. Aeroporti vicini ai campi del piano e della zona.</div>
     <div class="btnrow"><button class="btn" type="button" id="metarRefresh">${LIVE_METAR.busy?'Aggiorno…':'Aggiorna METAR'}</button></div>`+
     LIVE_METAR.list.map(w=>`<div class="metar"><div class="mh"><b>${esc(w.id)}${nm(w.id)?' · '+esc(nm(w.id)):''}</b>${w.qnh?`<button class="btn" type="button" data-q="${w.qnh}">Invia QNH ${w.qnh}</button>`:''}</div><div class="raw">${esc(w.raw)}</div>
-      <div class="dec"><span>Vento <b>${w.vrb?'variabile':d3(w.dir)+'°'} ${Math.round(w.kmh||0)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
+      <div class="dec"><span>Vento <b>${w.vrb?'variabile':windDir(w.dir,1)} · ${Math.round(w.kmh||0)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
       <span>Nubi <b>${w.cl?w.cl.join(', '):(w.vis==='CAVOK'?'nessuna':'n.d.')}</b></span><span>QNH <b>${w.qnh||'n.d.'}</b></span><span class="sub">osservato ${w.time||''}</span></div>
       ${LIVE_METAR.taf[w.id]?`<details><summary>TAF</summary><div class="raw">${esc(LIVE_METAR.taf[w.id])}</div></details>`:''}</div>`).join('');
   $('metarOff').querySelectorAll('button[data-q]').forEach(b=>b.addEventListener('click',()=>sendQnh(+b.dataset.q)));
@@ -1604,6 +1608,7 @@ function rdChanged(){ RD.sel=null; rdDraw(); clearTimeout(RD.aT); RD.aT=setTimeo
 // ---------- tratte: prua, minuti, distanza, quota sicura, spazi attraversati ----------
 // vento previsto (Open-Meteo sui campi della rotta) alla quota data: suolo, 925 hPa (~2500 ft), 850 hPa (~4800 ft), interpolato
 function rdWindAt(lat,lon,ft){
+  const wq=rdWxWind(lat,lon,ft); if(wq) return wq;
   let best=null, bd=1e12; try{ for(const m of Object.values(MODEL.data||{})){ if(m.lat==null) continue; const d=dist({lat,lon},m).d; if(d<bd){ bd=d; best=m; } } }catch(e){}
   if(!best || bd>80000) return null;
   const uv=w=>w&&w.kmh!=null&&w.dir!=null?[-w.kmh*Math.sin(w.dir*D2R),-w.kmh*Math.cos(w.dir*D2R)]:null;
@@ -1638,6 +1643,8 @@ function rdAnalyze(){
       for(const sp of samp){ if(!rdPip(sp.p,x.pts)) continue; const lo=rdLim(x.lo,sp.tf);
         if(lo-100>=sp.tf+RD.margin && (ceilFt==null || lo-100<ceilFt)){ ceilFt=Math.floor((lo-100)/100)*100; ceilName=`${x.cls} ${x.name}`; } } }
     // quota ideale: dentro la finestra [quota sicura sul terreno, base delle zone da evitare], quella con il vento migliore
+    const cc=rdWxCloudCap((a.lat+b.lat)/2,(a.lon+b.lon)/2);              // nubi basse dal controllo meteo: si resta 500 ft sotto la base
+    if(cc && (ceilFt==null || cc.capFt<ceilFt)){ ceilFt=cc.capFt; ceilName='nubi basse (base ~'+cc.baseFt+' ft)'; }
     const lo=safeFt||0, hiW=ceilFt!=null?ceilFt:12000; let altFt, why='';
     if(lo>hiW){ altFt=lo; why='terreno'; }                      // il terreno vince sempre sugli spazi aerei
     else { const cands=[...new Set([PLAN.cruiseFt,lo,hiW,2500,3500,4500,5500,6500].map(x=>Math.round(x/100)*100).filter(x=>x>=lo&&x<=hiW&&x>=1000))];
@@ -1673,7 +1680,10 @@ function rdInfo(){
     (avoid.length?`<div class="bad">Dentro zone da evitare: ${avoid.join(' · ')}. Tocca «Evita zone».</div>`:'')+
     (other.length?`<div class="warn">Attraversi: ${other.join(' · ')}</div>`:'')+
     (rdAspAll().length?'':'<div class="warn">Spazi aerei non caricati: Briefing › Scarica gli spazi aerei d\'Italia.</div>')+
-    (RD.msg?`<div>${esc(RD.msg)}</div>`:'');
+    (RD.msg?`<div>${esc(RD.msg)}</div>`:'')+
+    `<div style="margin-top:6px"><button type="button" id="rdWx" style="min-height:38px;width:auto;padding:0 12px">${RD.wxBusy?'Scarico il meteo…':'☁ Controllo meteo alle quote'}</button> ${RD.wx?wxStamp(RD.wx.t,'Meteo della rotta'):''}</div>`+
+    (RD.wxRep?rdWxHtml(RD.wxRep):'');
+  const wb=$('rdWx'); if(wb) wb.onclick=()=>rdWxCheck();
   const mg=$('rdMg'); if(mg) mg.onchange=()=>{ RD.margin=+mg.value; store.set('ia517_rd_margin',RD.margin); rdAnalyze(); };
 }
 
@@ -1799,7 +1809,7 @@ function rdGestures(){
   const up=e=>{ pts.delete(e.pointerId); if(pts.size<2) pin=null; const g=RD.g; RD.g=null; if(!g) return;
     clearTimeout(g.lt); if(g.long) return;
     if(g.kind==='leg'){ RD.sel=RD.sel===g.leg?null:g.leg; const l=RD.info[g.leg];                       // tocco sulla tratta: etichetta con la quota
-      if(l && RD.sel!=null) rdHint(`Tratta ${g.leg+1}: rotta ${String(Math.round(l.crs)).padStart(3,'0')}°, prua ${String(Math.round(l.hdg)).padStart(3,'0')}°`+(l.wind?` (vento ${String(Math.round(l.wind.dir)).padStart(3,'0')}°/${Math.round(l.wind.kmh)} km/h, GS ${Math.round(l.gs)})`:' (senza vento)')+(l.terrFt!=null?` · terreno max ${Math.round(l.terrFt)} ft`:''),5000);
+      if(l && RD.sel!=null) rdHint(`Tratta ${g.leg+1}: rotta ${String(Math.round(l.crs)).padStart(3,'0')}°, prua ${String(Math.round(l.hdg)).padStart(3,'0')}°`+(l.wind?` (vento ${windDir(l.wind.dir)} ${Math.round(l.wind.kmh)} km/h, GS ${Math.round(l.gs)})`:' (senza vento)')+(l.terrFt!=null?` · terreno max ${Math.round(l.terrFt)} ft`:''),5000);
       rdDraw(); return; }
     if(g.kind==='pan'){ if(!g.moved && pts.size===0){ const [x,y]=xy(e), f=rdNearField(x,y); rdPush(); const ll=rdLL(x,y);
         RD.pts.push(f?{lat:f.lat,lon:f.lon,f}:{lat:ll.lat,lon:ll.lon,f:null}); rdChanged(); } return; }
@@ -1926,6 +1936,98 @@ async function rdAvoidAll(){
   rdChanged(); rdHint(failed?'Rotta calcolata in parte: vedi sotto la mappa':(added?`Rotta calcolata: ${added} punti aggiunti`+(left.size?' · restano zone, vedi sotto':''):'La rotta diritta è già la migliore'),3500);
 }
 
+// ---------- controllo meteo della rotta alle quote (Open-Meteo: ICON-D2/ICON-EU, AROME, GFS, ECMWF) ----------
+// tutti i livelli da 1000 a 700 hPa, all'ora in cui si passa su ogni tratta; la fonte è sostituibile (per esempio Windy Professional)
+const WXL=[1000,975,950,925,900,850,800,700];
+RD.wx=store.get('ia517_rdwx',null); RD.wxRep=null;
+const wxHourMs=iso=>new Date(/Z$/.test(iso)?iso:iso+'Z').getTime();
+function rdDepMs(){ const d=new Date(PLAN.dep||Date.now()); return isNaN(d)?Date.now():d.getTime(); }
+async function rdWxFetch(points){
+  const vars=[...WXL.flatMap(l=>[`wind_speed_${l}hPa`,`wind_direction_${l}hPa`,`geopotential_height_${l}hPa`,`temperature_${l}hPa`]),
+    'temperature_2m','dew_point_2m','wind_speed_10m','wind_direction_10m','wind_gusts_10m','cloud_cover_low','cloud_cover_mid','visibility','precipitation','cape','freezing_level_height','weather_code'];
+  const q=a=>a.map(x=>x.toFixed(4)).join(',');
+  const url='https://api.open-meteo.com/v1/forecast?latitude='+q(points.map(p=>p.lat))+'&longitude='+q(points.map(p=>p.lon))+'&hourly='+vars.join(',')+'&wind_speed_unit=kmh&timezone=GMT&forecast_days=3';
+  const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),20000);
+  const r=await fetch(url,{signal:ctl.signal}); clearTimeout(tm); if(!r.ok) throw new Error('servizio meteo: errore '+r.status);
+  const j=await r.json(), arr=Array.isArray(j)?j:[j];
+  return points.map((p,i)=>{ const h=(arr[i]||{}).hourly||{}, T=(h.time||[]).map(wxHourMs); let k=0, bd=1e18; T.forEach((t,x)=>{ const d=Math.abs(t-p.tPass); if(d<bd){ bd=d; k=x; } });
+    const g=v=>h[v]?h[v][k]:null, lv=WXL.map(l=>({gh:g(`geopotential_height_${l}hPa`),kmh:g(`wind_speed_${l}hPa`),dir:g(`wind_direction_${l}hPa`),t:g(`temperature_${l}hPa`)})).filter(x=>x.gh!=null&&x.kmh!=null);
+    return Object.assign({},p,{hour:T[k]||null,lv,t2:g('temperature_2m'),td2:g('dew_point_2m'),w10:{kmh:g('wind_speed_10m'),dir:g('wind_direction_10m')},gust:g('wind_gusts_10m'),
+      ccl:g('cloud_cover_low'),ccm:g('cloud_cover_mid'),vis:g('visibility'),pr:g('precipitation'),cape:g('cape'),frz:g('freezing_level_height'),wc:g('weather_code'),elev:(arr[i]||{}).elevation}); });
+}
+function rdWxNear(lat,lon){ const W=RD.wx; if(!W||!W.pts||Date.now()-W.t>3*3600e3) return null; let best=null, bd=1e12;
+  for(const p of W.pts){ const d=dist({lat,lon},p).d; if(d<bd){ bd=d; best=p; } } return bd<40000?best:null; }
+// vento alla quota (ft AMSL): interpolato tra i livelli con la loro quota geopotenziale; sotto il primo livello, verso il vento a 10 m
+function rdWxWind(lat,lon,ft){ const p=rdWxNear(lat,lon); if(!p||!p.lv.length) return null; const m=(ft==null?PLAN.cruiseFt:ft)*0.3048;
+  const uv=w=>[-w.kmh*Math.sin(w.dir*D2R),-w.kmh*Math.cos(w.dir*D2R)];
+  const L=[]; if(p.w10&&p.w10.kmh!=null) L.push([(p.elev||0)+10,uv(p.w10)]); for(const x of p.lv) if(x.gh>(L.length?L[L.length-1][0]:-1e9)) L.push([x.gh,uv(x)]);
+  let u,v; if(m<=L[0][0]) [u,v]=L[0][1]; else if(m>=L[L.length-1][0]) [u,v]=L[L.length-1][1];
+  else for(let i=0;i<L.length-1;i++) if(m>=L[i][0]&&m<=L[i+1][0]){ const t=(m-L[i][0])/(L[i+1][0]-L[i][0]); u=L[i][1][0]+(L[i+1][1][0]-L[i][1][0])*t; v=L[i][1][1]+(L[i+1][1][1]-L[i][1][1])*t; }
+  return {kmh:Math.hypot(u,v), dir:wrap360(Math.atan2(-u,-v)*R2D)}; }
+function rdWxTemp(p,ft){ const m=ft*0.3048, L=p.lv; if(!L.length) return null; if(m<=L[0].gh) return p.t2; for(let i=0;i<L.length-1;i++) if(m>=L[i].gh&&m<=L[i+1].gh) return L[i].t+(L[i+1].t-L[i].t)*(m-L[i].gh)/(L[i+1].gh-L[i].gh); return L[L.length-1].t; }
+// base delle nubi basse stimata dallo scarto temperatura–rugiada (circa 400 ft per °C), solo con almeno metà cielo coperto di nubi basse
+function rdWxCloudCap(lat,lon){ const p=rdWxNear(lat,lon); if(!p||p.ccl==null||p.ccl<50||p.t2==null||p.td2==null) return null;
+  const baseFt=Math.round(((p.elev||0)/0.3048+Math.max(0,p.t2-p.td2)*400)/100)*100; return {baseFt,capFt:baseFt-500}; }
+async function rdWxCheck(){
+  if(RD.pts.length<2){ rdHint('Disegna prima la rotta'); return; }
+  RD.wxBusy=true; rdInfo();
+  try{
+    rdAnalyze();                                                           // tempi delle tratte per l'ora di passaggio
+    const dep=rdDepMs(), pts=[]; let cum=0;
+    pts.push({lat:RD.pts[0].lat,lon:RD.pts[0].lon,tPass:dep,role:'dep',name:RD.pts[0].f?RD.pts[0].f.short:'Partenza'});
+    RD.info.forEach((l,i)=>{ const a=RD.pts[i], b=RD.pts[i+1], n=l.d>40000?3:1;
+      for(let k=1;k<=n;k++){ const t=k/(n+1); pts.push({lat:a.lat+(b.lat-a.lat)*t,lon:a.lon+(b.lon-a.lon)*t,tPass:dep+(cum+l.min*t)*60000,role:'leg',leg:i}); }
+      cum+=l.min; });
+    const B=RD.pts[RD.pts.length-1]; pts.push({lat:B.lat,lon:B.lon,tPass:dep+cum*60000,role:'arr',name:B.f?B.f.short:'Arrivo',f:B.f&&B.f.rw?B.f.id:null});
+    RD.wx={t:Date.now(),pts:await rdWxFetch(pts.slice(0,40))}; store.set('ia517_rdwx',RD.wx);
+    rdAnalyze();                                                           // quote ottimizzate col vento vero alle quote
+    RD.wxRep=rdWxReport();
+  }catch(e){ RD.wxRep={err:String(e&&e.message||e)}; }
+  RD.wxBusy=false; rdInfo(); rdDraw();
+  try{ PLAN.wxRep=RD.wxRep; PLAN.wxRepT=Date.now(); store.set('ia517_plan',PLAN); renderWxRoute&&renderWxRoute(); }catch(e){}
+}
+function rdWxReport(){
+  const out={legs:[],ends:[],lvl:'ok',t:Date.now()}, bump=l=>{ if(l==='bad'||(l==='warn'&&out.lvl==='ok')) out.lvl=l; };
+  const flag=(arr,l,txt)=>{ arr.push([l,txt]); bump(l); };
+  const tas=Math.max(40,PLAN.tas); let fuel=0, tmin=0, tmin0=0;
+  RD.info.forEach((l,i)=>{ const P=RD.wx.pts.filter(p=>p.role==='leg'&&p.leg===i), f=[];
+    const w=rdWxWind((RD.pts[i].lat+RD.pts[i+1].lat)/2,(RD.pts[i].lon+RD.pts[i+1].lon)/2,l.altFt);
+    const head=w?w.kmh*Math.cos((w.dir-l.crs)*D2R):0, cross=w?Math.abs(w.kmh*Math.sin((w.dir-l.crs)*D2R)):0;
+    for(const p of P){
+      if(p.wc>=95) flag(f,'bad','temporali previsti');
+      else if(p.cape>1000) flag(f,'bad',`instabilità forte (CAPE ${Math.round(p.cape)})`); else if(p.cape>300) flag(f,'warn',`possibili cumuli e temporali (CAPE ${Math.round(p.cape)})`);
+      if(p.vis!=null){ if(p.vis<1500) flag(f,'bad',`visibilità ${(p.vis/1000).toFixed(1)} km`); else if(p.vis<5000) flag(f,'warn',`visibilità ${(p.vis/1000).toFixed(1)} km`); }
+      if(p.pr>2) flag(f,'bad',`pioggia forte ${p.pr} mm/h`); else if(p.pr>0.3) flag(f,'warn',`pioggia ${p.pr} mm/h`);
+      const cc=p.ccl>=50&&p.t2!=null&&p.td2!=null?Math.round(((p.elev||0)/0.3048+Math.max(0,p.t2-p.td2)*400)/100)*100:null;
+      if(cc!=null && l.altFt>cc-500) flag(f,(l.safeFt||0)>cc-500?'bad':'warn',`nubi basse ${p.ccl}% con base ~${cc} ft${(l.safeFt||0)>cc-500?': il terreno non lascia spazio sotto le nubi':''}`);
+      const T=rdWxTemp(p,l.altFt); if(T!=null && T<=2 && (p.ccl>=50||p.ccm>=50||p.pr>0)) flag(f,'warn',`rischio ghiaccio: ${T.toFixed(0)} °C in nube o pioggia (zero termico ~${Math.round((p.frz||0)/0.3048/100)*100} ft)`);
+    }
+    if(head>0.4*tas) flag(f,'warn',`vento contrario forte (${Math.round(head)} km/h)`);
+    tmin+=l.min; tmin0+=l.d/1000/tas*60; fuel+=l.min/60*PLAN.burn;
+    out.legs.push({i,alt:l.altFt,why:l.why,w,head:Math.round(head),cross:Math.round(cross),gs:Math.round(l.gs||tas),min:l.min,hour:P[0]&&P[0].tPass,f:[...new Map(f.map(x=>[x[1],x])).values()]});
+  });
+  for(const p of RD.wx.pts.filter(p=>p.role!=='leg')){ const f=[];
+    if(p.gust>55) flag(f,'bad',`raffiche ${Math.round(p.gust)} km/h`); else if(p.gust>40) flag(f,'warn',`raffiche ${Math.round(p.gust)} km/h`);
+    if(p.vis!=null&&p.vis<5000) flag(f,p.vis<1500?'bad':'warn',`visibilità ${(p.vis/1000).toFixed(1)} km`);
+    if(p.wc>=95) flag(f,'bad','temporali previsti');
+    let xw=null; try{ const fld=p.f&&byId(p.f), a=ACP(), pk=fld&&pickRunway(fld,p.w10&&p.w10.kmh!=null?{dir:p.w10.dir,kmh:p.w10.kmh}:null);
+      if(pk&&pk.xw!=null){ xw=Math.round(pk.xw); const xm=acN(a,'xwind'); if(xm&&pk.xw>xm) flag(f,'bad',`traverso ${xw} km/h sulla ${pk.end.id}, oltre il massimo del velivolo (${xm})`); } }catch(e){}
+    out.ends.push({role:p.role,name:p.name,hour:p.tPass,w10:p.w10,gust:p.gust,xw,f}); }
+  out.tmin=tmin; out.tmin0=tmin0; out.fuel=fuel+(PLAN.taxi||0);
+  return out;
+}
+function rdWxHtml(R){
+  if(R.err) return `<div class="bad">Controllo meteo non riuscito: ${esc(R.err)}</div>`;
+  const col={ok:'#5bd38a',warn:'#ffb020',bad:'#ff6b6b'}, hm=t=>t?new Date(t).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}):'';
+  const verdict={ok:'Nessun problema meteo sulla rotta alle quote proposte',warn:'Attenzione: ci sono punti da valutare',bad:'Condizioni sfavorevoli: valuta di non partire o di cambiare rotta o orario'}[R.lvl];
+  const d3=v=>String(Math.round(v)).padStart(3,'0');
+  return `<div style="margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${col[R.lvl]}"><b style="color:${col[R.lvl]}">${verdict}</b>
+    <div>Tempo col vento previsto: <b>${fmtMin(R.tmin)}</b> (senza vento ${fmtMin(R.tmin0)}) · carburante ~${R.fuel.toFixed(1)} L</div>`+
+    R.ends.map(e=>`<div>${e.role==='dep'?'Partenza':'Arrivo'} ${esc(e.name||'')} alle ${hm(e.hour)}: vento ${e.w10&&e.w10.kmh!=null?windDir(e.w10.dir)+' · '+Math.round(e.w10.kmh):'n.d.'}${e.gust?' raff. '+Math.round(e.gust):''} km/h${e.xw!=null?' · traverso '+e.xw:''}${e.f.map(x=>` <span style="color:${col[x[0]]}">· ${esc(x[1])}</span>`).join('')}</div>`).join('')+
+    R.legs.map(l=>`<div>T${l.i+1} alle ${hm(l.hour)} · <b>${l.alt} ft</b>${l.why==='vento'?' (vento migliore)':(l.why==='sotto'?' (sotto la base)':(l.why==='terreno'?' (terreno)':''))} · vento ${l.w?windDir(l.w.dir)+' · '+Math.round(l.w.kmh):'n.d.'} · ${l.head>=0?'contro '+l.head:'in coda '+(-l.head)} · GS ${l.gs}${l.f.map(x=>` <span style="color:${col[x[0]]}">· ${esc(x[1])}</span>`).join('')}</div>`).join('')+
+    `<div style="opacity:.75;margin-top:4px">Previsione dei modelli (Open-Meteo), non un'osservazione: confronta con METAR, TAF e briefing ufficiale.</div></div>`;
+}
+
 // ---------- ingressi: tasto nella scheda Rotta e tocco sulla piccola mappa ----------
 (()=>{ const b=document.createElement('button'); b.className='ghost'; b.type='button'; b.id='rdOpen'; b.textContent='✎ Disegna sulla mappa (schermo pieno)';
   $('addWp').after(b); b.addEventListener('click',rdOpen);
@@ -1934,6 +2036,14 @@ window.IA517_routeEditor=rdOpen;
 // per il collaudo automatico (emulatore): accesso dall'app dello strumento
 window.IA517_rd={get RD(){ return RD; }, close:rdClose, open:rdOpen,
   plan(from,dest,ft){ PLAN.from=from; PLAN.wps=[]; PLAN.dest=dest; if(ft){ PLAN.cruiseFt=ft; $('pAlt').value=ft; } renderRoute(); update(); }};
+
+// riquadro nel Briefing: ultimo controllo meteo della rotta alle quote
+(()=>{ const host=$('bSummary')&&$('bSummary').closest('section'); if(!host) return; const sec=document.createElement('section'); sec.className='card'; sec.id='wxRouteCard';
+  sec.innerHTML='<h2>Meteo sulla rotta, alle quote</h2><div id="wxRoute"></div><div class="btnrow"><button class="btn pri" type="button" id="wxRouteGo">Apri la rotta e fai il controllo</button></div>';
+  host.after(sec); $('wxRouteGo').onclick=()=>{ rdOpen(); setTimeout(()=>rdWxCheck(),600); }; })();
+function renderWxRoute(){ const b=$('wxRoute'); if(!b) return; const R=PLAN.wxRep;
+  b.innerHTML=R?`<div style="margin-bottom:6px">${wxStamp(PLAN.wxRepT,'Controllo meteo')}</div>`+rdWxHtml(R):'<div class="sub">Non ancora fatto per questa rotta: apri la rotta e tocca «Controllo meteo alle quote».</div>'; }
+{ const _u2=update; update=function(){ _u2(); try{ renderWxRoute(); }catch(e){} }; }
 
 mergeUserFields(); addRwRow();
 renderRoute(); renderStatus(); renderSaved(); renderUser(); update(); showTab(location.hash.slice(1)||'piano'); setLink();

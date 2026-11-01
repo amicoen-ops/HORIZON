@@ -224,6 +224,13 @@
   .ph-acgrid .ph-fld{display:flex;flex-direction:column;gap:4px}
   .ph-acgrid input,.ph-acgrid select,.ph-acgrid textarea{width:100%;box-sizing:border-box}
   .ph-acrow{gap:10px;align-items:center}
+  /* tastino LIVELLA: bordo a strisce giallo e nero */
+  .ph-statrow{display:flex;align-items:center;gap:6px}
+  .ph-statrow .ph-stat{flex:1;min-width:0}
+  .ph-lvl{flex:none;border:3px solid transparent;border-radius:8px;padding:3px 9px;min-height:28px;cursor:pointer;
+    background:linear-gradient(#141a21,#141a21) padding-box,repeating-linear-gradient(45deg,#ffcc00 0 6px,#111 6px 12px) border-box;
+    color:#ffcc00;font:800 11px/1 "Oxanium",system-ui,sans-serif;letter-spacing:.08em}
+  .ph-lvl:active{filter:brightness(1.4)}
 </style>
 
 <h1>Orizzonte Sintetico</h1>
@@ -2767,7 +2774,7 @@ PH.info=function(g){
   { const h=el('phTrk'); if(h) h.querySelector('span').textContent=S.trk!=null?'TRK':'PRUA'; }
   card('phAlt',Math.round(S.alt)+' ft',PH.acc!=null&&!PH.demo?(PH.src==='glo'?`GLO 2 · ${S.sats??'?'} sat`:`GPS ±${Math.round(PH.acc)} m`)+(PH.altOfsBy[PH.src]?' · tarata':''):'');
   card('phVs',(S.vs>=0?'+':'')+S.vs.toFixed(1),'m/s');
-  card('phWind',WIND.valid?fmtWind().replace(' PREV',''):'---',WIND.valid?(WIND.src==='prev'?'previsto':'stimato in volo'):'vira per stimarlo');
+  card('phWind',WIND.valid?fmtWind().replace(' PREV',''):'---',WIND.valid?('da '+['N','NE','E','SE','S','SO','O','NO'][Math.round(((WIND.dir%360)+360)%360/45)%8]+' · '+(WIND.src==='prev'?'previsto':'stimato in volo')):'vira per stimarlo');
   if(NAV.dest){ const d=NAV.app?g.s:g.dist, mins=Math.round((g.ete||0)/60);
     card('phDest',NAV.dest.short.slice(0,10),`${(d/1000).toFixed(d<10000?1:0)} km · ${mins<1?'<1':mins}'`); }
   else card('phDest','---','nessuna destinazione');
@@ -3297,7 +3304,14 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
   });
   document.querySelectorAll('.ph-nav button').forEach(b=>b.addEventListener('click',()=>PH.show(b.dataset.v)));
   el('phStat').addEventListener('click',()=>{ if(PH.sim) PH.show('sim'); });
-  { const ab=document.createElement('div'); ab.className='ph-asp w'; ab.id='phAsp'; ab.textContent='Spazio aereo…'; el('phStat').after(ab);
+  // tastino LIVELLA accanto a GPS · ASSETTO · TERRENO · NET (bordo giallo e nero: si usa con attenzione, chiede conferma)
+  { const st=el('phStat'), row=document.createElement('div'); row.className='ph-statrow'; st.parentNode.insertBefore(row,st); row.appendChild(st);
+    const b=document.createElement('button'); b.type='button'; b.className='ph-lvl'; b.id='phLvl'; b.textContent='LIVELLA'; b.setAttribute('aria-label','Livella l\'assetto'); row.appendChild(b);
+    b.addEventListener('click',ev=>{ ev.stopPropagation(); if(PH.demo||PH.sim){ toast('LIVELLA: NON IN DEMO O SIMULAZIONE'); return; }
+      const air=!!PH.flight||(S.gpsReal&&S.gs>40), gp=air?0:(PH.groundPitch||11);
+      PH.act&&PH.act('livella '+(air?'in volo':'a terra '+gp+'°'));
+      ask(air?'LIVELLA ORA? ALI LIVELLATE, VOLO RETTILINEO':`LIVELLA A TERRA? AEREO FERMO, ASSETTO ${gp}°`,()=>{ PH.level(gp); },15); }); }
+  { const ab=document.createElement('div'); ab.className='ph-asp w'; ab.id='phAsp'; ab.textContent='Spazio aereo…'; (el('phStat').closest('.ph-statrow')||el('phStat')).after(ab);
     ab.addEventListener('click',()=>{ PH.show(PH.aspList().length?'prof':'piano'); }); }
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>PH.show('volo')));
   el('phWaitDemo').onclick=()=>{ PH.setDemo(true); };
@@ -3355,6 +3369,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['1.0.31','Controllo meteo della rotta alle quote (nella rotta disegnata e nel Briefing): vento e temperatura su tutti i livelli da 1000 a 700 hPa, all\'ora in cui passi su ogni tratta; quota ottimizzata per tratta (terreno, basi delle zone e delle nubi basse, vento migliore); tempo e carburante col vento; avvisi in verde, giallo e rosso per nubi basse, visibilità, pioggia, temporali, ghiaccio, raffiche e traverso all\'arrivo. Tastino LIVELLA accanto a GPS · ASSETTO · TERRENO · NET (chiede conferma). Vento anche a parole: «270° da O (ponente)».'],
   ['1.0.30','L\'app si chiama HORIZON. Velivoli: in Impostazioni un profilo per ogni aereo (velocità e archi, prestazioni, carburante, pesi e centraggio, transponder e radio) che regola scala di velocità, circuito, simulazione, piano, carico e centraggio, piste, vento al traverso, spazi aerei e cerchio di planata. Meteo con l\'ora esatta dell\'aggiornamento. Novità: solo l\'ultima versione, le precedenti si aprono col triangolino. Richiede Android 14 o più recente.'],
   ['1.0.28','Licenza d\'uso: 30 giorni di prova, poi sul Play Store abbonamento annuale da 20 € (Google Play, su tutti i telefoni del tuo account, disdici quando vuoi). In volo l\'app non si blocca mai. Info › Licenza d\'uso mostra lo stato e il link per gestire l\'abbonamento. Codice nativo offuscato.'],
   ['1.0.26','Calcola rotta: tolti i punti in più (niente tratte corte a zig-zag) quando la tratta senza di loro resta fuori dalle zone e il terreno non chiede di salire.'],

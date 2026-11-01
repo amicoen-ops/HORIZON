@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.30"
+VER = "1.0.31"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -206,6 +206,8 @@ s += [side("10_volo_crociera.png", [
     P("Il riquadro TRK mostra la traccia GPS quando ti muovi. Da fermo la traccia è solo rumore, quindi il riquadro diventa <b>PRUA</b> e mostra la bussola."),
 ], 62 * mm, "La schermata VOLO in crociera")]
 
+s += [tip("Tastino <b>LIVELLA</b> (bordo giallo e nero) accanto a GPS · ASSETTO · TERRENO · NET: livella l'assetto senza aprire le impostazioni. In volo usa ali livellate e volo rettilineo; a terra usa l'assetto a terra impostato. Chiede sempre conferma con OK.")]
+
 # 6 ---------------------------------------------------------------
 s += chap(6, CH_[5])
 s += [side("11_volo_circuito.png", [
@@ -321,6 +323,14 @@ s += [P("<b>Calcola rotta</b> cerca, tra un punto e il successivo, la strada pi�
 s += [box("La rotta calcolata è un aiuto alla pianificazione: controllala sempre sulla carta e sul briefing ufficiale (AIP, NOTAM, AUP), soprattutto in montagna. Quote del terreno e spazi aerei possono essere incompleti o non aggiornati.")]
 
 s += [tip("Meteo: in alto c'è sempre l'ora esatta dell'ultimo aggiornamento del modello e dei METAR, con da quanti minuti. Verde fino a 30 minuti, arancio oltre (aggiorna prima di partire), rosso oltre un'ora e mezza. Ogni campo indica anche l'ora a cui si riferisce la previsione e ogni METAR l'ora dell'osservazione.")]
+
+s += [Paragraph("Controllo meteo della rotta alle quote", H3)]
+s += [P("Nella rotta disegnata tocca <b>☁ Controllo meteo alle quote</b> (oppure Briefing › Meteo sulla rotta). L'app scarica la previsione dei modelli (Open-Meteo: ICON-D2/ICON-EU, AROME, GFS, ECMWF) su tutti i livelli da 1000 a 700 hPa, circa da 300 a 10.000 ft, nei punti della rotta e <b>all'ora in cui ci passerai</b>, calcolata dall'orario di partenza del piano. Poi:")]
+s += bullets(["sceglie per ogni tratta la <b>quota ottimizzata</b>: sopra il terreno con il margine, sotto le basi delle zone da evitare e 500 ft sotto la base stimata delle nubi basse, con il vento più favorevole;",
+              "calcola vento contrario o in coda, velocità al suolo, <b>tempo e carburante col vento</b>;",
+              "segnala in verde, giallo o rosso: nubi basse, visibilità, pioggia, temporali (CAPE), rischio ghiaccio (temperatura e zero termico), raffiche e vento al traverso all'arrivo rispetto al massimo del velivolo."])
+s += [P("Il vento è scritto in gradi e a parole, con la direzione da cui viene e il nome tradizionale: per esempio «270° da O (ponente)», «045° da NE (grecale)».")]
+s += [box("È una previsione dei modelli, non un'osservazione: confrontala con METAR, TAF e briefing ufficiale prima di partire. In alto c'è sempre l'ora del controllo.")]
 
 # 12 --------------------------------------------------------------
 s += chap(12, CH_[11])
