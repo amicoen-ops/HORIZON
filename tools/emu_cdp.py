@@ -129,6 +129,8 @@ if ws:
     shot("06d_profilo")
     ev("PH.show('volo'),1")
     log("terreno 3D", ev("JSON.stringify({livello:PH.terrLvl,ms:+PH.perf.avg.toFixed(1),fps:PH.fps})"))
+    log("licenza (modulo nativo)", ev("""(async()=>{ const L=Capacitor.Plugins.Licenza; if(!L) return 'manca'; const i=await L.info(); let b=null; try{ b=await L.billingStart({product:'licenza_annuale',basePlan:'annuale'}); }catch(e){ b='errore: '+e.message; }
+        return JSON.stringify({info:{dev:!!i.deviceId,firma:i.signatureOk,inst:i.installer,cert:(i.cert||'').slice(0,16)},billing:b,stato:IA517_LIC.status(),imposta:IA517_LIC.enforced()}); })()"""))
     log("bussola", ev("JSON.stringify({prua:PH.mag.hdg!=null?Math.round(PH.mag.hdg):null,fonte:PH.mag.src||null,errore:PH.mag.err||null,in_uso:PH.magInUse()})"))
     log("prestazioni", ev("JSON.stringify({ms:PH.perf.avg.toFixed(1),blocchi:PH.perf.stalls,fps:PH.fps,vicini:PH.nearF&&PH.nearF.length,terreno:PH.dem.size,tessere:PH.tiles.size})"))
     step("08_demo", "(typeof PH.setDemo==='function'?(PH.setDemo(true),'demo'):'manca setDemo')", pause=25)

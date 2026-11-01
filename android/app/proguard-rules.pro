@@ -19,3 +19,13 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# I-A517: i moduli nativi sono chiamati da Capacitor per nome (riflessione): restano i nomi delle classi e dei metodi esposti
+-keep @com.getcapacitor.annotation.CapacitorPlugin public class * {
+    @com.getcapacitor.PluginMethod public <methods>;
+    public <init>(...);
+}
+-keepclassmembers class * { @com.getcapacitor.PluginMethod public <methods>; }
+-keep class it.ia517.strumento.MainActivity { *; }
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+-dontwarn com.google.errorprone.annotations.**

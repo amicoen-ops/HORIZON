@@ -13,6 +13,7 @@
 <style>[hidden]{display:none!important}</style>
 <script src="version.js"></script>
 <script src="regole.js"></script>
+<script src="licenza.js"></script>
 <script src="capacitor.js"></script>
 </head><body>
 <!-- I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
@@ -3342,6 +3343,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['1.0.28','Licenza d\'uso: 30 giorni di prova, poi sul Play Store abbonamento annuale da 20 € (Google Play, su tutti i telefoni del tuo account, disdici quando vuoi). In volo l\'app non si blocca mai. Info › Licenza d\'uso mostra lo stato e il link per gestire l\'abbonamento. Codice nativo offuscato.'],
   ['1.0.26','Calcola rotta: tolti i punti in più (niente tratte corte a zig-zag) quando la tratta senza di loro resta fuori dalle zone e il terreno non chiede di salire.'],
   ['1.0.25','Profilo verticale in una pagina rettangolare (tasto PROFILO, oppure tocca la riga dello spazio aereo): terreno, spazi aerei colorati per il tuo tipo di volo, quota dell\'aereo con la tendenza del vario, crociera e punti della rotta; davanti 10–100 km o tutta la rotta. Terreno 3D più dettagliato (riquadri fino a 3 volte più piccoli) e disegnato più in fretta di prima; in Impostazioni il dettaglio, in automatico scende da solo se il telefono rallenta.'],
   ['1.0.24','Piano › ✎ Disegna sulla mappa: rotta a schermo pieno. Un tocco aggiunge un punto (si aggancia a campi e punti di riporto VFR), trascinando la linea magenta si inserisce un punto, trascinando un punto su quello vicino si toglie, tenendo premuto si segna un punto da non sorvolare. Toccando una tratta: km, minuti, prua e quota. «Calcola rotta» cerca la più breve in tempo con il vento previsto, intorno a zone P, R, spazi vietati e punti da non sorvolare, dalle valli; per ogni tratta la quota ideale: sopra il terreno con margine, sotto le basi delle zone, col vento migliore. Il terreno vince sempre.'],
@@ -3477,6 +3479,7 @@ PH.renderInfo=function(){
     ${h[1]?`<div class="ph-row"><span>Versione precedente</span><small>${h[1].v} · fino al ${dt(h[0].t)}</small></div>`:''}
     <div class="ph-row"><span>Avvertenze accettate</span><small>${acc?dt(acc.t):'no'}</small></div>
   </section>
+  ${window.IA517_LIC?IA517_LIC.infoHtml():''}
   <section><h3>Aggiornamenti</h3><div id="phUpd">${b.channel==='apk'?upHtml(up):(b.channel==='play'?'<p class="ph-sub">Gli aggiornamenti arrivano dal Play Store.</p>':'<p class="ph-sub">L\'app dal browser si aggiorna da sola: la nuova versione si carica al lancio successivo.</p>')}</div>
     ${b.channel==='apk'?'<div class="ph-btns"><button class="ph-btn" id="phUpdGo">Controlla ora</button></div>':''}
   </section>
@@ -3520,6 +3523,7 @@ PH.renderInfo=function(){
   </section>`}`;
   el('phLicDet').ontoggle=async e=>{ const pre=el('phLicTxt'); if(!e.target.open || pre.dataset.ok) return;
     try{ const r=await fetch('LICENZE.txt'); pre.textContent=(await r.text()).replace(/([a-zà-ù0-9,;:'")])\n(?=[^\n\s])/g,'$1 ').replace(/([a-zà-ù0-9,;:'")])\n {2,}(?![a-z]\) )/g,'$1 '); pre.style.whiteSpace='pre-wrap'; pre.dataset.ok=1; }catch(_){ pre.textContent='Testo non disponibile: lo trovi nel file LICENSE del repository amicoen-ops/strumento-i-a517.'; } };
+  try{ window.IA517_LIC&&IA517_LIC.infoWire(); }catch(e){}
   el('phWebCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText(PH_INFO.web); toast('LINK COPIATO'); }catch(e){ prompt('Copia il link:',PH_INFO.web); } };
   el('phWebShare').onclick=async()=>{ const d={title:'I-A517 Strumento di volo',text:'Strumento di volo I-A517 per telefono e tablet',url:PH_INFO.web};
     try{ if(PH.native&&PH.native.share){ await PH.native.share.share(d); return; } if(navigator.share){ await navigator.share(d); return; } }catch(e){ return; }
