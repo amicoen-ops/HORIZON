@@ -33,13 +33,17 @@ jobs:
           rm -f sito/capacitor.js
           sed -i 's#<script src="capacitor.js"></script>##' sito/index.html
           # impronta delle pagine: cambia solo quando cambia l'app, così il controllo all'avvio propone di ricaricare solo se serve
-          h=$(cat www/index.html www/app.html www/regole.js www/licenza.js | sha1sum | cut -c1-8)
+          h=$(cat www/index.html www/app.html www/regole.js www/carburante.js www/licenza.js | sha1sum | cut -c1-8)
           d=$(git log -1 --format=%cd --date=format:%d.%m.%Y)
           echo "window.IA517_BUILD={version:'web ${d}',build:'${h}',channel:'web'};" > sito/version.js
           # spazi aerei d'Italia da openAIP (CC BY-NC 4.0): copia sullo stesso sito, leggibile anche dal browser
           for cc in it fr ch at si; do
             curl -sSfL --max-time 120 -o sito/dati/${cc}_asp_v2.txt https://storage.openaip.net/openaip-system-exports/${cc}_asp_v2.txt || echo "openAIP $cc non raggiungibile"
           done
+          # campi con carburante (openAIP): letti dall'app una volta al giorno per gli alternati con rifornimento
+          mkdir -p oa
+          for cc in it fr ch at si; do curl -sSfL --max-time 120 -o oa/${cc}_apt.json https://storage.openaip.net/openaip-system-exports/${cc}_apt.json || echo "openAIP campi $cc non raggiungibili"; done
+          python3 tools/carburante_openaip.py oa sito/dati/carburante.json || echo "carburante non aggiornato"
           ls -la sito sito/dati
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

@@ -116,6 +116,13 @@ if ws:
     log("aggiornamento (controllo)", ev("""(async()=>{ const u=await PH.checkUpdate(true); return JSON.stringify({stato:u.state,ultima:u.latest,apk:u.apk,size:u.size,modulo:!!(PH.native&&PH.native.upd),finestra:!!document.getElementById('phUpdAsk')}); })()"""))
     log("aggiornamento (download APK)", ev("""(async()=>{ try{ const U=PH.native.upd, u=PH.upd; let n=0; const l=await U.addListener('progress',()=>n++);
         const r=await U.apkDownload({url:u.url}); l.remove(); return JSON.stringify({ok:true,size:r.size,attesa:u.size,uguale:r.size===u.size,eventi:n}); }catch(e){ return 'ERRORE: '+(e&&e.message||e); } })()"""), )
+    # ⛽ alternati con carburante: piano (Carolina › Vallegaffaro con poco carburante) e pagina in volo
+    log("carburante (piano)", ev("""(async()=>{ PH.show('piano'); await new Promise(r=>setTimeout(r,2500)); const w=document.getElementById('phAppFrame').contentWindow, d=w.document;
+        w.IA517_rd.plan('IT-0074','IT-0323',2500); await new Promise(r=>setTimeout(r,1500)); const t=(d.getElementById('fuAlt')||{}).innerText||'NO';
+        const FU=window.IA517_FUEL; return JSON.stringify({dati:FU.data().upd,campi:FU.all(FIELDS).length,righe:d.querySelectorAll('#fuAlt .fu-row').length,testo:t.slice(0,240)}); })()"""))
+    log("carburante (volo)", ev("""(async()=>{ PH.show('fuel'); await new Promise(r=>setTimeout(r,800)); const b=document.getElementById('phFuelBody');
+        const n=b.querySelectorAll('.fu-row').length, top=b.querySelector('.fu-row'); PH.show('volo'); return JSON.stringify({righe:n,primo:top&&top.innerText.replace(/\\s+/g,' ').slice(0,90)}); })()"""))
+    shot("06c_carburante")
     time.sleep(2); log("spazio qui", ev("document.getElementById('phAsp').textContent"))
     # rotta disegnata: Carolina › Aosta con terreno vero (DEM) e spazi aerei veri, poi «Evita zone»
     log("rotta disegnata", ev("""(async()=>{ PH.show('piano'); await new Promise(r=>setTimeout(r,1500));

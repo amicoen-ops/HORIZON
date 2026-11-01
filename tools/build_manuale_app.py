@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.37"
+VER = "1.0.39"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -322,6 +322,17 @@ s += [P("<b>Quota della tratta.</b> L'app cerca il terreno più alto entro 500 m
 s += [P("<b>Calcola rotta</b> cerca, tra un punto e il successivo, la strada più breve <b>in tempo</b> con il vento previsto, intorno alle zone P e R, agli spazi vietati dal tipo di volo e ai punti da non sorvolare, e dalle valli dove il terreno supererebbe la crociera. "
         "Aggiunge i punti R1, R2… Per ogni tratta propone la <b>quota ideale</b>: sopra il terreno con il margine, sotto la base delle zone da evitare, e tra queste quella con il vento migliore. "
         "Le zone in cui parti o arrivi non si possono girare: restano nell'elenco sotto la mappa. «Fatto» salva la rotta nel piano.")]
+s += [Paragraph("Alternati con carburante (⛽)", H3)]
+s += [P("Nel piano, sotto il carburante, la scheda <b>⛽ Alternati con carburante</b> elenca i campi con carburante adatto al motore del velivolo scelto (per MOGAS valgono anche UL91 e 100LL) entro 40 km dalla rotta. "
+        "Per ognuno dice dove deviare (al km tale, dopo quale punto, quanti km fuori rotta) e con quanti litri e minuti arrivi, partendo con il carburante del piano. I campi sono divisi in tre fasce:")]
+s += [table(["Fascia", "Significato"], [
+           ["1 · comodo (verde)", "Arrivi con almeno la riserva del piano."],
+           ["2 · riserva (giallo)", "Arrivi intaccando la riserva, ma con almeno 10 minuti."],
+           ["3 · critico (rosso)", "Arrivi con meno di 10 minuti, oppure non ci arrivi."]], [45 * mm, 125 * mm])]
+s += [P("La barra in alto mostra la rotta colorata secondo il carburante che resta (verde, giallo sotto la riserva, rosso sotto i 10 minuti) con i campi come pallini. "
+        "Se il carburante non basta, l'app indica l'ultimo rifornimento utile: toccalo e premi <b>«Aggiungi come tappa»</b>. "
+        "In volo il tasto <b>⛽</b> in basso apre lo stesso schema dalla posizione attuale: carburante stimato (a bordo al decollo meno consumo × tempo di volo), correggibile con −5, +5 o «Imposta», e per ogni campo rotta, distanza, tempo e litri all'arrivo; toccando un campo, <b>«Vai diretto»</b>.")]
+s += [P("I dati vengono da openAIP, aggiornati ogni notte, ma in Italia pochi campi hanno il carburante indicato. Segna tu quelli che conosci (in fondo alla scheda: campo, carburanti, nota): restano sul telefono e valgono sopra openAIP. Prima di contare su un rifornimento, telefona o chiama per radio.")]
 s += [box("La rotta calcolata è un aiuto alla pianificazione: controllala sempre sulla carta e sul briefing ufficiale (AIP, NOTAM, AUP), soprattutto in montagna. Quote del terreno e spazi aerei possono essere incompleti o non aggiornati.")]
 
 s += [tip("Meteo: in alto c'è sempre l'ora esatta dell'ultimo aggiornamento del modello e dei METAR, con da quanti minuti. Verde fino a 30 minuti, arancio oltre (aggiorna prima di partire), rosso oltre un'ora e mezza. Ogni campo indica anche l'ora a cui si riferisce la previsione e ogni METAR l'ora dell'osservazione.")]
