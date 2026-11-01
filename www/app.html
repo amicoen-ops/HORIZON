@@ -1830,12 +1830,12 @@ function rdLegCheck(a,b){
     for(const off of [-500,0,500]){ const z=rdDem(lat+(ux*off)/110540, lon-(uy*off)/(111320*cl), 10); if(z===z){ if(z>mx) mx=z; if(!off) zc=z; } }
     smp.push({p:{lat,lon},tf:zc===zc?zc/0.3048:0}); }
   const safe=mx>-1e8?Math.ceil((mx/0.3048+RD.margin)/100)*100:0, alt=Math.max(safe,Math.min(PLAN.cruiseFt,safe+5000));
-  let avoid=rdNoflyHit(a,b).length;
+  const zones=new Set(rdNoflyHit(a,b).map(z=>'NO '+z.name));
   const lat0=Math.min(a.lat,b.lat), lat1=Math.max(a.lat,b.lat), lon0=Math.min(a.lon,b.lon), lon1=Math.max(a.lon,b.lon);
   for(const x of rdAspAll()){ if(!rdAvoid(x)) continue; const bb=x.bb; if(!bb||bb[1]<lat0||bb[0]>lat1||bb[3]<lon0||bb[2]>lon1) continue;
     for(const q of smp){ if(!rdPip(q.p,x.pts)) continue; const lo=rdLim(x.lo,q.tf), hi=rdLim(x.hi,q.tf);
-      if(lo-100<q.tf+RD.margin && hi>q.tf+RD.margin){ avoid++; break; } } }
-  return {safe,avoid};
+      if(lo-100<q.tf+RD.margin && hi>q.tf+RD.margin){ zones.add(x.cls+' '+x.name); break; } } }
+  return {safe,avoid:zones.size,zones};
 }
 // tieni premuto sulla mappa: punto da non sorvolare, punto di rotta qui, oppure togli un punto da non sorvolare
 function rdMenu(x,y){
@@ -1925,7 +1925,7 @@ async function rdAvoidAll(){
     for(let i=1;i<RD.pts.length-1;i++){ const p=RD.pts[i]; if(!(p.name&&/^R\d+$/.test(p.name))) continue;
       const A=RD.pts[i-1], B=RD.pts[i+1], d1=dist(A,p).d, d2=dist(p,B).d; if(d1>4000 && d2>4000 && pass<2) continue;
       const c1=rdLegCheck(A,p), c2=rdLegCheck(p,B), c=rdLegCheck(A,B);
-      if(c.avoid>Math.max(c1.avoid,c2.avoid)) continue; if(c.safe>Math.max(c1.safe,c2.safe)+300) continue;
+      if([...c.zones].some(z=>!c1.zones.has(z)&&!c2.zones.has(z))) continue;          // senza il punto si entrerebbe in una zona nuova if(c.safe>Math.max(c1.safe,c2.safe)+300) continue;
       RD.pts.splice(i,1); i--; removed++; }
     if(!removed) break; }
   let kk=1; for(const p of RD.pts) if(p.name&&/^R\d+$/.test(p.name)) p.name='R'+(kk++);
