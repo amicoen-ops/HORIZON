@@ -1744,6 +1744,21 @@ function rdGestures(){
   cv.addEventListener('wheel',e=>{ e.preventDefault(); const [x,y]=xy(e), c0=rdLL(x,y); RD.mpp=clamp(RD.mpp*(e.deltaY>0?1.25:0.8),8,4000); const c1=rdLL(x,y); RD.clat+=c0.lat-c1.lat; RD.clon+=c0.lon-c1.lon; rdDrawSoon(); },{passive:false});
 }
 
+// controllo rapido di una tratta: quota sicura (terreno ±500 m + margine) e numero di zone da evitare attraversate a quella quota
+function rdLegCheck(a,b){
+  const d=dist(a,b).d, n=Math.max(2,Math.ceil(d/300)), cl=Math.cos(a.lat*D2R), ux=(b.lon-a.lon)*111320*cl/(d||1), uy=(b.lat-a.lat)*110540/(d||1);
+  let mx=-1e9; const smp=[];
+  for(let k=0;k<=n;k++){ const t=k/n, lat=a.lat+(b.lat-a.lat)*t, lon=a.lon+(b.lon-a.lon)*t; let zc=NaN;
+    for(const off of [-500,0,500]){ const z=rdDem(lat+(ux*off)/110540, lon-(uy*off)/(111320*cl), 10); if(z===z){ if(z>mx) mx=z; if(!off) zc=z; } }
+    smp.push({p:{lat,lon},tf:zc===zc?zc/0.3048:0}); }
+  const safe=mx>-1e8?Math.ceil((mx/0.3048+RD.margin)/100)*100:0, alt=Math.max(safe,Math.min(PLAN.cruiseFt,safe+5000));
+  let avoid=rdNoflyHit(a,b).length;
+  const lat0=Math.min(a.lat,b.lat), lat1=Math.max(a.lat,b.lat), lon0=Math.min(a.lon,b.lon), lon1=Math.max(a.lon,b.lon);
+  for(const x of rdAspAll()){ if(!rdAvoid(x)) continue; const bb=x.bb; if(!bb||bb[1]<lat0||bb[0]>lat1||bb[3]<lon0||bb[2]>lon1) continue;
+    for(const q of smp){ if(!rdPip(q.p,x.pts)) continue; const lo=rdLim(x.lo,q.tf), hi=rdLim(x.hi,q.tf);
+      if(lo-100<q.tf+RD.margin && hi>q.tf+RD.margin){ avoid++; break; } } }
+  return {safe,avoid};
+}
 // tieni premuto sulla mappa: punto da non sorvolare, punto di rotta qui, oppure togli un punto da non sorvolare
 function rdMenu(x,y){
   const ll=rdLL(x,y), near=RD_NOFLY.find(z=>{ const q=rdP(z.lat,z.lon); return Math.hypot(q.x-x,q.y-y)<Math.max(RD_HIT,z.r/RD.mpp); });
@@ -1827,6 +1842,16 @@ async function rdAvoidAll(){
   for(const i of todo.reverse()){ const A=RD.pts[i], B=RD.pts[i+1], mid=await rdAround(A,B);
     if(mid===null){ failed++; continue; }
     RD.pts.splice(i+1,0,...mid.map(p=>({lat:p.lat,lon:p.lon,f:null,name:'R'+(k++)}))); added+=mid.length; }
+  // pulizia: via i punti aggiunti che non servono (tratte corte), se senza di loro la tratta resta fuori dalle zone e il terreno non chiede di salire di più
+  for(let pass=0;pass<3;pass++){ let removed=0;
+    for(let i=1;i<RD.pts.length-1;i++){ const p=RD.pts[i]; if(!(p.name&&/^R\d+$/.test(p.name))) continue;
+      const A=RD.pts[i-1], B=RD.pts[i+1], d1=dist(A,p).d, d2=dist(p,B).d; if(d1>4000 && d2>4000 && pass<2) continue;
+      const c1=rdLegCheck(A,p), c2=rdLegCheck(p,B), c=rdLegCheck(A,B);
+      if(c.avoid>Math.max(c1.avoid,c2.avoid)) continue; if(c.safe>Math.max(c1.safe,c2.safe)+300) continue;
+      RD.pts.splice(i,1); i--; removed++; }
+    if(!removed) break; }
+  let kk=1; for(const p of RD.pts) if(p.name&&/^R\d+$/.test(p.name)) p.name='R'+(kk++);
+  added=RD.pts.filter(p=>p.name&&/^R\d+$/.test(p.name)).length;
   RD.busy=false; rdAnalyze();
   const left=new Set(); RD.info.forEach(l=>l.hits.forEach(h=>{ if(h.avoid) left.add(`${h.a.cls} ${h.a.name}`); }));
   RD.msg=failed?`Per ${failed} tratte non trovo un passaggio libero alla quota di crociera: prova ad alzarla o abbassarla, oppure sposta i punti a mano.`:(added?`Aggiunti ${added} punti (R1, R2…): la rotta più breve in tempo con il vento previsto, intorno alle zone e ai punti da non sorvolare, dalle valli dove il terreno lo chiede.`+(left.size?` Restano da verificare: ${[...left].slice(0,4).join(', ')} (ci parti o ci arrivi, oppure il terreno obbliga a salire dentro). Controlla la rotta prima del volo.`:' Controlla la rotta prima del volo.'):(left.size?`La rotta diritta è già la migliore, ma restano: ${[...left].slice(0,4).join(', ')}.`:'La rotta diritta è già la più breve e libera: nessun punto da aggiungere.'));
