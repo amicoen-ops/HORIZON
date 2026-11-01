@@ -1,4 +1,4 @@
-# I-A517 Strumento di volo: scheda del Play Store e guida alla pubblicazione
+# HORIZON · strumento di volo: scheda del Play Store e guida alla pubblicazione
 
 ## 1. Cosa fare tu, una volta sola
 
@@ -7,8 +7,9 @@
    - Paghi una volta 25 dollari, con documento d'identità e verifica del telefono. La verifica può richiedere qualche giorno.
 2. **Crea l'app**
    - In Play Console scegli *Crea app*.
-   - Nome: «I-A517 Strumento di volo».
+   - Nome: «HORIZON · strumento di volo».
    - Lingua predefinita: italiano.
+   - ID dell'app (pacchetto): **it.amicoen.horizon** — lo assegna il primo file .aab caricato e non si cambia più.
    - Tipo: app, gratuita (si scarica gratis; dopo 30 giorni di prova serve l'abbonamento, vedi il capitolo 6).
 3. **Firma dell'app**
    - Accetta *Firma dell'app di Google Play*, che è la scelta proposta.
@@ -16,7 +17,7 @@
 4. **Test chiuso (obbligatorio per gli account personali nuovi)**
    - Vai in *Test › Test chiuso* e crea un canale.
    - Aggiungi almeno **12 tester**, con il loro indirizzo Gmail: Fabio, amici del campo…
-   - Carica il file `I-A517-Strumento-1.0.N-play-store.aab`, che trovi nella release dello stesso numero su GitHub.
+   - Carica il file `HORIZON-1.0.N-play-store.aab`, che trovi nella release dello stesso numero su GitHub.
    - I tester devono accettare l'invito e restare iscritti **14 giorni di fila**. Solo dopo Google ti lascia chiedere l'accesso alla *Produzione*, cioè la pubblicazione per tutti.
 5. **Compila le schede** con i testi qui sotto. Ti servono questi file della cartella `docs/play`:
    - `icona-512.png`;
@@ -52,15 +53,18 @@ Se un domani vuoi una donazione anche nel Play Store, l'unica strada ammessa è 
 
 ## 3. Scheda dello Store
 
+Requisiti da indicare: **Android 14 o più recente** (il file .aab lo dichiara già: il Play Store non mostra l'app ai telefoni più vecchi). Consigliata l'ultima versione di Android.
+
+
 **Nome dell'app** (massimo 30 caratteri):
-I-A517 Strumento di volo
+HORIZON · strumento di volo
 
 **Descrizione breve** (massimo 80 caratteri):
 Orizzonte, mappa, terreno e piano di volo per ULM e VDS, anche senza internet
 
 **Descrizione completa:**
 
-I-A517 Strumento di volo trasforma il telefono o il tablet in uno strumento di bordo per la consapevolezza della situazione: orizzonte sintetico, mappa mobile con il terreno, guida verso il campo, circuito e avvisi.
+HORIZON · strumento di volo trasforma il telefono o il tablet in uno strumento di bordo per la consapevolezza della situazione: orizzonte sintetico, mappa mobile con il terreno, guida verso il campo, circuito e avvisi.
 
 Nato per un Avid Flyer basato alla Carolina (Caluso) e sviluppato per ULM, VDS e aviazione generale da diporto.
 
@@ -88,7 +92,7 @@ Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sost
 **Categoria:** Mappe e navigazione
 **Tag:** Aviazione, Navigazione, Meteo
 **Email di contatto:** amicoen@gmail.com
-**Informativa sulla privacy (URL):** https://github.com/amicoen-ops/strumento-i-a517/blob/main/PRIVACY.md
+**Informativa sulla privacy (URL):** https://github.com/amicoen-ops/HORIZON/blob/main/PRIVACY.md
 
 ## 4. Contenuti dell'app (risposte per Play Console)
 
@@ -145,10 +149,10 @@ Come funziona nell'app (versione Play Store):
 
 Passi nella Play Console (una volta sola):
 1. **Profilo pagamenti**: Play Console › Impostazioni › Profilo pagamenti › crea o collega il profilo commerciante (dati fiscali e conto per gli incassi). Senza, non si possono creare prodotti a pagamento.
-2. **Carica l'AAB** (`I-A517-Strumento-1.0.N-play-store.aab`) in Test › Test interni: la Play Console permette di creare abbonamenti solo dopo aver caricato una versione che contiene Google Play Billing.
+2. **Carica l'AAB** (`HORIZON-1.0.N-play-store.aab`) in Test › Test interni: la Play Console permette di creare abbonamenti solo dopo aver caricato una versione che contiene Google Play Billing.
 3. Monetizzazione › Prodotti › **Abbonamenti** › Crea abbonamento:
    - ID prodotto: **`licenza_annuale`** (esattamente così)
-   - Nome: «Licenza annuale I-A517 Strumento»
+   - Nome: «Licenza annuale HORIZON»
 4. Nell'abbonamento › **Aggiungi un piano base**:
    - ID piano base: **`annuale`** (esattamente così)
    - Tipo: rinnovo automatico · Periodo di fatturazione: **1 anno**

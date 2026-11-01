@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+# HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 # Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 """Prepara www/ dell'APK dalla versione telefono costruita da build_android.py (cartella www/ della PWA).
 Aggiunge il runtime di Capacitor, così la pagina usa le funzioni native (GLO 2, voce, file, METAR)."""

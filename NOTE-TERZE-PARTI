@@ -1,4 +1,4 @@
-I-A517 STRUMENTO DI VOLO - COMPONENTI DI TERZE PARTI
+HORIZON · STRUMENTO DI VOLO - COMPONENTI DI TERZE PARTI
 
 L'app Android include queste librerie, ciascuna sotto la propria licenza.
 La licenza del progetto (file LICENSE) non le limita.
@@ -48,3 +48,6 @@ DATI E SERVIZI (non inclusi nell'app, letti in rete)
   Spazi aerei         openAIP (CC BY-NC 4.0), www.openaip.net, se scaricati da lì
   Meteo               Open-Meteo (CC BY 4.0); METAR e TAF da aviationweather.gov (NOAA)
   Segnalazioni        FormSubmit
+
+Google Play Billing Library (com.android.billingclient:billing) - Android Software Development Kit License (Google)
+  solo per l'abbonamento nella versione del Google Play Store.

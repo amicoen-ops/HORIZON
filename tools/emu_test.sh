@@ -1,8 +1,8 @@
 #!/bin/bash
-# I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+# HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 # Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 # Collaudo dell'APK sull'emulatore. Uso: emu_test.sh file.apk cartella_uscita
-APK="$1"; OUT="$2"; PKG=it.ia517.strumento
+APK="$1"; OUT="$2"; PKG=it.amicoen.horizon
 mkdir -p "$OUT"
 adb wait-for-device
 adb shell input keyevent 82 || true

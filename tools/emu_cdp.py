@@ -1,4 +1,4 @@
-# I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+# HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 # Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 """Collaudo sull'emulatore: entra nella WebView dell'app (DevTools via adb), la usa come un pilota,
 salva schermate e risultati in out/. Uso: python3 emu_cdp.py out"""
@@ -8,7 +8,7 @@ import urllib.request
 import websocket  # websocket-client
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "out"
-PKG = "it.ia517.strumento"
+PKG = "it.amicoen.horizon"
 os.makedirs(OUT, exist_ok=True)
 res = []
 

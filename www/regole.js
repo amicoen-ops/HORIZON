@@ -1,4 +1,4 @@
-// I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+// HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 // =====================================================================================
 //  Regole per tipo di volo: VDS basico, VDS avanzato, aviazione generale VFR.
@@ -37,6 +37,9 @@ window.IA517_RULES = (function () {
   const controlled = a => /^(A|B|C|D|E|CTR|CTA|TMA)$/.test(a.cls);
 
   // giudizio su uno spazio aereo che la rotta (o l'aereo) occupa alla sua quota
+  // equipaggiamento del velivolo attivo (Impostazioni › Velivoli): transponder e radio
+  function eq() { let e = null; try { e = window.IA517_EQUIP || (window.parent && window.parent.IA517_EQUIP); } catch (x) {}
+    return { xpdr: !!(e && e.xpdr && e.xpdr !== 'no'), radio: !(e && e.radio === false) }; }
   function verdict(a, prof) {
     prof = prof || get(); const p = PROFILES[prof].name, c = a.cls;
     if (c === 'P') return { status: 'bad', text: 'Area proibita: non si entra, cambia rotta' };
@@ -46,8 +49,8 @@ window.IA517_RULES = (function () {
       if (isATZ(a)) return { status: 'bad', text: `${p}: vietato entrare nelle zone di traffico aeroportuale (ATZ), salvo autorizzazione ENAC` };
       if (controlled(a)) return { status: 'bad', text: `${p}: vietato, è spazio controllato (classe ${c}). Passa sotto la base o giralo intorno` };
       if (c === 'R') return { status: 'bad', text: `${p}: area regolamentata, evitala (o verifica in AIP, AUP e NOTAM che sia disattivata e aperta al VDS)` };
-      if (c === 'TMZ') return { status: 'bad', text: `${p}: zona con transponder obbligatorio, il VDS basico non lo ha` };
-      if (c === 'RMZ') return { status: 'warn', text: `${p}: zona con radio obbligatoria, servono radio e contatto` };
+      if (c === 'TMZ') return eq().xpdr ? { status: 'warn', text: `${p}: zona con transponder obbligatorio: tienilo acceso in modo ALT` } : { status: 'bad', text: `${p}: zona con transponder obbligatorio, il velivolo non lo ha` };
+      if (c === 'RMZ') return eq().radio ? { status: 'warn', text: `${p}: zona con radio obbligatoria, servono radio e contatto` } : { status: 'bad', text: `${p}: zona con radio obbligatoria, il velivolo non ha la radio` };
       if (c === 'Q') return { status: 'warn', text: 'Area pericolosa: verifica attività e orari prima del volo' };
       if (c === 'OFR') return { status: 'warn', text: 'Sorvolo limitato (per esempio un parco): rispetta la quota minima indicata' };
       if (c === 'SPORT' || c === 'W' || c === 'GSEC') return { status: 'warn', text: 'Area di attività sportive o volo a vela: occhi aperti' };
@@ -60,8 +63,8 @@ window.IA517_RULES = (function () {
     if (/^(B|C|D|CTR|CTA|TMA)$/.test(c)) return { status: 'warn', text: `Classe ${c}: serve l'autorizzazione ATC, radio sempre in ascolto${prof === 'vds_avanzato' ? ' e transponder' : ''}` };
     if (isATZ(a)) return { status: 'warn', text: 'ATZ: contatto radio con l\'ente o il traffico del campo' };
     if (c === 'E') return { status: 'ok', text: 'Classe E: VFR ammesso senza autorizzazione; radio consigliata' };
-    if (c === 'TMZ') return { status: 'warn', text: 'Zona con transponder obbligatorio' };
-    if (c === 'RMZ') return { status: 'warn', text: 'Zona con radio obbligatoria' };
+    if (c === 'TMZ') return eq().xpdr ? { status: 'ok', text: 'Zona con transponder obbligatorio: tienilo acceso in modo ALT' } : { status: 'bad', text: 'Zona con transponder obbligatorio: il velivolo non lo ha, evitala' };
+    if (c === 'RMZ') return eq().radio ? { status: 'warn', text: 'Zona con radio obbligatoria' } : { status: 'bad', text: 'Zona con radio obbligatoria: il velivolo non ha la radio, evitala' };
     if (c === 'Q') return { status: 'warn', text: 'Area pericolosa: verifica attività e orari prima del volo' };
     if (c === 'OFR') return { status: 'warn', text: 'Sorvolo limitato: rispetta la quota minima indicata' };
     if (c === 'SPORT' || c === 'W' || c === 'GSEC') return { status: 'warn', text: 'Area di attività sportive o volo a vela: occhi aperti' };

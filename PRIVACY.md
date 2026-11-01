@@ -1,4 +1,4 @@
-# Informativa sulla privacy — I-A517 Strumento di volo
+# Informativa sulla privacy — HORIZON · strumento di volo
 
 Ultimo aggiornamento: 29 ottobre 2026
 

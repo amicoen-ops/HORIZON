@@ -1,7 +1,7 @@
 {
-  "name": "I-A517 Strumento di volo",
-  "short_name": "I-A517",
-  "description": "Orizzonte sintetico, mappa, rotte e circuito per l'Avid Flyer I-A517 — versione telefono e tablet",
+  "name": "HORIZON · strumento di volo",
+  "short_name": "HORIZON",
+  "description": "HORIZON: orizzonte sintetico, mappa, rotte, profilo verticale e circuito per ultraleggeri e aerei VFR — telefono, tablet e browser",
   "lang": "it",
   "start_url": "./index.html",
   "scope": "./",

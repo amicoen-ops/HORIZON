@@ -1,6 +1,6 @@
 name: Pubblica la versione web (iPhone, Chrome)
 
-# Sito: https://amicoen-ops.github.io/strumento-i-a517/
+# Sito: https://amicoen-ops.github.io/HORIZON/
 # Una volta sola: Settings › Pages › Source: «GitHub Actions».
 on:
   push:

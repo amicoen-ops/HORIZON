@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+# HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 # Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 # -*- coding: utf-8 -*-
-# Manuale completo dell'app per telefono e tablet (versione 1.0.13)
+# Manuale completo di HORIZON per telefono, tablet e browser
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
@@ -22,8 +22,8 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.16"
-OUT = "/mnt/user-data/outputs/Manuale_App_I-A517_Strumento.pdf"
+VER = "1.0.30"
+OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
 DG = colors.HexColor("#2c2c2a"); ALT = colors.HexColor("#f4f2ec"); LINE = colors.HexColor("#cfcdc4")
@@ -96,9 +96,9 @@ def chap(n, title): return [CondPageBreak(60 * mm), Paragraph(f"{n}. {title}", H
 
 s = []
 # ---------------- COPERTINA ----------------
-s += [Spacer(1, 8 * mm), Paragraph("I-A517 Strumento di volo", H1),
-      Paragraph("Manuale dell'app per telefono e tablet Android", SUB),
-      Paragraph(f"Versione {VER} · ottobre 2026", SUB), Spacer(1, 8 * mm),
+s += [Spacer(1, 8 * mm), Paragraph("HORIZON · strumento di volo", H1),
+      Paragraph("Manuale dell'app per telefono, tablet e browser", SUB),
+      Paragraph(f"Versione {VER} · novembre 2026", SUB), Spacer(1, 8 * mm),
       shots([("11_volo_circuito.png", "Orizzonte in circuito"), ("12_mappa.png", "Mappa mobile"), ("21_simula.png", "Simulazione di una rotta")], 50 * mm),
       Spacer(1, 6 * mm),
       box("<b>Strumento sperimentale, non certificato.</b> L'app non è un equipaggiamento approvato da EASA, ENAC o altre autorità e non sostituisce "
@@ -120,7 +120,7 @@ s += [Paragraph("Indice", H2)] + [Paragraph(f"{i}. {t}", TOC) for i, t in enumer
 
 # 1 ---------------------------------------------------------------
 s += chap(1, CH_[0])
-s += [P("L'app porta sul telefono lo stesso strumento da 80 mm progettato per l'Avid Flyer I-A517: orizzonte sintetico, mappa mobile, guida verso il campo "
+s += [P("HORIZON porta sul telefono lo strumento di volo nato come strumento da 80 mm per un Avid Flyer, ora per qualsiasi ultraleggero o aereo VFR, con un profilo per ogni velivolo: orizzonte sintetico, mappa mobile, guida verso il campo "
         "con circuito e atterraggio, avvisi di terreno e spazi aerei. In più usa quello che il telefono ha: GPS, sensori di movimento, bussola, internet.")]
 s += bullets(["<b>Assetto</b> dai sensori del telefono, con lo stesso filtro della scheda sensori dello strumento e la compensazione di virata con la velocità GPS.",
               "<b>Terreno vero</b> (modello digitale del terreno) nella vista sintetica e nella mappa, con l'avviso «TERRENO! CABRA».",
@@ -136,8 +136,9 @@ s += [P("Il telefono non ha Pitot e l'app non usa il barometro: la velocità è 
 
 # 2 ---------------------------------------------------------------
 s += chap(2, CH_[1])
+s += [box("<b>Requisiti</b>: Android 14 o più recente (consigliata l'ultima versione disponibile sul telefono); su iPhone e iPad l'ultima versione di iOS/iPadOS, con Safari. Sulle versioni più vecchie l'app non si installa o non funziona.", "#e6f1fb", "#185fa5")]
 s += [Paragraph("APK da GitHub (con aggiornamenti e donazione)", H3)]
-s += steps(["Sul telefono apri la pagina delle release: github.com/amicoen-ops/strumento-i-a517/releases. Scarica il file <b>I-A517-Strumento-1.0.N.apk</b> della release più recente.",
+s += steps(["Sul telefono apri la pagina delle release: github.com/amicoen-ops/HORIZON/releases. Scarica il file <b>HORIZON-1.0.N.apk</b> della release più recente.",
             "Apri il file. La prima volta Android chiede di consentire l'installazione da questa fonte, cioè dal browser o dall'app File: consenti.",
             "Installa. Le versioni successive si installano sopra la precedente: rotte, campi, impostazioni e diario restano."])
 s += [P("Gli aggiornamenti li segnala l'app stessa: in <b>Info › Aggiornamenti</b> compare la versione nuova con il pulsante «Scarica e installa». L'app controlla una volta al giorno, oppure quando premi «Controlla ora».")]
@@ -148,6 +149,15 @@ s += [P("È la stessa app, ma senza la donazione e senza il controllo degli aggi
 s += [Paragraph("Versione da browser", H3)]
 s += [P("La stessa app può girare anche nel browser Chrome, da un indirizzo https, e si installa con il menu ⋮ › <i>Installa app</i>. "
         "Ha qualche limite in più: il GLO 2 funziona solo con Chrome recente, i METAR vanno incollati a mano e le mappe solo http, come l'IGM, possono essere bloccate.")]
+
+s += [Paragraph("iPhone, iPad e browser (Chrome, Safari)", H3)]
+s += [P("La stessa app gira nel browser all'indirizzo <b>amicoen-ops.github.io/HORIZON</b>. Il link è anche in Info › Sul browser, anche iPhone e iPad, con i tasti Apri, Copia e Condividi.")]
+s += steps(["Su iPhone o iPad apri l'indirizzo con <b>Safari</b>, poi Condividi › <b>Aggiungi alla schermata Home</b>: si apre a schermo intero e funziona anche senza internet.",
+            "Al primo avvio tocca lo schermo una volta: iOS chiede di consentire i <b>sensori di movimento</b>. Poi consenti la posizione.",
+            "Inclina un momento il telefono in avanti, quasi in piano: la bussola di iOS trova il nord e da lì la prua resta giusta anche col telefono dritto in cabina."])
+s += bullets(["Il Garmin GLO 2 su iPhone funziona come posizione del sistema: abbinalo nelle impostazioni Bluetooth e l'app lo usa senza fare altro.",
+              "Su iPhone non c'è la vibrazione negli avvisi; la voce sì.",
+              "Gli spazi aerei d'Italia arrivano da una copia di openAIP aggiornata ogni notte sullo stesso sito."])
 
 # 3 ---------------------------------------------------------------
 s += chap(3, CH_[2])
@@ -210,6 +220,8 @@ s += [side("11_volo_circuito.png", [
               "<b>Croci rosse</b> su una scala: quel dato manca o è vecchio, per esempio GS e ALT senza GPS."]),
 ], 62 * mm, "Orizzonte in circuito, sottovento sinistro")]
 
+s += [tip("Virate: l'app confronta il giroscopio con la velocità di virata misurata dal GPS. Se il giroscopio manca, o per qualche secondo non segue una virata che il GPS vede chiaramente, l'orizzonte usa la virata del GPS. In Info › dati tecnici la riga «Giroscopio» dice quale fonte è in uso.")]
+
 # 7 ---------------------------------------------------------------
 s += chap(7, CH_[6])
 s += [shots([("12_mappa.png", "Mappa a 4 km, in circuito"), ("13_mappa_180.png", "Mappa a 180 km, campi come puntini")], 56 * mm)]
@@ -222,6 +234,16 @@ s += bullets(["<b>Orientamento</b>: la mappa gira con la traccia (TRK) e, da fer
               "<b>Terreno</b>: in volo giallo e rosso dove il margine è piccolo; con la mappa di base resta solo il colore di avviso.",
               "<b>Ostacoli e cavi</b>: triangoli arancioni e linee rosse tratteggiate («CAVI» fino a 8 km di scala).",
               "In basso il vento e la destinazione; sotto, l'attribuzione della mappa e lo stato del terreno."])
+
+s += [Paragraph("Spostare la mappa", H3)]
+s += [P("Trascina la mappa col dito per guardare un altro punto: la mappa passa a <b>nord in alto</b> (in alto c'è scritto NORD ↑), l'aereo resta disegnato dov'è e lo zoom (due dita o + e −) si fa sul punto guardato. "
+        "Il tasto <b>⌖ CENTRA</b> riporta la mappa sull'aereo, con la traccia in alto.")]
+
+s += [Paragraph("Profilo verticale", H3)]
+s += [P("Tasto <b>PROFILO</b> in basso, oppure tocca la riga dello spazio aereo sotto lo strumento. È una pagina rettangolare con, lungo la rotta o davanti all'aereo (10, 25, 50, 100 km o tutta la rotta): "
+        "il <b>terreno</b>, gli <b>spazi aerei</b> con base e tetto (rossi se vietati per il tuo tipo di volo, arancio se chiedono attenzione, blu se consentiti), la <b>quota dell'aereo</b> con la linea tratteggiata di dove ti porta il vario nei prossimi 2 minuti, la <b>crociera</b> della rotta e i suoi punti. "
+        "Sotto: lo spazio in cui sei, il terreno più alto davanti con il margine alla quota attuale, e il primo spazio vietato che incontri. Si aggiorna ogni secondo.")]
+s += [tip("Terreno 3D: in Impostazioni › Montaggio scegli il dettaglio (Normale, Alto, Massimo). In automatico parte dal massimo, con riquadri di circa 120 m vicino all'aereo, e scende da solo se il telefono non tiene i fotogrammi al secondo.")]
 
 # 8 ---------------------------------------------------------------
 s += chap(8, CH_[7])
@@ -278,6 +300,27 @@ s += steps(["Piano › Campi › <b>Nuovo campo o pista</b>.",
             "Per correggere un campo che c'è, usa <b>Copia da un campo</b>: tieni la stessa sigla e cambia posizione, quota o piste.",
             "«Salva e invia allo strumento». Il campo tuo sostituisce quello dei dati, anche in volo, e resta salvato.",
             "Pista preferenziale, lato e quota del circuito, ostacoli: in <b>Note dei campi</b>. La quota letta sull'altimetro a terra, con il QNH: in Briefing › <b>Quote dei campi</b>."])
+
+s += [Paragraph("Disegnare la rotta sulla mappa (schermo pieno)", H3)]
+s += [P("In Piano › Rotta tocca <b>✎ Disegna sulla mappa</b>, oppure la piccola mappa della rotta. Si apre la mappa a schermo pieno con campi e spazi aerei.")]
+s += bullets(["<b>Un tocco</b> aggiunge un punto in fondo alla rotta. Vicino a un campo il punto si aggancia al campo.",
+              "<b>Trascina la linea magenta</b>: nasce un punto nuovo in quel punto della tratta, e lo porti dove vuoi (per esempio per girare intorno a una zona R o P).",
+              "<b>Trascina un punto</b> per spostarlo; portalo sopra il punto vicino e rilascia per <b>toglierlo</b>.",
+              "<b>Punti di riporto VFR</b> (cerchio con la V, per esempio LEW1 Ivrea o MFNE1 Candia, da openAIP): toccali per metterli in rotta.",
+              "<b>Tieni premuto</b> sulla mappa: segni un <b>punto da non sorvolare</b> (paese, casa, impianto) con raggio 1 o 2 km, oppure metti un punto di rotta lì. Tenendo premuto sul cerchio lo togli.",
+              "<b>Tocca una tratta</b>: l'etichetta lungo la linea («8,6 km; 4 min; 349°») mostra anche la quota da tenere; in alto rotta, prua, vento e terreno più alto.",
+              "Due dita per lo zoom, un dito sullo spazio vuoto per spostare la mappa. ↶ Annulla torna indietro di un passo; ⇄ Inverti; Svuota per ridisegnare da capo.",
+              "Su ogni tratta: <b>prua</b> (con il vento previsto dal modello, se scaricato), <b>minuti</b>, <b>km</b> e la <b>quota</b> da tenere."])
+s += [P("<b>Quota della tratta.</b> L'app cerca il terreno più alto entro 500 m dalla tratta (così le valli strette restano percorribili) e aggiunge il margine che scegli (500, 1000, 1500 o 2000 ft): è la <b>quota sicura</b>. "
+        "Se sulla tratta c'è una zona da evitare con la base sopra il terreno (per esempio una CTA da 2500 ft per il VDS basico), propone di passarci sotto. "
+        "<b>Il terreno vince sempre</b>: se la quota sicura entra in uno spazio aereo, l'etichetta dice SALI e l'elenco sotto la mappa dice in quale spazio entri, così chiedi l'autorizzazione o cambi rotta. "
+        "«Quota sicura» porta la crociera alla quota sicura più alta della rotta.")]
+s += [P("<b>Calcola rotta</b> cerca, tra un punto e il successivo, la strada più breve <b>in tempo</b> con il vento previsto, intorno alle zone P e R, agli spazi vietati dal tipo di volo e ai punti da non sorvolare, e dalle valli dove il terreno supererebbe la crociera. "
+        "Aggiunge i punti R1, R2… Per ogni tratta propone la <b>quota ideale</b>: sopra il terreno con il margine, sotto la base delle zone da evitare, e tra queste quella con il vento migliore. "
+        "Le zone in cui parti o arrivi non si possono girare: restano nell'elenco sotto la mappa. «Fatto» salva la rotta nel piano.")]
+s += [box("La rotta calcolata è un aiuto alla pianificazione: controllala sempre sulla carta e sul briefing ufficiale (AIP, NOTAM, AUP), soprattutto in montagna. Quote del terreno e spazi aerei possono essere incompleti o non aggiornati.")]
+
+s += [tip("Meteo: in alto c'è sempre l'ora esatta dell'ultimo aggiornamento del modello e dei METAR, con da quanti minuti. Verde fino a 30 minuti, arancio oltre (aggiorna prima di partire), rosso oltre un'ora e mezza. Ogni campo indica anche l'ora a cui si riferisce la previsione e ogni METAR l'ora dell'osservazione.")]
 
 # 12 --------------------------------------------------------------
 s += chap(12, CH_[11])
@@ -339,6 +382,8 @@ s += [table(["Avviso", "Quando"], [
 ], [52 * mm, 122 * mm])]
 s += [P("Vicino al campo di destinazione, in avvicinamento e in corsa, l'avviso di terreno si spegne entro 3,5 km dal campo, per non suonare in finale.")]
 
+s += [tip("Un tocco sull'avviso lo toglie dal video. Uno spazio aereo non avvisa più finché non ne sei uscito da 2 minuti; gli altri avvisi tornano dopo 1 minuto. Le zone R danno sempre l'avviso, perché l'app non sa se sono attive: verifica NOTAM e AUP.")]
+
 # 15 --------------------------------------------------------------
 s += chap(15, CH_[14])
 s += [side("31_imp_posizione.png", [
@@ -387,6 +432,9 @@ s += [side("39_imp_diario.png", [
               "Se l'app si chiude in volo o il telefono si riavvia, riaprendola entro 15 minuti il volo riprende."]),
 ], 74 * mm, "Impostazioni › Diario di volo")]
 
+s += [P("Le <b>tracce</b> degli ultimi 50 voli restano nel telefono (in un archivio separato dal diario, che regge voli lunghi). In Impostazioni › Diario di volo: "
+        "spunta i voli e tocca <b>Esporta GPX</b> o <b>Esporta KML</b> (Google Earth): più voli finiscono in un solo file. «Sulla mappa» disegna la traccia in giallo sulla mappa; ⌖ CENTRA torna all'aereo.")]
+
 # 20 --------------------------------------------------------------
 s += chap(20, CH_[19])
 s += [side("35_imp_offline.png", [
@@ -427,6 +475,25 @@ s += [table(["Sezione", "Che cosa contiene"], [
 ], [36 * mm, 138 * mm])]
 s += [shots([("30_imp_stato.png", "Impostazioni › Stato"), ("36_imp_mappe.png", "Impostazioni › Mappa di base")], 80 * mm)]
 
+s += [P("<b>Interfaccia</b>: <b>Completa</b> (tutto) o <b>Semplice</b>: solo l'orizzonte, come uno strumento di bordo classico, con velocità, quota, vario, prua, vento e tempo di volo; niente mappa, rotte e simulazione. Gli avvisi di terreno e spazio aereo restano attivi.")]
+
+s += [Paragraph("Velivoli", H3)]
+s += [P("In Impostazioni › <b>Velivoli</b> c'è un profilo per ogni aereo: tocca quello da usare, <b>Modifica</b> per cambiarlo, <b>Nuovo velivolo</b> o <b>Duplica</b> per aggiungerne uno. Esporta e Importa passano i profili tra telefoni (file .json). Il velivolo attivo regola tutta l'app:")]
+s += [table(["Dati del profilo", "Dove servono"], [
+    ["Marche, modello, categoria (VDS basico, VDS avanzato, VFR)", "Diario e tracce (nome dei voli); la categoria imposta il tipo di volo e quindi gli spazi aerei consentiti"],
+    ["VS0, VS1, VFE, VNO, VNE (km/h)", "Archi colorati della scala di velocità: bianco VS0–VFE, verde VS1–VNO, giallo VNO–VNE, rosso VNE"],
+    ["VA, VX, VY, miglior planata", "Promemoria nel profilo; la planata con l'efficienza disegna il cerchio di planata"],
+    ["Avvicinamento, circuito, crociera", "Simulazione, piano di volo (velocità vera), tempi delle tratte nella rotta disegnata"],
+    ["Rateo di salita, efficienza", "Cerchio di planata sulla mappa: distanza raggiungibile dall'altezza sul terreno, con il 25% di margine"],
+    ["Decollo e atterraggio (m), vento al traverso", "Piano: pista di partenza e di arrivo abbastanza lunghe (+15%); avviso se il traverso supera il massimo dimostrato"],
+    ["Quota del circuito", "Circuito e sentiero di discesa sullo strumento e nel piano"],
+    ["Serbatoi, non utilizzabile, consumo, riserva, rullaggio", "Piano: carburante necessario, capienza, autonomia"],
+    ["Pesi, bracci e limiti del baricentro", "Piano › Carico e centraggio: peso al decollo e all'atterraggio contro il MTOW, baricentro entro i limiti"],
+    ["Transponder e radio", "Spazi aerei: le zone TMZ e RMZ diventano vietate se il velivolo non ha transponder o radio"],
+], [62 * mm, 112 * mm])]
+s += [P("Mentre scrivi, l'app controlla la coerenza dei dati (VS0 ≤ VS1 < VNO < VNE, avvicinamento almeno 1,2 × VS0, peso a vuoto sotto il MTOW, limiti del baricentro in ordine) e dice cosa controllare. Il profilo di partenza è quello dell'Avid Flyer I-A517: modificalo o aggiungi il tuo aereo.")]
+s += [P("<b>Carico e centraggio</b> (Piano): scrivi i pesi di pilota, passeggero e bagaglio; il carburante viene dal piano. Senza bracci nel profilo l'app controlla solo i pesi.")]
+
 # 23 --------------------------------------------------------------
 s += chap(23, CH_[22])
 s += bullets(["<b>Versione</b> installata, data di installazione, versione precedente, avvertenze accettate.",
@@ -436,6 +503,8 @@ s += bullets(["<b>Versione</b> installata, data di installazione, versione prece
               "<b>Avvertenze e responsabilità</b>, <b>Licenza</b> con il testo completo, <b>Crediti</b> e informativa sulla privacy.",
               "<b>Ti è utile?</b>: la donazione con PayPal (non nella versione del Play Store)."])
 s += [tip("<b>Scatola nera.</b> L'app ricorda ogni secondo pagina, zoom, mappa, prestazioni e le ultime 15 azioni. Se si blocca, alla riapertura vai in Info › Segnala un problema con la spunta dei dati tecnici: arriva esattamente che cosa stava succedendo. I blocchi di più di 1,5 secondi vengono anche registrati tra gli errori.")]
+
+s += [P("Se l'invio della segnalazione non riesce, l'app apre la scelta di un'altra app (Gmail, WhatsApp, Telegram…) con il testo già pronto; c'è anche il tasto «Invia con un'altra app».")]
 
 # 24 --------------------------------------------------------------
 s += chap(24, CH_[23])
@@ -480,7 +549,7 @@ s += [P("© 2026 Enrico D'Amico. Tutti i diritti riservati: non è software libe
 s += [Paragraph("Privacy", H3)]
 s += [P("Nessun account, pubblicità o analisi. Posizione, rotte, campi, diario e impostazioni restano sul telefono. Escono solo le richieste ai servizi di mappe, terreno e meteo "
         "(con la zona mostrata o le sigle dei campi), il controllo degli aggiornamenti e le segnalazioni che invii tu. Informativa completa: "
-        "github.com/amicoen-ops/strumento-i-a517/blob/main/PRIVACY.md.")]
+        "github.com/amicoen-ops/HORIZON/blob/main/PRIVACY.md.")]
 
 # 27 --------------------------------------------------------------
 s += chap(27, CH_[26])
@@ -491,10 +560,10 @@ s += [table(["Che cosa", "Fonte"], [
     ["Meteo", "Open-Meteo (CC BY 4.0); METAR e TAF da aviationweather.gov (NOAA)"],
     ["Spazi aerei", "openAIP (CC BY-NC 4.0, www.openaip.net), Italia, riscaricati a ogni AIRAC; oppure un file OpenAir del pilota"],
     ["NOTAM e briefing", "Briefing ufficiale; collegamenti a Desk Aeronautico (non ufficiale)"],
-    ["Segnalazioni", "FormSubmit, inoltro per posta all'autore"],
+    ["Segnalazioni", "Web3Forms, inoltro per posta all'autore; in alternativa l'app che scegli tu"],
 ], [34 * mm, 140 * mm])]
 s += [Spacer(1, 4 * mm), HRFlowable(width="100%", thickness=0.6, color=GREY),
-      Paragraph(f"Manuale dell'app I-A517 Strumento di volo, versione {VER}, aggiornato al 29 ottobre 2026. Le schermate vengono dalla simulazione dell'app; "
+      Paragraph(f"Manuale dell'app HORIZON · strumento di volo, versione {VER}, aggiornato al 1 novembre 2026. Le schermate vengono dalla simulazione dell'app; "
                 "terreno e mappe di prova possono differire da quelli reali.", SM)]
 
 
@@ -510,10 +579,10 @@ s = _k
 
 def footer(c, d):
     c.saveState(); c.setFont("DV", 7); c.setFillColor(GREY)
-    c.drawString(18 * mm, 9 * mm, f"I-A517 Strumento di volo · manuale dell'app {VER} · © 2026 Enrico D'Amico")
+    c.drawString(18 * mm, 9 * mm, f"HORIZON · strumento di volo · manuale dell'app {VER} · © 2026 Enrico D'Amico")
     c.drawRightString(A4[0] - 18 * mm, 9 * mm, str(d.page)); c.restoreState()
 
 
 SimpleDocTemplate(OUT, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=14 * mm, bottomMargin=15 * mm,
-                  title="I-A517 Strumento di volo - Manuale dell'app", author="Enrico D'Amico").build(s, onFirstPage=footer, onLaterPages=footer)
+                  title="HORIZON · strumento di volo - Manuale dell'app", author="Enrico D'Amico").build(s, onFirstPage=footer, onLaterPages=footer)
 import os; print(OUT, os.path.getsize(OUT))

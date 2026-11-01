@@ -1,4 +1,4 @@
-// I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+// HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 // =====================================================================================
 //  Licenza d'uso: 30 giorni di prova, poi
@@ -84,7 +84,7 @@ async function post(path,body){
 L.activate=async function(key){
   key=String(key||'').trim().replace(/\s+/g,'');
   if(key.length<8) throw new Error('Chiave troppo corta: copiala intera dalla mail o dal tuo spazio su Polar.');
-  const label=('I-A517 '+L.dev).slice(0,40);
+  const label=('HORIZON '+L.dev).slice(0,40);
   const meta={device:L.dev,app:((window.IA517_BUILD||{}).version)||'',canale:L.channel(),modello:(navigator.userAgent.match(/\(([^)]+)\)/)||[])[1]?.slice(0,120)||''};
   let r; try{ r=await post('/v1/customer-portal/license-keys/activate',{key,organization_id:CFG.polarOrg,label,conditions:{device:L.dev},meta}); }
   catch(e){ throw new Error(navigator.onLine?'Il server delle licenze non risponde: riprova tra poco.':'Serve internet per attivare la licenza: collegati e riprova.'); }
@@ -108,7 +108,7 @@ L.buyPlay=async function(){ const r=await L.native.billingBuy({product:CFG.playP
 L.restorePlay=async function(){ const r=await L.native.billingRestore({product:CFG.playProduct}); return L.playResult(r); };
 L.playResult=function(r){ if(r&&r.owned){ L.state={kind:'play',ok:true,token:r.token||'',autoRenew:!!r.autoRenew,lastOk:Date.now()}; L.save(); return true; }
   if(L.state&&L.state.kind==='play'&&r&&r.checked){ L.state.ok=false; L.state.revoked=true; L.save(); } return false; };
-L.manageUrl=()=>'https://play.google.com/store/account/subscriptions?sku='+CFG.playProduct+'&package=it.ia517.strumento';
+L.manageUrl=()=>'https://play.google.com/store/account/subscriptions?sku='+CFG.playProduct+'&package=it.amicoen.horizon';
 
 L.refresh=async function(force){
   if(!L.enforced()) return;
@@ -145,7 +145,7 @@ L.wall=function(st){
 L.panel=function(st){
   const play=L.channel()==='play'&&L.play, esc=x=>String(x).replace(/[<&>"]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[c]));
   const title=st.code==='tampered'?'App modificata':(st.code==='revoked'?(play?'Abbonamento scaduto':'Licenza non più valida'):(st.code==='expired'?'Prova finita':(play?'Abbonamento':'Licenza')));
-  const why=st.code==='tampered'?'Questa copia dell\'app è stata modificata o firmata da altri: scarica quella ufficiale dal Play Store o da amicoen-ops.github.io/strumento-i-a517.':
+  const why=st.code==='tampered'?'Questa copia dell\'app è stata modificata o firmata da altri: scarica quella ufficiale dal Play Store o da amicoen-ops.github.io/HORIZON.':
     (st.code==='revoked'?(play?'L\'abbonamento non risulta attivo su questo account Google (disdetto, scaduto o pagamento non riuscito). Rinnovalo per continuare.':'La chiave è stata annullata (rimborso, chiave sostituita o dispositivo tolto). Attiva una chiave valida.'):
     (st.code==='expired'?`I ${CFG.trialDays} giorni di prova sono finiti. Grazie per averla provata!`:''));
   return `<h2>${title}</h2><p>${why}</p>`+(st.code==='tampered'?'':

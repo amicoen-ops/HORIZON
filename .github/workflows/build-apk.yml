@@ -54,7 +54,7 @@ jobs:
           ./gradlew assembleRelease --no-daemon 2>&1 | tee ../build.log
 
       - name: Nome del file
-        run: cp android/app/build/outputs/apk/release/app-release.apk I-A517-Strumento-1.0.${{ github.run_number }}.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk HORIZON-1.0.${{ github.run_number }}.apk
 
       - name: Versione per il Play Store (AAB, senza donazioni né aggiornamenti da GitHub, come chiede Google)
         env:
@@ -66,7 +66,7 @@ jobs:
           echo "window.IA517_BUILD={version:'1.0.${{ github.run_number }}',build:'${{ github.run_number }}',channel:'play'};" > www/version.js
           npx cap sync android
           (cd android && ./gradlew bundleRelease --no-daemon 2>&1 | tee -a ../build.log)
-          cp android/app/build/outputs/bundle/release/app-release.aab I-A517-Strumento-1.0.${{ github.run_number }}-play-store.aab
+          cp android/app/build/outputs/bundle/release/app-release.aab HORIZON-1.0.${{ github.run_number }}-play-store.aab
 
       - name: Registro dell'errore (in una issue, per poterlo leggere da fuori)
         if: failure()
@@ -80,10 +80,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: I-A517 Strumento 1.0.${{ github.run_number }}
+          name: HORIZON 1.0.${{ github.run_number }}
           body: |
             Scarica il file .apk dal telefono e installalo (sopra la versione precedente, i dati restano).
             Il file .aab è la versione per il Play Store: si carica in Google Play Console, non si installa sul telefono.
           files: |
-            I-A517-Strumento-1.0.${{ github.run_number }}.apk
-            I-A517-Strumento-1.0.${{ github.run_number }}-play-store.aab
+            HORIZON-1.0.${{ github.run_number }}.apk
+            HORIZON-1.0.${{ github.run_number }}-play-store.aab

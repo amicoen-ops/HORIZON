@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="I-A517">
+<meta name="apple-mobile-web-app-title" content="HORIZON">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <style>[hidden]{display:none!important}</style>
@@ -14,9 +14,9 @@
 <script src="regole.js"></script>
 <script src="licenza.js"></script>
 </head><body>
-<!-- I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+<!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
      Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE). -->
-<title>I-A517 Piano di Volo</title>
+<title>HORIZON · piano di volo</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -168,7 +168,7 @@
 
 <div class="app">
   <header>
-    <div class="brand"><b>I-A517</b><span>Strumento 80 mm · telefono</span></div>
+    <div class="brand"><b>HORIZON</b><span>piano di volo</span></div>
     <div class="link" id="link"><span class="dot"></span><span id="linkTxt">Anteprima · non collegato</span></div>
   </header>
 
@@ -435,7 +435,7 @@ function renderPlan(c){
     <div class="row"><span>Riserva ${PLAN.res} min</span><span>${c.resL.toFixed(1)} L</span></div>
     <div class="row sum"><span>Necessario / a bordo</span><span>${c.need.toFixed(1)} / ${PLAN.fuel.toFixed(0)} L</span></div>
     <span class="pill ${st[0]}">${st[1]} · ${c.margin>=0?'+':''}${c.margin.toFixed(1)} L</span>
-    ${PLAN.fuel>73?'<span class="pill bad">Oltre la capienza dei serbatoi (73 L)</span>':''}`;
+    ${PLAN.fuel>ACP().fuelCap?`<span class="pill bad">Oltre la capienza dei serbatoi (${ACP().fuelCap} L)</span>`:''}`;
 }
 
 // scelta pista: stessa logica dello strumento
@@ -448,7 +448,7 @@ function pickRunway(f,wind){
   if(pref && (!wind || -head(pref)<=(n.maxTail??10))){ end=pref; why=wind?'preferenziale del campo':'preferenziale del campo (vento non noto)'; }
   else if(wind && wind.kmh>4){ end=best; why=pref?'vento in coda sulla '+pref.id:'più contraria al vento'; }
   else { end=pref||f.ends[0]; why=wind?'vento debole, prima pista nei dati':'vento non noto, prima pista nei dati: verifica alla radio'; }
-  const side=(n.side&&n.side[end.id])||'L', hc=n.hcFt||800, warn=n.warn&&n.warn[end.id];
+  const side=(n.side&&n.side[end.id])||'L', hc=n.hcFt||ACP().hcFt||800, warn=n.warn&&n.warn[end.id];
   const xw=wind?Math.abs(wind.kmh*Math.sin(angDiff(end.hdg,wind.dir)*D2R)):null, hw=wind?head(end):null;
   return {end,why,side,hc,warn,xw,hw};
 }
@@ -1082,7 +1082,7 @@ function renderLiveStatus(s){
   $('status').innerHTML=rows.map(([st,a,b])=>`<div class="st"><span class="dot" style="background:var(--${st});box-shadow:none"></span><b>${a}</b><span class="v">${esc(b)}</span></div>`).join('');
 }
 
-// I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+// HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 // =====================================================================================
 //  App del piano dentro la versione telefono: i dati vanno allo strumento sullo stesso
@@ -1120,7 +1120,7 @@ async function fetchModel(force){
     if(PHONE) try{ parent.IA517.wx(MODEL.data); }catch(e){}
   }catch(e){ MODEL_ERR=navigator.onLine?'meteo non raggiungibile ('+(e.name==='AbortError'?'tempo scaduto':e.message)+')':'senza internet: dati dell\'ultimo scarico'; }
   finally{ MODEL_BUSY=false; renderWx(); const f=byId(PLAN.dest), {w}=f?nearestWx(f):{w:null};
-    $('arrival').innerHTML=arrivalHTML(f,(w&&!w.vrb)?{dir:w.dir,kmh:w.kmh}:null,w?w.id:''); }
+    $('arrival').innerHTML=`<div style="margin-bottom:6px">${wxStamp(MODEL.t,'Meteo')}</div>`+arrivalHTML(f,(w&&!w.vrb)?{dir:w.dir,kmh:w.kmh}:null,w?w.id:''); }
 }
 // il vento al campo è quello del modello sul punto esatto del campo
 function nearestWx(f){
@@ -1128,14 +1128,20 @@ function nearestWx(f){
   if(m && m.kmh!=null) return {w:{id:'previsto sul campo',vrb:false,dir:Math.round(m.dir),kmh:m.kmh,gust:m.gust,qnh:m.qnh},d:0};
   return {w:null,d:0};
 }
+// ora dell'aggiornamento sempre visibile: orario esatto, da quanto, e colore se è vecchio
+function wxStamp(t,label){ if(!t) return `<span class="warn">${label||'Meteo'}: mai scaricato</span>`;
+  const min=Math.round((Date.now()-t)/60000), hh=new Date(t).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}), dd=new Date(t).toDateString()===new Date().toDateString()?'':' del '+new Date(t).toLocaleDateString('it-IT');
+  const cls=min>90?'bad':(min>30?'warn':'ok');
+  return `<span class="pill ${cls}" style="font-weight:700">${label||'Meteo'} aggiornato alle ${hh}${dd} · ${min<1?'adesso':min+' min fa'}${min>30?' · aggiorna prima di partire':''}</span>`; }
+const utcHM=iso=>{ if(!iso) return ''; const d=new Date(/Z$/.test(iso)?iso:iso+'Z'); return isNaN(d)?'':d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}); };
 const d3=v=>String(Math.round(v)).padStart(3,'0');
 function renderWx(){
   const age=MODEL.t?Math.round((Date.now()-MODEL.t)/60000):null;
   const fs=wxFields();
-  let html=`<div class="sub">Modello Open-Meteo sul punto di ogni campo${age!=null?` · scaricato ${age<1?'adesso':age+' min fa'}`:''}${MODEL_ERR?` · <span class="warn">${esc(MODEL_ERR)}</span>`:''}. È una previsione, non un'osservazione: vale come orientamento, la manica a vento e la radio decidono.</div>
+  let html=`<div style="margin:4px 0 8px">${wxStamp(MODEL.t,'Modello')}</div><div class="sub">Modello Open-Meteo sul punto di ogni campo${MODEL_ERR?` · <span class="warn">${esc(MODEL_ERR)}</span>`:''}. È una previsione, non un'osservazione: vale come orientamento, la manica a vento e la radio decidono.</div>
     <div class="btnrow"><button class="btn" type="button" id="wxRefresh">${MODEL_BUSY?'Aggiorno…':'Aggiorna meteo'}</button></div>`;
   html+=fs.map(f=>{ const m=MODEL.data[f.id]; if(!m) return `<div class="metar"><div class="mh"><b>${esc(f.short)}</b></div><div class="sub">non ancora scaricato</div></div>`;
-    return `<div class="metar"><div class="mh"><b>${esc(f.short)} · ${esc(f.name)}</b>${m.qnh?`<button class="btn" type="button" data-q="${m.qnh}">Invia QNH ${m.qnh}</button>`:''}</div>
+    return `<div class="metar"><div class="mh"><b>${esc(f.short)} · ${esc(f.name)}</b>${m.time?`<span class="sub">previsione per le ${utcHM(m.time)}</span>`:''}${m.qnh?`<button class="btn" type="button" data-q="${m.qnh}">Invia QNH ${m.qnh}</button>`:''}</div>
       <div class="dec"><span>Vento <b>${d3(m.dir)}° ${Math.round(m.kmh)} km/h${m.gust>m.kmh+9?' raffiche '+Math.round(m.gust):''}</b></span>
       ${m.w925?`<span>~2500 ft <b>${d3(m.w925.dir)}°/${Math.round(m.w925.kmh)}</b></span>`:''}${m.w850?`<span>~5000 ft <b>${d3(m.w850.dir)}°/${Math.round(m.w850.kmh)}</b></span>`:''}
       <span>Nubi <b>${m.cc!=null?m.cc+'%':'n.d.'}${m.ccLow!=null?' (basse '+m.ccLow+'%)':''}</b></span>
@@ -1158,7 +1164,7 @@ function renderWx(){
   }
   const f=byId(PLAN.dest);
   if(f){ const {w}=nearestWx(f), wind=w?{dir:w.dir,kmh:w.kmh}:null;
-    $('wxDest').innerHTML=`<div class="sub">${esc(f.name)}: ${w?'vento previsto dal modello sul campo':'meteo non ancora scaricato'}.</div>`+arrivalHTML(f,wind,'previsto'); }
+    $('wxDest').innerHTML=`<div style="margin-bottom:6px">${wxStamp(MODEL.t,'Meteo')}</div><div class="sub">${esc(f.name)}: ${w?'vento previsto dal modello sul campo':'meteo non ancora scaricato'}.</div>`+arrivalHTML(f,wind,'previsto'); }
 }
 // ---- METAR e TAF veri (aviationweather.gov): l'app nativa li legge senza i limiti del browser ----
 let LIVE_METAR={t:0,list:[],taf:{},err:'',busy:false};
@@ -1187,11 +1193,11 @@ async function fetchMetar(force){
 }
 function renderLiveMetar(){
   const age=Math.round((Date.now()-LIVE_METAR.t)/60000), nm=id=>{ const f=byId(id); return f?f.name:''; };
-  $('metarOff').innerHTML=`<div class="sub">Da aviationweather.gov · scaricati ${age<1?'adesso':age+' min fa'}${LIVE_METAR.err?` · <span class="warn">${esc(LIVE_METAR.err)}</span>`:''}. Aeroporti vicini ai campi del piano e della zona.</div>
+  $('metarOff').innerHTML=`<div style="margin:4px 0 8px">${wxStamp(LIVE_METAR.t,'METAR')}</div><div class="sub">Da aviationweather.gov${LIVE_METAR.err?` · <span class="warn">${esc(LIVE_METAR.err)}</span>`:''}. Aeroporti vicini ai campi del piano e della zona.</div>
     <div class="btnrow"><button class="btn" type="button" id="metarRefresh">${LIVE_METAR.busy?'Aggiorno…':'Aggiorna METAR'}</button></div>`+
     LIVE_METAR.list.map(w=>`<div class="metar"><div class="mh"><b>${esc(w.id)}${nm(w.id)?' · '+esc(nm(w.id)):''}</b>${w.qnh?`<button class="btn" type="button" data-q="${w.qnh}">Invia QNH ${w.qnh}</button>`:''}</div><div class="raw">${esc(w.raw)}</div>
       <div class="dec"><span>Vento <b>${w.vrb?'variabile':d3(w.dir)+'°'} ${Math.round(w.kmh||0)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
-      <span>Nubi <b>${w.cl?w.cl.join(', '):(w.vis==='CAVOK'?'nessuna':'n.d.')}</b></span><span>QNH <b>${w.qnh||'n.d.'}</b></span><span class="sub">${w.time||''}</span></div>
+      <span>Nubi <b>${w.cl?w.cl.join(', '):(w.vis==='CAVOK'?'nessuna':'n.d.')}</b></span><span>QNH <b>${w.qnh||'n.d.'}</b></span><span class="sub">osservato ${w.time||''}</span></div>
       ${LIVE_METAR.taf[w.id]?`<details><summary>TAF</summary><div class="raw">${esc(LIVE_METAR.taf[w.id])}</div></details>`:''}</div>`).join('');
   $('metarOff').querySelectorAll('button[data-q]').forEach(b=>b.addEventListener('click',()=>sendQnh(+b.dataset.q)));
   $('metarRefresh').addEventListener('click',()=>fetchMetar(true));
@@ -1431,7 +1437,68 @@ addEventListener('online',()=>fetchModel(false));
   const cp=$('nfCopy'); if(cp){ const fb=$('nfFrom'); if(fb) fb.addEventListener('click',()=>setTimeout(()=>attach(cp,'Campo da copiare'),0)); }
 })();
 
-// I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+
+// ---------------- velivolo attivo (Impostazioni › Velivoli dello strumento) ----------------
+const AC_FALLBACK={id:'',reg:'',vcruise:110,burn:14,res:30,taxi:1.5,fuelCap:73,fuelUnus:1,fuelType:'mogas',vne:145,empty:280,mtow:450,seats:'2',bagMax:10,xwind:20,todist:250,ldist:250};
+function ACP(){ let a=null; try{ a=parent&&parent.IA517_AC?parent.IA517_AC():null; }catch(e){} return Object.assign({},AC_FALLBACK,a||{}); }
+const acN=(a,k)=>{ const v=a[k]; return v===''||v==null||isNaN(+v)?null:+v; };
+window.IA517_aircraft=function(a){
+  a=Object.assign({},AC_FALLBACK,a||{});
+  if(PLAN.acId!==a.id){                                          // velivolo cambiato: valori del piano dal suo profilo
+    PLAN.acId=a.id; PLAN.tas=acN(a,'vcruise')||PLAN.tas; PLAN.burn=acN(a,'burn')||PLAN.burn; PLAN.res=acN(a,'res')??PLAN.res; PLAN.taxi=acN(a,'taxi')??PLAN.taxi;
+    const usable=(acN(a,'fuelCap')||73)-(acN(a,'fuelUnus')||0); if(PLAN.fuel>usable) PLAN.fuel=usable;
+    for(const [id,k] of Object.entries(numIn)) $(id).value=PLAN[k]; }
+  $('pFuel').max=acN(a,'fuelCap')||73; $('pTas').max=acN(a,'vne')||145;
+  try{ update(); }catch(e){}
+};
+// carico e centraggio
+(()=>{ const sec=document.createElement('section'); sec.className='card'; sec.id='wbCard';
+  sec.innerHTML=`<h2>Carico e centraggio <span class="sub" id="wbAc"></span></h2>
+    <div class="grid2">
+      <div class="fld"><label for="wbPil">Pilota (kg)</label><input id="wbPil" type="number" inputmode="decimal" step="1" min="0" max="200"></div>
+      <div class="fld"><label for="wbPax">Passeggero (kg)</label><input id="wbPax" type="number" inputmode="decimal" step="1" min="0" max="200"></div>
+      <div class="fld"><label for="wbBag">Bagaglio (kg)</label><input id="wbBag" type="number" inputmode="decimal" step="0.5" min="0" max="200"></div>
+    </div><div id="wbOut" class="fuel"></div>`;
+  $('fuel').closest('section').after(sec);
+  PLAN.wb=PLAN.wb||{pil:80,pax:0,bag:0};
+  [['wbPil','pil'],['wbPax','pax'],['wbBag','bag']].forEach(([id,k])=>{ $(id).value=PLAN.wb[k]; $(id).addEventListener('input',()=>{ PLAN.wb[k]=parseFloat($(id).value)||0; store.set('ia517_plan',PLAN); renderWB(); }); });
+})();
+function renderWB(){
+  const a=ACP(), n=k=>acN(a,k), dens={mogas:0.74,avgas:0.72,ul91:0.72}[a.fuelType]||0.72, wb=PLAN.wb||{pil:0,pax:0,bag:0};
+  let c=null; try{ c=compute(); }catch(e){}
+  const fuelTo=Math.max(0,PLAN.fuel-(PLAN.taxi||0)), fuelLd=Math.max(0,fuelTo-(c?c.trip:0));
+  const items=[['Vuoto',n('empty')||0,n('emptyArm')],['Pilota',wb.pil||0,n('pilotArm')],['Passeggero',wb.pax||0,n('paxArm')],['Bagaglio',wb.bag||0,n('bagArm')]];
+  const calc=fuelL=>{ const it=items.concat([['Carburante',fuelL*dens,n('fuelArm')]]), W=it.reduce((s,x)=>s+x[1],0), arms=it.every(x=>x[1]===0||x[2]!=null);
+    return {W,cg:arms&&W?it.reduce((s,x)=>s+x[1]*(x[2]||0),0)/W:null}; };
+  const to=calc(fuelTo), ld=calc(fuelLd), mt=n('mtow'), fw=n('cgFwd'), af=n('cgAft'), bm=n('bagMax');
+  const cgOk=cg=>cg==null||fw==null||af==null?null:(cg>=fw&&cg<=af);
+  const pill=(ok,t)=>`<span class="pill ${ok?'ok':'bad'}">${t}</span>`;
+  const rows=[];
+  rows.push(`<div class="row"><span>Peso al decollo</span><span><b>${to.W.toFixed(0)} kg</b>${mt?' / MTOW '+mt+' kg':''}</span></div>`);
+  rows.push(`<div class="row"><span>Peso all'atterraggio (carburante ${fuelLd.toFixed(0)} L)</span><span>${ld.W.toFixed(0)} kg</span></div>`);
+  if(to.cg!=null) rows.push(`<div class="row"><span>Baricentro al decollo / all'atterraggio</span><span>${to.cg.toFixed(3)} / ${ld.cg.toFixed(3)} m${fw!=null&&af!=null?` (limiti ${fw}–${af})`:''}</span></div>`);
+  const pills=[]; if(mt) pills.push(pill(to.W<=mt,to.W<=mt?`Peso entro il massimo (margine ${(mt-to.W).toFixed(0)} kg)`:`Oltre il MTOW di ${(to.W-mt).toFixed(0)} kg: scarica carburante o bagaglio`));
+  if(bm!=null && (wb.bag||0)>bm) pills.push(pill(false,`Bagaglio oltre il massimo (${bm} kg)`));
+  if((wb.pax||0)>0 && String(a.seats)==='1') pills.push(pill(false,'Il velivolo ha un posto solo'));
+  const k1=cgOk(to.cg), k2=cgOk(ld.cg); if(k1!=null) pills.push(pill(k1&&k2,k1&&k2?'Baricentro entro i limiti, al decollo e all\'atterraggio':'Baricentro FUORI dai limiti: sposta il carico'));
+  else pills.push('<span class="sub">Per il controllo del baricentro inserisci i bracci e i limiti nel profilo del velivolo (Impostazioni › Velivoli).</span>');
+  // piste di partenza e arrivo contro le distanze del manuale (a peso massimo, +15% di margine)
+  const rw=(id,need,what)=>{ const f=byId(id); if(!f||!f.rw||!f.rw.length||!need) return; const L=Math.max(...f.rw.map(r=>r.L||0)); if(!L) return;
+    pills.push(pill(L>=need*1.15,`${what} ${f.short}: pista ${L} m, il manuale chiede ${need} m${L<need*1.15?' (+15%: troppo corta)':''}`)); };
+  rw(PLAN.from,n('todist'),'Decollo da'); rw(PLAN.dest,n('ldist'),'Atterraggio a');
+  $('wbAc').textContent=a.reg?'· '+a.reg+(a.model?' '+a.model:''):'';
+  $('wbOut').innerHTML=rows.join('')+'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">'+pills.join('')+'</div>';
+}
+{ const _u=update; update=function(){ _u(); try{ renderWB(); }catch(e){} }; }
+// arrivo: vento al traverso oltre il massimo dimostrato del velivolo
+{ const _ah=arrivalHTML; arrivalHTML=function(f,wind,src){ let h=_ah(f,wind,src); try{ const a=ACP(), xm=acN(a,'xwind'), p=f&&pickRunway(f,wind);
+    if(p&&p.xw!=null&&xm&&p.xw>xm) h+=`<div class="alertline">Vento al traverso ${p.xw.toFixed(0)} km/h: oltre il massimo dimostrato del ${esc(a.reg||'velivolo')} (${xm} km/h)</div>`; }catch(e){}
+  return h; }; }
+setTimeout(()=>window.IA517_aircraft(ACP()),0);
+
+setInterval(()=>{ try{ const a=document.activeElement; if(!document.hidden && !(a&&a.closest&&a.closest("#metars,#metarOff,input,textarea,select"))) renderWx(); }catch(e){} },60000);
+
+// HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 // =====================================================================================
 //  Rotta disegnata a schermo pieno: un tocco aggiunge un punto, trascinando la linea

@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "it.ia517.strumento"
+    namespace = "it.amicoen.horizon"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "it.ia517.strumento"
+        applicationId "it.amicoen.horizon"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")

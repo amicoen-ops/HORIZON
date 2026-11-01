@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="I-A517">
+<meta name="apple-mobile-web-app-title" content="HORIZON">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 <style>[hidden]{display:none!important}</style>
@@ -16,9 +16,9 @@
 <script src="licenza.js"></script>
 <script src="capacitor.js"></script>
 </head><body>
-<!-- I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+<!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
      Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE). -->
-<title>I-A517 Strumento</title>
+<title>HORIZON</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
   /* Strumento quadrato con display rotondo e manopola in basso a sinistra; pannello comandi sotto.
@@ -98,7 +98,7 @@
   button.ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer}
   button.ghost.hi{border-color:var(--mag);color:#ffd6f8}
   button.ghost:focus-visible,.tg:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-/* I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+/* HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
    Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE). */
   /* ---------------- versione telefono / tablet ---------------- */
   body.phone{padding:6px;gap:8px;min-height:100dvh;box-sizing:border-box;justify-content:flex-start;overflow-x:hidden;
@@ -216,6 +216,14 @@
   .ph-prof-bar button[aria-pressed="true"]{color:var(--cyan);border-color:var(--cyan)}
   .ph-prof-info{padding:6px 10px 10px;color:#c9d3de;font:600 13px system-ui,sans-serif;line-height:1.35}
   .ph-prof-info .b{color:#ff6b6b} .ph-prof-info .w{color:#ffb020} .ph-prof-info .o{color:#5bd38a}
+  .ph-hist summary{cursor:pointer;color:var(--cyan);font:700 13px system-ui,sans-serif;padding:8px 0;list-style:none}
+  .ph-hist summary::-webkit-details-marker{display:none}
+  .ph-hist summary::before{content:'▸ ';display:inline-block;transition:transform .15s}
+  .ph-hist[open] summary::before{content:'▾ '}
+  .ph-acgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 12px}
+  .ph-acgrid .ph-fld{display:flex;flex-direction:column;gap:4px}
+  .ph-acgrid input,.ph-acgrid select,.ph-acgrid textarea{width:100%;box-sizing:border-box}
+  .ph-acrow{gap:10px;align-items:center}
 </style>
 
 <h1>Orizzonte Sintetico</h1>
@@ -233,7 +241,7 @@
     <ul id="menuList"></ul>
   </div>
   <div class="toast" id="toast"></div>
-<!-- I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+<!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
      Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE). -->
   <div class="ph-alert" id="phAlert" hidden></div>
   <div class="ph-wait" id="phWait" hidden>
@@ -244,7 +252,7 @@
   <div class="prompt" id="prompt" hidden><b id="promptT"></b><span>OK: SÌ · ◀ ▶: NO</span></div>
 </div>
 
-<!-- I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+<!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
      Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE). -->
 <div class="unit unit2" id="unit2" hidden><canvas id="pfd2"></canvas></div>
 <aside class="ph-side" id="phSide">
@@ -1265,7 +1273,7 @@ function drawMap(g){
       ctx.lineWidth=3*k; ctx.strokeStyle='rgba(0,0,0,.75)'; const nm=(p.name||p.id).toUpperCase().slice(0,12);
       ctx.strokeText(nm,s2.x+r2*1.4,s2.y); ctx.fillText(nm,s2.x+r2*1.4,s2.y); });
   }
-  if(PH) PH.drawTrack(toS);
+  if(PH){ PH.drawTrack(toS); PH.glideRing(toS,acA,sc); }
   // campi volo
   ctx.textBaseline='middle';
   for(const f of FIELDS){
@@ -1342,7 +1350,7 @@ function simStep(h){
     S.alt=(terrain(ac0.E,ac0.N)+3)/FT2M;
   } else if(S.auto){
     const A=NAV.app, flare=A&&A.idx===4&&g.leg&&g.leg.rem<25;
-    const iasT=flare?ARCS.vs0*1.25:(A?(A.idx>=2?95:(A.idx===1?105:SIM_CRUISE)):SIM_CRUISE);
+    const iasT=flare?ARCS.vs0*1.25:(A?(A.idx>=2?AC_.vapp:(A.idx===1?AC_.vcirc:SIM_CRUISE)):SIM_CRUISE);
     S.roll+=(g.cmdRoll-S.roll)*Math.min(1,1.4*h);
     if(flare) S.pitch+=(8-S.pitch)*Math.min(1,1.2*h); else S.pitch+=(g.cmdPitch-S.pitch)*Math.min(1,1.0*h);
     S.ias+=(iasT-S.ias)*Math.min(1,(flare?0.5:0.4)*h);
@@ -1821,7 +1829,7 @@ function learnPropose(seg,kind){
       ()=>{ addUserField(u); toast('PISTA SALVATA '+u.short+' '+le+'/'+he); },30);
 }
 
-// I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+// HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 // =====================================================================================
 //  VERSIONE TELEFONO / TABLET
@@ -1830,7 +1838,7 @@ function learnPropose(seg,kind){
 //  in virata con la velocità GPS). Da internet: terreno vero (DEM), mappa di base, meteo.
 //  Le funzioni dichiarate qui sostituiscono quelle con lo stesso nome dello strumento.
 // =====================================================================================
-var PH=null, PH_nearFields=null, SIM_CRUISE=115;   // velocità di crociera della simulazione (km/h)
+var PH=null, PH_nearFields=null, SIM_CRUISE=115, AC_={vapp:95,vcirc:105,vcruise:115,vs0:42,glide:0};   // AC_: velivolo attivo (vedi phone_aereo.js)   // velocità di crociera della simulazione (km/h)
 
 // chiavi di memoria: le note dello strumento non devono sovrascrivere quelle del piano
 function phKey(k){ return k==='ia517_notes'?'ia517pfd_notes':k; }
@@ -2292,7 +2300,7 @@ PH.logFix=function(gs,tFix){
     if(kmh>55){ if(!PH.fastSince) PH.fastSince=now; } else PH.fastSince=0;
     if(PH.fastSince && now-PH.fastSince>=5000){
       const near=FIELDS.map(x=>({x,d:distBrg(S,x).d})).sort((a,b)=>a.d-b.d)[0];
-      PH.flight={start:now,from:near&&near.d<3000?near.x.short:'',pts:[],maxFt:0,dist:0}; NAV.airborne=true; PH.slowSince=0; PH.fastSince=0;
+      PH.flight={start:now,from:near&&near.d<3000?near.x.short:'',pts:[],maxFt:0,dist:0,ac:(PH.ac&&PH.ac.reg)||''}; NAV.airborne=true; PH.slowSince=0; PH.fastSince=0;
       PH.say('decollo'); PH.saveFlight();
     }
   }
@@ -2312,6 +2320,7 @@ PH.endFlight=function(tEnd){
   try{ localStorage.removeItem('ia517p_curflight'); }catch(e){}
   const near=FIELDS.map(x=>({x,d:distBrg(S,x).d})).sort((a,b)=>a.d-b.d)[0];
   F_.end=tEnd||Date.now(); F_.to=near&&near.d<3000?near.x.short:'';
+  try{ if(PH.ac) lsSet('ia517p_decel_'+PH.ac.id,DECEL); }catch(e){}
   PH.trkPut(F_.start,F_.pts||[]).then(ok=>{                 // la traccia va nel database del telefono, il diario resta leggero
     const book=lsGet('ia517p_logbook',[]); const e=Object.assign({},F_); delete e.pts; e.trk=ok?(F_.pts||[]).length:0; book.unshift(e);
     lsSet('ia517p_logbook',book.slice(0,200)); PH.trkPrune(book); PH.renderLog&&PH.renderLog(); });
@@ -2337,9 +2346,9 @@ PH.drawTrack=function(toS){ const T=PH.trackShow; if(!T||!T.pts||T.pts.length<2)
   ctx.restore(); };
 PH.gpx=function(F_){
   const esc=s=>String(s).replace(/[<&>]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;'}[c]));
-  const name=`I-A517 ${new Date(F_.start).toISOString().slice(0,16).replace('T',' ')} ${F_.from||''}-${F_.to||''}`;
+  const name=`${F_.ac||'HORIZON'} ${new Date(F_.start).toISOString().slice(0,16).replace('T',' ')} ${F_.from||''}-${F_.to||''}`;
   const pts=(F_.pts||[]).map(p=>`<trkpt lat="${p[0]}" lon="${p[1]}"><ele>${(p[2]*FT2M).toFixed(1)}</ele><time>${new Date(p[3]).toISOString()}</time></trkpt>`).join('\n');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="I-A517 strumento telefono" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>${esc(name)}</name><trkseg>\n${pts}\n</trkseg></trk>\n</gpx>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="HORIZON" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>${esc(name)}</name><trkseg>\n${pts}\n</trkseg></trk>\n</gpx>\n`;
 };
 PH.download=async function(name,text,type){
   if(PH.native&&PH.native.fs){
@@ -2665,6 +2674,7 @@ PH.valRoute=function(d){
 PH.status=function(){
   const age=t=>t?Math.round((Date.now()-t)/100)/10:null, fx=PH.lastFix;
   const rows=[
+    ['ok','Velivolo',PH.ac?PH.acLabel(PH.ac)+` · VNE ${PH.ac.vne} km/h`:'—'],
     [PH.demo?'warn':(fx&&age(fx.t)<5?'ok':'bad'),'GPS del telefono',PH.demo?'volo dimostrativo':(fx?`±${Math.round(fx.acc)} m · ${age(fx.t)<2?'adesso':age(fx.t)+' s fa'}`:(PH.gpsDenied?'permesso negato':'nessun fix'))],
     [PH.glo.port?(PH.glo.fix&&Date.now()-PH.glo.fix.recv<3000?'ok':'warn'):(PH.glo.want?'bad':'warn'),'Garmin GLO 2',
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
@@ -2712,7 +2722,7 @@ window.IA517={
   show:(v)=>PH.show(v),
   native:!!PH.native,
   http:async(url,headers)=>{
-    if(PH.native&&PH.native.http){ const r=await PH.native.http.get({url,headers:Object.assign({'User-Agent':'I-A517-strumento/1.0'},headers||{}),responseType:'text',connectTimeout:12000,readTimeout:30000});
+    if(PH.native&&PH.native.http){ const r=await PH.native.http.get({url,headers:Object.assign({'User-Agent':'HORIZON/1.0'},headers||{}),responseType:'text',connectTimeout:12000,readTimeout:30000});
       return {status:r.status,text:typeof r.data==='string'?r.data:JSON.stringify(r.data)}; }
     const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),12000);
     try{ const r=await fetch(url,{signal:ctl.signal,headers:headers||{}}); return {status:r.status,text:await r.text()}; } finally{ clearTimeout(tm); }
@@ -2786,7 +2796,7 @@ PH.afterFrame=function(g,dt){
 };
 PH.setDemo=function(on,label){
   PH.demo=on; OBST.length=0; if(on && !label) OBST.push(...OBST_SYN);
-  if(!on && PH.sim){ PH.sim=null; SIM_CRUISE=115; }
+  if(!on && PH.sim){ PH.sim=null; SIM_CRUISE=AC_.vcruise; }
   if(on){ LIVE.any=false; S.gpsReal=false; S.auto=true; el('auto').checked=true; PH.flight=null; toast(label||'VOLO DIMOSTRATIVO'); }
   else { S.auto=false; el('auto').checked=false; LIVE.any=true; LIVE.att=LIVE.gps=LIVE.air=LIVE.baro=0; PH.ahrsInit=false; toast('SENSORI DEL TELEFONO'); }
   MR.zi=-1; PH.renderImp&&!el('phImp').hidden&&PH.renderImp();
@@ -2805,7 +2815,7 @@ PH.renderLog=function(){
     `<div class="ph-btns"><button class="ph-btn" id="phTrkAll">Seleziona tutte</button><button class="ph-btn pri" id="phTrkGpx">Esporta GPX</button><button class="ph-btn" id="phTrkKml">Esporta KML (Google Earth)</button></div><p class="ph-sub" id="phTrkMsg"></p>`+
     book.slice(0,60).map((f,i)=>{
     const d=new Date(f.start), m=Math.round((f.end-f.start)/60000), on=PH.trackShow&&PH.trackShow.k===f.start;
-    return `<div class="ph-row">${has(f)?`<input type="checkbox" class="ph-trkSel" data-i="${i}" aria-label="Seleziona il volo">`:'<span style="width:20px"></span>'}<span style="flex:1"><b>${d.toLocaleDateString('it-IT')} ${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</b><br><small>${f.from||'?'} → ${f.to||'?'} · ${Math.floor(m/60)}:${String(m%60).padStart(2,'0')} · ${(f.dist/1000).toFixed(0)} km · max ${f.maxFt} ft${has(f)?'':' · senza traccia'}</small></span>`+
+    return `<div class="ph-row">${has(f)?`<input type="checkbox" class="ph-trkSel" data-i="${i}" aria-label="Seleziona il volo">`:'<span style="width:20px"></span>'}<span style="flex:1"><b>${d.toLocaleDateString('it-IT')} ${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</b><br><small>${f.ac?f.ac+' · ':''}${f.from||'?'} → ${f.to||'?'} · ${Math.floor(m/60)}:${String(m%60).padStart(2,'0')} · ${(f.dist/1000).toFixed(0)} km · max ${f.maxFt} ft${has(f)?'':' · senza traccia'}</small></span>`+
       (has(f)?`<button class="ph-btn" data-show="${i}">${on?'Nascondi':'Sulla mappa'}</button>`:'')+`</div>`; }).join('')+
     `<div class="ph-btns"><button class="ph-btn" id="phCsv">Esporta diario (CSV)</button></div>`;
   const ptsOf=async f=>f.pts||await PH.trkGet(f.start)||[];
@@ -2814,7 +2824,7 @@ PH.renderLog=function(){
   el('phTrkAll').onclick=()=>{ const cs=[...box.querySelectorAll('.ph-trkSel')], all=cs.every(c=>c.checked); cs.forEach(c=>c.checked=!all); };
   const exp=async kind=>{ const fs=sel(), msg=el('phTrkMsg'); if(!fs.length){ msg.textContent='Spunta almeno un volo.'; return; }
     const full=[]; for(const f of fs) full.push(Object.assign({},f,{pts:await ptsOf(f)}));
-    const name=fs.length===1?`I-A517_${stamp(fs[0])}`:`I-A517_${fs.length}_voli_${stamp(fs[fs.length-1])}`;
+    const name=fs.length===1?`${(fs[0].ac||'HORIZON').replace(/\W+/g,'')}_${stamp(fs[0])}`:`HORIZON_${fs.length}_voli_${stamp(fs[fs.length-1])}`;
     if(kind==='gpx') PH.download(name+'.gpx',PH.gpxMulti(full),'application/gpx+xml'); else PH.download(name+'.kml',PH.kml(full),'application/vnd.google-earth.kml+xml');
     msg.textContent=`${fs.length} ${fs.length===1?'volo esportato':'voli esportati'}.`; };
   el('phTrkGpx').onclick=()=>exp('gpx'); el('phTrkKml').onclick=()=>exp('kml');
@@ -2825,22 +2835,23 @@ PH.renderLog=function(){
     PH.pan={E:(mid[1]-S.lon)*111320*cosl,N:(mid[0]-S.lat)*110540}; PH.panBtn&&PH.panBtn();
     if(PH.ui==='simple') PH.setUi('full');
     PH.show('volo'); if(PAGE!=='map') togglePage(); toast('TRACCIA SULLA MAPPA · ⌖ CENTRA PER TORNARE'); }));
-  el('phCsv').addEventListener('click',()=>{ const rows=['data;partenza;arrivo;decollo;atterraggio;durata_min;km;quota_max_ft'].concat(book.map(f=>{
-      const a=new Date(f.start), b=new Date(f.end); return [a.toLocaleDateString('it-IT'),f.from,f.to,a.toLocaleTimeString('it-IT'),b.toLocaleTimeString('it-IT'),Math.round((f.end-f.start)/60000),(f.dist/1000).toFixed(1),f.maxFt].join(';'); }));
-    PH.download('I-A517_diario.csv','﻿'+rows.join('\n'),'text/csv'); });
+  el('phCsv').addEventListener('click',()=>{ const rows=['data;velivolo;partenza;arrivo;decollo;atterraggio;durata_min;km;quota_max_ft'].concat(book.map(f=>{
+      const a=new Date(f.start), b=new Date(f.end); return [a.toLocaleDateString('it-IT'),f.ac||'',f.from,f.to,a.toLocaleTimeString('it-IT'),b.toLocaleTimeString('it-IT'),Math.round((f.end-f.start)/60000),(f.dist/1000).toFixed(1),f.maxFt].join(';'); }));
+    PH.download('HORIZON_diario.csv','﻿'+rows.join('\n'),'text/csv'); });
 };
 PH.gpxMulti=function(fs){ const esc=s=>String(s).replace(/[<&>]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;'}[c]));
-  const trk=F_=>{ const name=`I-A517 ${new Date(F_.start).toISOString().slice(0,16).replace('T',' ')} ${F_.from||''}-${F_.to||''}`;
+  const trk=F_=>{ const name=`${F_.ac||'HORIZON'} ${new Date(F_.start).toISOString().slice(0,16).replace('T',' ')} ${F_.from||''}-${F_.to||''}`;
     return `<trk><name>${esc(name)}</name><trkseg>\n`+(F_.pts||[]).map(p=>`<trkpt lat="${p[0]}" lon="${p[1]}"><ele>${(p[2]*FT2M).toFixed(1)}</ele><time>${new Date(p[3]).toISOString()}</time></trkpt>`).join('\n')+`\n</trkseg></trk>`; };
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="I-A517 strumento telefono" xmlns="http://www.topografix.com/GPX/1/1">\n${fs.map(trk).join('\n')}\n</gpx>\n`; };
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="HORIZON" xmlns="http://www.topografix.com/GPX/1/1">\n${fs.map(trk).join('\n')}\n</gpx>\n`; };
 PH.kml=function(fs){ const esc=s=>String(s).replace(/[<&>]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;'}[c]));
   const pm=F_=>`<Placemark><name>${esc(new Date(F_.start).toLocaleString('it-IT')+' '+(F_.from||'')+'-'+(F_.to||''))}</name><styleUrl>#t</styleUrl><LineString><altitudeMode>absolute</altitudeMode><coordinates>`+
     (F_.pts||[]).map(p=>`${p[1]},${p[0]},${(p[2]*FT2M).toFixed(0)}`).join(' ')+`</coordinates></LineString></Placemark>`;
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>I-A517 voli</name><Style id="t"><LineStyle><color>ff3fd2ff</color><width>3</width></LineStyle></Style>\n${fs.map(pm).join('\n')}\n</Document></kml>\n`; };
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>HORIZON voli</name><Style id="t"><LineStyle><color>ff3fd2ff</color><width>3</width></LineStyle></Style>\n${fs.map(pm).join('\n')}\n</Document></kml>\n`; };
 PH.renderImp=function(){
   const box=el('phImpBody'), on=v=>v?'checked':'';
   box.innerHTML=`
   <section><h3>Stato</h3><div id="phImpStat"></div></section>
+  ${PH.acSectionHtml?PH.acSectionHtml():''}
   <section><h3>Interfaccia</h3>
     <div class="ph-seg" id="phUi">${[['full','Completa'],['simple','Semplice']].map(([k2,l])=>`<button data-u="${k2}" aria-pressed="${PH.ui===k2}">${l}</button>`).join('')}</div>
     <p class="ph-sub"><b>Semplice</b>: solo l'orizzonte, come uno strumento di bordo classico, con velocità, quota, vario, prua, vento e tempo di volo. Niente mappa, rotte e simulazione. Gli avvisi di terreno e di spazio aereo restano attivi. <b>Completa</b>: tutto.</p>
@@ -2916,6 +2927,7 @@ PH.renderImp=function(){
   el('phLevelGnd').onclick=()=>{ if(PH.level(+el('phGp').value||0)) stat(); };
   el('phMountReset').onclick=()=>{ PH.resetMount(); stat(); };
   el('phGeo').onchange=()=>{ const v=+el('phGeo').value; if(v>-110&&v<90){ PH.geoid=v; lsSet('ia517p_geoid',v); PH.vario.h=NaN; } };
+  PH.acSectionWire&&PH.acSectionWire();
   el('phTq').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.terrQ=b.dataset.q; lsSet('ia517p_terrq',PH.terrQ); el('phTq').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.tqNow(); });
   PH.tqNow();
   el('phUi').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.setUi(b.dataset.u); el('phUi').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
@@ -3327,22 +3339,23 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
   else if('serviceWorker' in navigator && location.hostname==='localhost') navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 
-// I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+// HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 // =====================================================================================
 //  Info: versione e aggiornamenti, segnalazioni, avvertenze, crediti, donazione
 // =====================================================================================
 const PH_INFO={
-  author:'Enry · I-A517',
+  author:'Enrico D\'Amico',
   mail:'amicoen@gmail.com',                       // le segnalazioni arrivano qui (FormSubmit, poi posta)
   paypal:'https://www.paypal.me/amicoen',
-  web:'https://amicoen-ops.github.io/strumento-i-a517/',
+  web:'https://amicoen-ops.github.io/HORIZON/',
   w3f:'11d0883a-25d2-4be5-aa08-d0f6ce0623d3',                                         // chiave pubblica Web3Forms (vuota: FormSubmit, poi condivisione)
-  releases:'https://api.github.com/repos/amicoen-ops/strumento-i-a517/releases/latest',
+  releases:'https://api.github.com/repos/amicoen-ops/HORIZON/releases/latest',
   termsVersion:2,                                 // 2: aggiunta la licenza
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['1.0.30','L\'app si chiama HORIZON. Velivoli: in Impostazioni un profilo per ogni aereo (velocità e archi, prestazioni, carburante, pesi e centraggio, transponder e radio) che regola scala di velocità, circuito, simulazione, piano, carico e centraggio, piste, vento al traverso, spazi aerei e cerchio di planata. Meteo con l\'ora esatta dell\'aggiornamento. Novità: solo l\'ultima versione, le precedenti si aprono col triangolino. Richiede Android 14 o più recente.'],
   ['1.0.28','Licenza d\'uso: 30 giorni di prova, poi sul Play Store abbonamento annuale da 20 € (Google Play, su tutti i telefoni del tuo account, disdici quando vuoi). In volo l\'app non si blocca mai. Info › Licenza d\'uso mostra lo stato e il link per gestire l\'abbonamento. Codice nativo offuscato.'],
   ['1.0.26','Calcola rotta: tolti i punti in più (niente tratte corte a zig-zag) quando la tratta senza di loro resta fuori dalle zone e il terreno non chiede di salire.'],
   ['1.0.25','Profilo verticale in una pagina rettangolare (tasto PROFILO, oppure tocca la riga dello spazio aereo): terreno, spazi aerei colorati per il tuo tipo di volo, quota dell\'aereo con la tendenza del vario, crociera e punti della rotta; davanti 10–100 km o tutta la rotta. Terreno 3D più dettagliato (riquadri fino a 3 volte più piccoli) e disegnato più in fretta di prima; in Impostazioni il dettaglio, in automatico scende da solo se il telefono rallenta.'],
@@ -3388,7 +3401,7 @@ PH.checkUpdate=async function(manual){
     else if(r.status!==200){ out.state='errore'; out.msg='risposta '+r.status; }
     else { const j=JSON.parse(r.text), n=parseInt(String(j.tag_name||'').replace(/\D+/g,''))||0, cur=parseInt(b.build)||0;
       const apk=(j.assets||[]).find(a=>/\.apk$/i.test(a.name));
-      Object.assign(out,{state:n>cur?'nuova':'ok',latest:(j.name||j.tag_name||'').replace(/^I-A517 Strumento\s*/,''),build:n,url:apk?apk.browser_download_url:j.html_url,date:j.published_at,notes:j.body||''}); }
+      Object.assign(out,{state:n>cur?'nuova':'ok',latest:(j.name||j.tag_name||'').replace(/^HORIZON\s*/,''),build:n,url:apk?apk.browser_download_url:j.html_url,date:j.published_at,notes:j.body||''}); }
   }catch(e){ out.state=navigator.onLine?'errore':'offline'; out.msg=e&&e.message; }
   out.t=Date.now(); lsSet('ia517p_update',out);
   if(out.state==='nuova' && !manual) toast('AGGIORNAMENTO DISPONIBILE · '+out.latest);
@@ -3411,7 +3424,7 @@ PH.diag=function(){
 // segnalazioni: inviate per posta tramite FormSubmit; senza rete restano in coda e partono dopo
 PH.reports=lsGet('ia517p_reports',[]);
 PH.sendReport=async function(rep){
-  const subj=`[I-A517 app] ${rep.kind}: ${rep.text.slice(0,60)}`, ver=PH.version().version, when=new Date(rep.t).toLocaleString('it-IT');
+  const subj=`[HORIZON] ${rep.kind}: ${rep.text.slice(0,60)}`, ver=PH.version().version, when=new Date(rep.t).toLocaleString('it-IT');
   const post=async(url,body,extra)=>{ const h=Object.assign({'Content-Type':'application/json','Accept':'application/json'},extra||{});
     if(PH.native&&PH.native.http){ const r=await PH.native.http.post({url,headers:h,data:body}); let d=r.data; if(typeof d==='string'){ try{ d=JSON.parse(d); }catch(e){} } return {status:r.status,d}; }
     const r=await fetch(url,{method:'POST',headers:h,body:JSON.stringify(body)}); let d=null; try{ d=await r.json(); }catch(e){} return {status:r.status,d}; };
@@ -3420,7 +3433,7 @@ PH.sendReport=async function(rep){
     // dal WebView come da un browser (Web3Forms gratuito accetta solo invii da pagina web), il modulo nativo solo se fetch non passa
     const postW=async(url,body)=>{ try{ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)});
         let d=null; try{ d=await r.json(); }catch(e){} return {status:r.status,d}; }catch(e){ if(PH.native&&PH.native.http) return post(url,body); throw e; } };
-    const r=await postW('https://api.web3forms.com/submit',{access_key:PH_INFO.w3f,subject:subj,from_name:'I-A517 app '+ver,
+    const r=await postW('https://api.web3forms.com/submit',{access_key:PH_INFO.w3f,subject:subj,from_name:'HORIZON '+ver,
       email:rep.reply||undefined,replyto:rep.reply||undefined,tipo:rep.kind,messaggio:rep.text,rispondi_a:rep.reply||'(non indicato)',versione:ver,data:when,dati_tecnici:rep.diag||'(non allegati)'});
     if(r.status>=200&&r.status<300&&r.d&&yes(r.d.success)) return;
     throw new Error((r.d&&r.d.message)||('risposta '+r.status)); }
@@ -3430,10 +3443,10 @@ PH.sendReport=async function(rep){
   // FormSubmit risponde 200 anche quando non inoltra (modulo da attivare, origine rifiutata): conta solo success:true
   if(!(r.status>=200&&r.status<300&&r.d&&yes(r.d.success))) throw new Error((r.d&&r.d.message)||('risposta '+r.status));
 };
-PH.repText=function(rep){ return '[I-A517 app] '+rep.kind+'\n\n'+rep.text+(rep.reply?'\n\nRispondere a: '+rep.reply:'')+'\n\n---\n'+(rep.diag||''); };
+PH.repText=function(rep){ return '[HORIZON] '+rep.kind+'\n\n'+rep.text+(rep.reply?'\n\nRispondere a: '+rep.reply:'')+'\n\n---\n'+(rep.diag||''); };
 PH.shareReport=async function(rep){ const t=PH.repText(rep);
-  try{ if(PH.native&&PH.native.share){ await PH.native.share.share({title:'Segnalazione I-A517',text:t,dialogTitle:'Invia la segnalazione con…'}); return true; }
-    if(navigator.share){ await navigator.share({title:'Segnalazione I-A517',text:t}); return true; } }catch(e){ return false; }
+  try{ if(PH.native&&PH.native.share){ await PH.native.share.share({title:'Segnalazione HORIZON',text:t,dialogTitle:'Invia la segnalazione con…'}); return true; }
+    if(navigator.share){ await navigator.share({title:'Segnalazione HORIZON',text:t}); return true; } }catch(e){ return false; }
   try{ await navigator.clipboard.writeText(t); toast('TESTO COPIATO'); return true; }catch(e){ return false; } };
 PH.flushReports=async function(){
   if(!PH.reports.length || !navigator.onLine) return;
@@ -3444,7 +3457,7 @@ PH.flushReports=async function(){
 };
 addEventListener('online',()=>PH.flushReports());
 PH.mailto=function(rep){
-  return 'mailto:'+PH_INFO.mail+'?subject='+encodeURIComponent('[I-A517 app] '+rep.kind)+'&body='+encodeURIComponent(rep.text+'\n\n---\n'+(rep.diag||''));
+  return 'mailto:'+PH_INFO.mail+'?subject='+encodeURIComponent('[HORIZON] '+rep.kind)+'&body='+encodeURIComponent(rep.text+'\n\n---\n'+(rep.diag||''));
 };
 
 // avvertenze da accettare al primo avvio (e quando cambiano)
@@ -3472,7 +3485,7 @@ PH.renderInfo=function(){
     return `<p class="ph-sub">Controllo non riuscito${u.msg?' ('+String(u.msg).replace(/</g,'')+')':''}. ${when}.</p>`; };
   const box=el('phInfoBody');
   box.innerHTML=`
-  <section class="ph-hero"><img src="icon-192.png" alt="" width="64" height="64"><div><b>I-A517 Strumento di volo</b><span>${PH_INFO.author}</span><span class="ph-sub">© 2026 ${PH_INFO.owner} · Tutti i diritti riservati</span></div></section>
+  <section class="ph-hero"><img src="icon-192.png" alt="" width="64" height="64"><div><b>HORIZON · strumento di volo</b><span>${PH_INFO.author}</span><span class="ph-sub">© 2026 ${PH_INFO.owner} · Tutti i diritti riservati</span></div></section>
   <section><h3>Versione</h3>
     <div class="ph-row"><span>Installata</span><small><b>${b.version}</b> · build ${b.build} · ${b.channel==='apk'?'app Android':(b.channel==='play'?'Play Store':'app dal browser')}</small></div>
     <div class="ph-row"><span>Installata o aggiornata il</span><small>${dt(h[0]&&h[0].t)}</small></div>
@@ -3488,7 +3501,8 @@ PH.renderInfo=function(){
     <div class="ph-row ph-col"><b style="word-break:break-all">${PH_INFO.web}</b></div>
     <div class="ph-btns"><a class="ph-btn pri" href="${PH_INFO.web}" target="_blank" rel="noopener">Apri</a><button class="ph-btn" id="phWebCopy">Copia il link</button><button class="ph-btn" id="phWebShare">Condividi</button></div>
   </section>
-  <section><h3>Novità</h3>${PH_CHANGES.map(([v,t])=>`<div class="ph-row ph-col"><b>${v}</b><small>${t}</small></div>`).join('')}</section>
+  <section><h3>Novità della versione ${PH_CHANGES[0][0]}</h3><div class="ph-row ph-col"><small>${PH_CHANGES[0][1]}</small></div>
+    <details class="ph-hist"><summary>Versioni precedenti (${PH_CHANGES.length-1})</summary>${PH_CHANGES.slice(1).map(([v,t])=>`<div class="ph-row ph-col"><b>${v}</b><small>${t}</small></div>`).join('')}</details></section>
   <section><h3>Segnala un problema o un'idea</h3>
     <p class="ph-sub">Arriva per posta all'autore. Se sei in volo o senza rete resta in coda e parte da sola.</p>
     <div class="ph-seg" id="phRepKind">${['Problema','Suggerimento','Dato sbagliato'].map((k2,i)=>`<button data-k="${k2}" aria-pressed="${i===0}">${k2}</button>`).join('')}</div>
@@ -3513,8 +3527,8 @@ PH.renderInfo=function(){
       <p><b>Terreno</b>: Terrain Tiles su AWS Open Data (Mapzen, da SRTM, EU-DEM e altre fonti pubbliche).</p>
       <p><b>Meteo</b>: Open-Meteo (CC BY 4.0); METAR e TAF da aviationweather.gov (NOAA).</p>
       <p><b>Librerie</b>: Capacitor e i plugin Filesystem, Share, Keep Awake, Text to Speech (MIT); AndroidX (Apache 2.0). Segnalazioni via FormSubmit.</p>
-      <p><b>Progetto</b>: strumento di volo DIY da 80 mm per l'Avid Flyer I-A517.</p>
-      <p><b>Privacy</b>: niente account, pubblicità o analisi; posizione e dati restano sul telefono. Informativa completa: <a href="https://github.com/amicoen-ops/strumento-i-a517/blob/main/PRIVACY.md" target="_blank" rel="noopener">PRIVACY.md</a>.</p>
+      <p><b>Progetto</b>: HORIZON nasce dallo strumento di volo da 80 mm costruito per un Avid Flyer; oggi funziona con qualsiasi ultraleggero o aereo VFR (profili dei velivoli in Impostazioni).</p>
+      <p><b>Privacy</b>: niente account, pubblicità o analisi; posizione e dati restano sul telefono. Informativa completa: <a href="https://github.com/amicoen-ops/HORIZON/blob/main/PRIVACY.md" target="_blank" rel="noopener">PRIVACY.md</a>.</p>
     </div>
   </section>
   ${b.channel==='play'?'':`<section class="ph-donate"><h3>Ti è utile?</h3>
@@ -3525,7 +3539,7 @@ PH.renderInfo=function(){
     try{ const r=await fetch('LICENZE.txt'); pre.textContent=(await r.text()).replace(/([a-zà-ù0-9,;:'")])\n(?=[^\n\s])/g,'$1 ').replace(/([a-zà-ù0-9,;:'")])\n {2,}(?![a-z]\) )/g,'$1 '); pre.style.whiteSpace='pre-wrap'; pre.dataset.ok=1; }catch(_){ pre.textContent='Testo non disponibile: lo trovi nel file LICENSE del repository amicoen-ops/strumento-i-a517.'; } };
   try{ window.IA517_LIC&&IA517_LIC.infoWire(); }catch(e){}
   el('phWebCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText(PH_INFO.web); toast('LINK COPIATO'); }catch(e){ prompt('Copia il link:',PH_INFO.web); } };
-  el('phWebShare').onclick=async()=>{ const d={title:'I-A517 Strumento di volo',text:'Strumento di volo I-A517 per telefono e tablet',url:PH_INFO.web};
+  el('phWebShare').onclick=async()=>{ const d={title:'HORIZON · strumento di volo',text:'HORIZON, strumento di volo per telefono, tablet e browser',url:PH_INFO.web};
     try{ if(PH.native&&PH.native.share){ await PH.native.share.share(d); return; } if(navigator.share){ await navigator.share(d); return; } }catch(e){ return; }
     try{ await navigator.clipboard.writeText(PH_INFO.web); toast('LINK COPIATO'); }catch(e){} };
   let kind='Problema';
@@ -3554,7 +3568,7 @@ PH.donateNag=function(){
   const n=PH.launchN||0; if(n<1 || n>5 || document.getElementById('phNag') || document.getElementById('phTerms')) return;
   if(PH.flight || PH.sim || (S.gpsReal && S.gs>25)) return;          // mai sopra lo strumento in volo o in movimento
   const d=document.createElement('div'); d.className='ph-sheet ph-terms'; d.id='phNag';
-  d.innerHTML=`<div class="ph-imp"><section class="ph-donate"><h3>Ti piace I-A517 Strumento?</h3>
+  d.innerHTML=`<div class="ph-imp"><section class="ph-donate"><h3>Ti piace HORIZON?</h3>
     <p>L'app è gratuita e senza pubblicità: è nata per volare più sicuri con quello che abbiamo in tasca.</p>
     <p class="ph-sub">Se ti è utile, puoi contribuire alle spese (servizi, hardware per le prove, tempo) con un caffè o quello che preferisci. Non cambia niente nell'app: è solo un grazie.</p>
     <a class="ph-btn ph-paypal" id="phNagPay" href="${PH_INFO.paypal}" target="_blank" rel="noopener">♥ Dona con PayPal</a>
@@ -3574,6 +3588,168 @@ PH.donateNag=function(){
   if(PH.version().channel==='apk' && (!up || Date.now()-up.t>20*3600e3)) setTimeout(()=>PH.checkUpdate(false),8000);
   setTimeout(()=>PH.flushReports(),5000);
 })();
+
+// HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+// Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
+// =====================================================================================
+//  Velivoli: un profilo per ogni aereo, con velocità, prestazioni, carburante, pesi e
+//  centraggio, equipaggiamento. Il velivolo attivo regola tutta l'app: archi della
+//  scala di velocità, simulazione, circuito, piano di volo (velocità, consumo, carburante),
+//  carico e centraggio, piste e vento al traverso, tipo di volo, transponder, planata.
+// =====================================================================================
+PH.AC_SCHEMA=[
+  {g:'Identità',f:[
+    {k:'reg',l:'Marche',t:'text',ph:'I-A517',req:1},
+    {k:'model',l:'Modello',t:'text',ph:'Avid Flyer'},
+    {k:'cat',l:'Categoria (decide le regole degli spazi aerei)',t:'sel',o:[['vds_basico','VDS basico'],['vds_avanzato','VDS avanzato'],['vfr','Aviazione generale VFR']]},
+    {k:'notes',l:'Note (hangar, frequenze, promemoria)',t:'area'}]},
+  {g:'Velocità (km/h, indicate)',h:'Le trovi nel manuale di volo (POH). Colorano la scala di velocità: bianco VS0–VFE, verde VS1–VNO, giallo VNO–VNE, rosso VNE.',f:[
+    {k:'vs0',l:'VS0 · stallo in atterraggio (flap giù)',n:[20,250]},
+    {k:'vs1',l:'VS1 · stallo pulito',n:[20,250]},
+    {k:'vfe',l:'VFE · massima con flap',n:[30,400]},
+    {k:'va',l:'VA · manovra',n:[30,400]},
+    {k:'vno',l:'VNO · massima strutturale in crociera',n:[30,500]},
+    {k:'vne',l:'VNE · da non superare mai',n:[40,500]},
+    {k:'vx',l:'VX · salita ripida',n:[20,300]},
+    {k:'vy',l:'VY · salita rapida',n:[20,300]},
+    {k:'vglide',l:'Miglior planata',n:[20,300]},
+    {k:'vapp',l:'Avvicinamento in finale',n:[20,300]},
+    {k:'vcirc',l:'Circuito (sottovento e base)',n:[20,300]},
+    {k:'vcruise',l:'Crociera (velocità vera, per il piano)',n:[30,500]}]},
+  {g:'Prestazioni',f:[
+    {k:'roc',l:'Rateo di salita (ft/min)',n:[100,3000]},
+    {k:'glide',l:'Efficienza in planata (1 : …)',n:[3,60],step:0.5},
+    {k:'todist',l:'Decollo fino a 15 m di altezza, a peso massimo (m)',n:[30,3000]},
+    {k:'ldist',l:'Atterraggio da 15 m di altezza, a peso massimo (m)',n:[30,3000]},
+    {k:'xwind',l:'Vento al traverso massimo dimostrato (km/h)',n:[5,80]},
+    {k:'hcFt',l:'Quota del circuito (ft sul campo)',n:[300,2000],step:50},
+    {k:'ceil',l:'Quota massima operativa (ft)',n:[1000,25000],step:100}]},
+  {g:'Carburante',f:[
+    {k:'fuelType',l:'Tipo',t:'sel',o:[['mogas','Mogas 95 (benzina auto)'],['avgas','AVGAS 100LL'],['ul91','UL91'],['altro','Altro']]},
+    {k:'fuelCap',l:'Capacità dei serbatoi (L)',n:[1,1000]},
+    {k:'fuelUnus',l:'Non utilizzabile (L)',n:[0,100],step:0.5},
+    {k:'burn',l:'Consumo in crociera (L/h)',n:[1,200],step:0.5},
+    {k:'res',l:'Riserva finale (min)',n:[0,120],step:5},
+    {k:'taxi',l:'Rullaggio e salita (L)',n:[0,50],step:0.5}]},
+  {g:'Pesi e centraggio',h:'Bracci in metri dal riferimento (datum) del manuale. Senza bracci l\'app controlla solo i pesi.',f:[
+    {k:'empty',l:'Peso a vuoto (kg)',n:[50,5000]},
+    {k:'emptyArm',l:'Braccio del peso a vuoto (m)',n:[-10,20],step:0.001,opt:1},
+    {k:'mtow',l:'Peso massimo al decollo, MTOW (kg)',n:[100,6000]},
+    {k:'seats',l:'Posti',t:'sel',o:[['1','1'],['2','2'],['4','4']]},
+    {k:'pilotArm',l:'Braccio pilota (m)',n:[-10,20],step:0.001,opt:1},
+    {k:'paxArm',l:'Braccio passeggero (m)',n:[-10,20],step:0.001,opt:1},
+    {k:'fuelArm',l:'Braccio carburante (m)',n:[-10,20],step:0.001,opt:1},
+    {k:'bagMax',l:'Bagaglio massimo (kg)',n:[0,500]},
+    {k:'bagArm',l:'Braccio bagaglio (m)',n:[-10,20],step:0.001,opt:1},
+    {k:'cgFwd',l:'Limite anteriore del baricentro (m)',n:[-10,20],step:0.001,opt:1},
+    {k:'cgAft',l:'Limite posteriore del baricentro (m)',n:[-10,20],step:0.001,opt:1}]},
+  {g:'Equipaggiamento',f:[
+    {k:'xpdr',l:'Transponder',t:'sel',o:[['no','Nessuno'],['c','Modo C'],['s','Modo S']]},
+    {k:'radio',l:'Radio VHF (8,33 kHz)',t:'sel',o:[['1','Sì'],['0','No']]},
+    {k:'elt',l:'ELT',t:'sel',o:[['0','No'],['1','Sì']]},
+    {k:'chute',l:'Paracadute balistico',t:'sel',o:[['0','No'],['1','Sì']]}]}
+];
+// profilo di partenza: l'Avid Flyer di Enry (I-A517), con i valori che l'app usava finora
+PH.AC_DEF={id:'ac-ia517',reg:'I-A517',model:'Avid Flyer',cat:'vds_basico',notes:'',
+  vs0:42,vs1:55,vfe:100,va:110,vno:130,vne:145,vx:70,vy:80,vglide:80,vapp:95,vcirc:105,vcruise:110,
+  roc:600,glide:8,todist:250,ldist:250,xwind:20,hcFt:800,ceil:10000,
+  fuelType:'mogas',fuelCap:73,fuelUnus:1,burn:14,res:30,taxi:1.5,
+  empty:280,emptyArm:'',mtow:450,seats:'2',pilotArm:'',paxArm:'',fuelArm:'',bagMax:10,bagArm:'',cgFwd:'',cgAft:'',
+  xpdr:'no',radio:'1',elt:'0',chute:'0'};
+PH.AC_NEW={reg:'',model:'',cat:'vds_avanzato',notes:'',vs0:55,vs1:65,vfe:110,va:130,vno:180,vne:220,vx:85,vy:95,vglide:95,vapp:100,vcirc:115,vcruise:160,
+  roc:800,glide:10,todist:300,ldist:300,xwind:25,hcFt:1000,ceil:12000,fuelType:'mogas',fuelCap:80,fuelUnus:2,burn:16,res:30,taxi:2,
+  empty:300,emptyArm:'',mtow:600,seats:'2',pilotArm:'',paxArm:'',fuelArm:'',bagMax:20,bagArm:'',cgFwd:'',cgAft:'',xpdr:'s',radio:'1',elt:'1',chute:'0'};
+PH.acs=lsGet('ia517p_aircraft',null)||[Object.assign({},PH.AC_DEF)];
+PH.acId=lsGet('ia517p_acid',PH.acs[0].id);
+PH.ac=PH.acs.find(a=>a.id===PH.acId)||PH.acs[0];
+PH.acSave=function(){ lsSet('ia517p_aircraft',PH.acs); lsSet('ia517p_acid',PH.ac.id); };
+PH.acNum=(a,k)=>{ const v=a[k]; return v===''||v==null||isNaN(+v)?null:+v; };
+PH.acDens=a=>({mogas:0.74,avgas:0.72,ul91:0.72}[a.fuelType]||0.72);
+PH.acLabel=a=>(a.reg||'senza marche')+(a.model?' · '+a.model:'');
+// controlli di coerenza: ordine delle velocità e dati mancanti
+PH.acCheck=function(a){ const w=[], n=k=>PH.acNum(a,k);
+  if(!a.reg) w.push('Mancano le marche.');
+  if(n('vs0')>n('vs1')) w.push('VS0 dovrebbe essere minore o uguale a VS1.');
+  if(n('vs1')>=n('vno')) w.push('VS1 dovrebbe essere minore di VNO.');
+  if(n('vno')>=n('vne')) w.push('VNO dovrebbe essere minore di VNE.');
+  if(n('vfe')>n('vne')) w.push('VFE non può superare VNE.');
+  if(n('vcruise')>n('vno')) w.push('La crociera supera VNO: in aria turbolenta resta sotto VNO.');
+  if(n('vapp')<1.2*n('vs0')) w.push('L\'avvicinamento è sotto 1,2 × VS0: margine sullo stallo scarso (di solito 1,3 × VS0).');
+  if(n('empty')>=n('mtow')) w.push('Il peso a vuoto deve essere minore del MTOW.');
+  if(n('fuelUnus')>=n('fuelCap')) w.push('Il carburante non utilizzabile supera la capacità.');
+  if(n('cgFwd')!=null&&n('cgAft')!=null&&n('cgFwd')>=n('cgAft')) w.push('Il limite anteriore del baricentro deve essere minore di quello posteriore.');
+  return w; };
+// applica il velivolo attivo a tutta l'app; first=true quando lo si sceglie (circuito e tipo di volo cambiano solo allora)
+PH.acApply=function(first){
+  const a=PH.ac, n=k=>PH.acNum(a,k);
+  Object.assign(ARCS,{vs0:n('vs0')||42,vs1:n('vs1')||55,vfe:n('vfe')||100,vno:n('vno')||130,vne:n('vne')||145});
+  Object.assign(AC_,{vapp:n('vapp')||95,vcirc:n('vcirc')||105,vcruise:n('vcruise')||115,vs0:n('vs0')||42,glide:n('glide')||0});
+  if(!PH.sim) SIM_CRUISE=AC_.vcruise;
+  window.IA517_EQUIP={xpdr:a.xpdr||'no',radio:a.radio!=='0'};
+  if(first){
+    if(n('hcFt')) NAV.hcFt=n('hcFt');
+    if(a.cat && window.IA517_RULES && IA517_RULES.PROFILES[a.cat]) IA517_RULES.set(a.cat);
+    // decelerazione in corsa imparata per ogni velivolo
+    const d=lsGet('ia517p_decel_'+a.id,null); if(d&&d.grass&&d.paved) Object.assign(DECEL,d);
+  }
+  try{ const w=el('phAppFrame').contentWindow; w && w.IA517_aircraft && w.IA517_aircraft(PH.acForPlan()); }catch(e){}
+  try{ PH.renderAsp&&PH.renderAsp(); }catch(e){}
+};
+PH.acForPlan=function(){ return JSON.parse(JSON.stringify(PH.ac)); };
+window.IA517_AC=()=>PH.acForPlan();
+PH.acSelect=function(id){ const old=PH.ac; try{ lsSet('ia517p_decel_'+old.id,DECEL); }catch(e){}
+  PH.ac=PH.acs.find(a=>a.id===id)||PH.acs[0]; PH.acSave(); PH.acApply(true); PH.act&&PH.act('velivolo '+PH.ac.reg); toast('VELIVOLO: '+(PH.ac.reg||'').toUpperCase()); };
+
+// ---------- impostazioni: elenco e scheda del velivolo ----------
+PH.acSectionHtml=function(){
+  const e=x=>String(x??'').replace(/[<&>"]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[c]));
+  return `<section><h3>Velivoli</h3>
+    <p class="ph-sub">Il velivolo attivo regola tutta l'app: scala di velocità, circuito, simulazione, piano di volo, carico e centraggio, piste e vento al traverso, tipo di volo e transponder.</p>
+    <div id="phAcList">${PH.acs.map(a=>`<label class="ph-row ph-acrow"><input type="radio" name="phAc" value="${e(a.id)}" ${a.id===PH.ac.id?'checked':''}><span style="flex:1"><b>${e(a.reg||'—')}</b> ${e(a.model||'')}<br><small>${({vds_basico:'VDS basico',vds_avanzato:'VDS avanzato',vfr:'VFR'})[a.cat]||''} · VNE ${e(a.vne)} km/h · crociera ${e(a.vcruise)} km/h · ${e(a.burn)} L/h</small></span><button class="ph-btn" type="button" data-ace="${e(a.id)}">Modifica</button></label>`).join('')}</div>
+    <div class="ph-btns"><button class="ph-btn pri" type="button" id="phAcNew">Nuovo velivolo</button><button class="ph-btn" type="button" id="phAcDup">Duplica l'attivo</button><button class="ph-btn" type="button" id="phAcExp">Esporta</button><label class="ph-btn" style="cursor:pointer">Importa<input type="file" id="phAcImp" accept=".json,application/json" hidden></label></div>
+  </section>`; };
+PH.acSectionWire=function(){
+  const box=el('phAcList'); if(!box) return;
+  box.querySelectorAll('input[name=phAc]').forEach(r=>r.onchange=()=>{ PH.acSelect(r.value); PH.renderImp(); });
+  box.querySelectorAll('[data-ace]').forEach(b=>b.onclick=ev=>{ ev.preventDefault(); PH.acEdit(PH.acs.find(a=>a.id===b.dataset.ace)); });
+  el('phAcNew').onclick=()=>PH.acEdit(Object.assign({},PH.AC_NEW,{id:'ac-'+Date.now().toString(36)}),true);
+  el('phAcDup').onclick=()=>PH.acEdit(Object.assign({},PH.ac,{id:'ac-'+Date.now().toString(36),reg:PH.ac.reg+' (copia)'}),true);
+  el('phAcExp').onclick=()=>PH.download('HORIZON_velivoli.json',JSON.stringify({horizon:'velivoli',v:1,list:PH.acs},null,2),'application/json');
+  el('phAcImp').onchange=async ev=>{ const f=ev.target.files[0]; if(!f) return;
+    try{ const j=JSON.parse(await f.text()), list=(j.list||j).filter(a=>a&&a.reg&&a.vne); let n=0;
+      for(const a of list){ const c=Object.assign({},PH.AC_NEW,a); if(PH.acs.some(x=>x.id===c.id)) c.id='ac-'+Date.now().toString(36)+n; PH.acs.push(c); n++; }
+      PH.acSave(); toast(n+' VELIVOLI IMPORTATI'); PH.renderImp(); }catch(e){ toast('FILE NON VALIDO'); } };
+};
+PH.acEdit=function(a,isNew){
+  const e=x=>String(x??'').replace(/[<&>"]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[c]));
+  const d=document.createElement('div'); d.className='ph-sheet'; d.id='phAcEd';
+  const fld=f=>{ const v=a[f.k]??'';
+    if(f.t==='sel') return `<label class="ph-fld">${e(f.l)}<select data-k="${f.k}">${f.o.map(([k2,l])=>`<option value="${k2}" ${String(v)===k2?'selected':''}>${e(l)}</option>`).join('')}</select></label>`;
+    if(f.t==='area') return `<label class="ph-fld" style="grid-column:1/-1">${e(f.l)}<textarea data-k="${f.k}" rows="2">${e(v)}</textarea></label>`;
+    if(f.t==='text') return `<label class="ph-fld">${e(f.l)}<input data-k="${f.k}" type="text" value="${e(v)}" placeholder="${e(f.ph||'')}" autocapitalize="characters"></label>`;
+    return `<label class="ph-fld">${e(f.l)}${f.opt?' <small>(facoltativo)</small>':''}<input data-k="${f.k}" type="number" inputmode="decimal" step="${f.step||1}" min="${f.n[0]}" max="${f.n[1]}" value="${e(v)}"></label>`; };
+  d.innerHTML=`<div class="ph-sheet-h"><button type="button" id="phAcBack">◀ Indietro</button><b>${isNew?'Nuovo velivolo':'Velivolo '+e(a.reg)}</b></div>
+    <div class="ph-imp">${PH.AC_SCHEMA.map(g=>`<section><h3>${e(g.g)}</h3>${g.h?`<p class="ph-sub">${e(g.h)}</p>`:''}<div class="ph-acgrid">${g.f.map(fld).join('')}</div></section>`).join('')}
+      <section><p class="ph-sub" id="phAcWarn"></p>
+      <div class="ph-btns"><button class="ph-btn pri" type="button" id="phAcOk">Salva${isNew?'':' e usa'}</button>${!isNew&&PH.acs.length>1?'<button class="ph-btn" type="button" id="phAcDel">Elimina</button>':''}</div></section></div>`;
+  document.body.appendChild(d);
+  const read=()=>{ const b=Object.assign({},a); d.querySelectorAll('[data-k]').forEach(i=>{ b[i.dataset.k]=i.tagName==='INPUT'&&i.type==='number'?(i.value===''?'':+i.value):i.value; }); b.reg=String(b.reg||'').trim().toUpperCase(); return b; };
+  const warn=()=>{ const w=PH.acCheck(read()); el('phAcWarn').innerHTML=w.length?'<b>Da controllare:</b><br>'+w.map(e).join('<br>'):'Dati coerenti.'; };
+  d.querySelectorAll('[data-k]').forEach(i=>i.addEventListener('input',warn)); warn();
+  el('phAcBack').onclick=()=>d.remove();
+  el('phAcOk').onclick=()=>{ const b=read(); if(!b.reg){ el('phAcWarn').innerHTML='<b>Scrivi le marche del velivolo.</b>'; return; }
+    const i=PH.acs.findIndex(x=>x.id===b.id); if(i>=0) PH.acs[i]=b; else PH.acs.push(b);
+    PH.acSave(); d.remove(); PH.acSelect(b.id); PH.renderImp(); };
+  if(el('phAcDel')) el('phAcDel').onclick=()=>{ if(!confirm('Eliminare il velivolo '+a.reg+'?')) return; PH.acs=PH.acs.filter(x=>x.id!==a.id);
+    if(PH.ac.id===a.id) PH.ac=PH.acs[0]; PH.acSave(); d.remove(); PH.acSelect(PH.ac.id); PH.renderImp(); };
+};
+// cerchio di planata sulla mappa: distanza raggiungibile dall'altezza sul terreno, con un margine del 25%
+PH.glideRing=function(toS,ac,sc){ const g=AC_.glide; if(!g||PH.demo&&!PH.sim) return;
+  if(!(S.gpsReal||PH.sim)) return; const z=terrain(ac.E,ac.N); if(z!==z) return; const h=S.alt*FT2M-z; if(h<60) return;
+  const r=h*g*0.75, p=toS(ac.E,ac.N); ctx.save(); ctx.strokeStyle='rgba(120,255,170,.85)'; ctx.lineWidth=2*k; ctx.setLineDash([3*k,5*k]);
+  ctx.beginPath(); ctx.arc(p.x,p.y,r*sc,0,7); ctx.stroke(); ctx.setLineDash([]);
+  ctx.font=font(R*0.038,'700'); ctx.fillStyle='rgba(120,255,170,.95)'; ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillText('planata '+(r/1000).toFixed(1)+' km',p.x,p.y-r*sc-2); ctx.restore(); };
+PH.acApply(false);
 
 // ---------------- avvio ----------------
 resize(); syncInputs();

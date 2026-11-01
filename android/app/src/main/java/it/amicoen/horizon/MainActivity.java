@@ -1,6 +1,6 @@
-// I-A517 Strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+// HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
-package it.ia517.strumento;
+package it.amicoen.horizon;
 
 import android.os.Bundle;
 import android.view.WindowManager;
