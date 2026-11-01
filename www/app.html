@@ -1558,7 +1558,7 @@ function rdAnalyze(){
     const ux=(b.lon-a.lon)*111320*cl/L.d||0, uy=(b.lat-a.lat)*110540/L.d||0;
     let maxM=-1e9, maxAt=null;
     for(let k=0;k<=n;k++){ const t=k/n, lat=a.lat+(b.lat-a.lat)*t, lon=a.lon+(b.lon-a.lon)*t;
-      for(const off of [-1000,0,1000]){ const la=lat+(ux*off)/110540, lo=lon-(uy*off)/(111320*cl), z=rdDem(la,lo,10);
+      for(const off of [-500,0,500]){ const la=lat+(ux*off)/110540, lo=lon-(uy*off)/(111320*cl), z=rdDem(la,lo,10);
         if(z!==z){ pending=true; continue; } if(z>maxM){ maxM=z; maxAt={lat:la,lon:lo}; } } }
     const terrFt=maxM>-1e8?maxM/0.3048:null, safeFt=terrFt!=null?Math.ceil((terrFt+RD.margin)/100)*100:null;
     const lat0=Math.min(a.lat,b.lat), lat1=Math.max(a.lat,b.lat), lon0=Math.min(a.lon,b.lon), lon1=Math.max(a.lon,b.lon);
@@ -1770,7 +1770,7 @@ async function rdAround(A,B){
   const nx=Math.ceil(spanE/cell), ny=Math.ceil(spanN/cell), N=nx*ny;
   const LL=(i,j)=>({lat:lat0+(j+0.5)*cell/110540, lon:lon0+(i+0.5)*cell/(111320*cl)});
   const IJ=p=>[clamp(Math.floor((p.lon-lon0)*111320*cl/cell),0,nx-1), clamp(Math.floor((p.lat-lat0)*110540/cell),0,ny-1)];
-  // terreno: per ogni cella il punto più alto (centro e 4 punti interni), poi il massimo entro una cella intorno (±1 km come nelle tratte)
+  // terreno: per ogni cella il punto più alto (centro e 4 punti a ±330 m): il margine vale sotto l'aereo, così le valli strette restano percorribili
   const terr=new Float32Array(N), off=[[0,0],[-1,-1],[1,-1],[-1,1],[1,1]];
   for(let tr=0;tr<16;tr++){ let miss=0;
     for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ let m=-1e9; for(const [u,v] of off){ const z=rdDem(lat0+(j+0.5+v*0.33)*cell/110540, lon0+(i+0.5+u*0.33)*cell/(111320*cl), 10); if(z!==z){ miss++; continue; } if(z>m) m=z; }
@@ -1783,7 +1783,7 @@ async function rdAround(A,B){
   for(const a of rdAspAll()){ if(!rdAvoid(a)) continue; const bb=a.bb; if(!bb||bb[1]<lat0||bb[0]>lat1||bb[3]<lon0||bb[2]>lon1) continue;
     if(rdPip(A,a.pts)||rdPip(B,a.pts)) continue;                      // ci parti o ci arrivi: quella non si può girare, resta l'avviso
     const [i0,j0]=IJ({lat:bb[0],lon:bb[2]}), [i1,j1]=IJ({lat:bb[1],lon:bb[3]});
-    for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){ const p=LL(i,j); if(!rdPip(p,a.pts)) continue; const k=j*nx+i, tf=tmax[k], lo=rdLim(a.lo,terr[k]), hi=rdLim(a.hi,terr[k]);
+    for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){ const p=LL(i,j); if(!rdPip(p,a.pts)) continue; const k=j*nx+i, tf=terr[k], lo=rdLim(a.lo,terr[k]), hi=rdLim(a.hi,terr[k]);
       if(lo-100<tf+margin && hi>tf+margin) blk[k]=1; } }
   for(const z of RD_NOFLY){ if(dist(z,A).d<z.r||dist(z,B).d<z.r) continue; const [ci,cj]=IJ(z), rr=Math.ceil(z.r/cell)+1;
     for(let dj=-rr;dj<=rr;dj++) for(let di=-rr;di<=rr;di++){ const ii=ci+di, jj=cj+dj; if(ii<0||jj<0||ii>=nx||jj>=ny) continue; if(dist(LL(ii,jj),z).d<z.r+cell*0.5) blk[jj*nx+ii]=1; } }
@@ -1791,7 +1791,7 @@ async function rdAround(A,B){
   const [si,sj]=IJ(A), [ei,ej]=IJ(B);
   for(const [ci,cj] of [[si,sj],[ei,ej]]) for(let dj=-2;dj<=2;dj++) for(let di=-2;di<=2;di++){ const ii=ci+di, jj=cj+dj; if(ii>=0&&jj>=0&&ii<nx&&jj<ny) blk2[jj*nx+ii]=0; }
   // costo: distanza, tanto più cara quanto il terreno obbliga a salire sopra la crociera (ogni 500 ft in più vale come un'altra cella): si passa dalle valli
-  const w=k=>1+Math.max(0,tmax[k]+margin-cruise)/500;
+  const w=k=>1+Math.max(0,terr[k]+margin-cruise)/500;
   // vento: ogni passo costa il tempo che ci vuole in quella direzione (con vento contrario la strada «costa» di più)
   const tas=Math.max(40,PLAN.tas), wnd=rdWindAt((A.lat+B.lat)/2,(A.lon+B.lon)/2,cruise), wf={};
   for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++) if(di||dj) wf[di+','+dj]=tas/rdGs(wrap360(Math.atan2(di,dj)*R2D),wnd,tas).gs;
@@ -1806,9 +1806,9 @@ async function rdAround(A,B){
   if(from[e]<0 && s!==e) return null;
   const path=[]; for(let k=e;k>=0;k=from[k]){ path.push(k); if(k===s) break; } path.reverse();
   // semplifica: dal punto corrente al più lontano raggiungibile in linea retta senza celle vietate e senza terreno più alto di quello del percorso trovato
-  const clear=(a,b)=>{ let pm=-1e9; for(let t=a;t<=b;t++) if(tmax[path[t]]>pm) pm=tmax[path[t]];
+  const clear=(a,b)=>{ let pm=-1e9; for(let t=a;t<=b;t++) if(terr[path[t]]>pm) pm=terr[path[t]];
     const ia=path[a]%nx, ja=(path[a]/nx)|0, ib=path[b]%nx, jb=(path[b]/nx)|0, n=Math.max(2,Math.ceil(Math.hypot(ib-ia,jb-ja)*3));
-    for(let t=0;t<=n;t++){ const ii=Math.round(ia+(ib-ia)*t/n), jj=Math.round(ja+(jb-ja)*t/n), q=jj*nx+ii; if(blk2[q]) return false; if(tmax[q]>pm+200) return false; }
+    for(let t=0;t<=n;t++){ const ii=Math.round(ia+(ib-ia)*t/n), jj=Math.round(ja+(jb-ja)*t/n), q=jj*nx+ii; if(blk2[q]) return false; if(terr[q]>pm+200) return false; }
     return true; };
   const keep=[]; let a=0;
   while(a<path.length-1){ let b=path.length-1; while(b>a+1 && !clear(a,b)) b--; keep.push(b); a=b; }
