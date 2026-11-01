@@ -1443,8 +1443,16 @@ const RD={on:false,pts:[],hist:[],clat:45.25,clon:7.9,mpp:60,margin:store.get('i
 const RD_HIT=24;
 // punti liberi della rotta (non campi): restano nel telefono e allo strumento arrivano come punti di rotta
 let RD_WPS=store.get('ia517_wps',[]);
+// punti da non sorvolare (paesi, case, impianti…): cerchi che la rotta gira intorno
+let RD_NOFLY=store.get('ia517_nofly',[]);
+function rdNoflyHit(a,b){ const out=[]; for(const z of RD_NOFLY){ const cl=Math.cos(z.lat*D2R), ax=(a.lon-z.lon)*111320*cl, ay=(a.lat-z.lat)*110540, bx=(b.lon-z.lon)*111320*cl, by=(b.lat-z.lat)*110540;
+  const dx=bx-ax, dy=by-ay, L2=dx*dx+dy*dy, t=L2?clamp(-(ax*dx+ay*dy)/L2,0,1):0; if(Math.hypot(ax+t*dx,ay+t*dy)<z.r) out.push(z); } return out; }
 function rdWpField(w){ return {id:w.id,short:String(w.name).toUpperCase().slice(0,14),name:w.name,lat:w.lat,lon:w.lon,elft:null,kind:'wp',rw:[],ends:[],rdwp:true}; }
 for(const w of RD_WPS) if(!byId(w.id)) FIELDS.push(rdWpField(w));
+// punti di riporto VFR del Nord Italia (openAIP, CC BY-NC 4.0): [nome, sigla, lat, lon, obbligatorio]
+const rdTitle=t=>t.toLowerCase().replace(/(^|[\s'(-])([a-zàèéìòù])/g,(m,a,b)=>a+b.toUpperCase());
+const RD_RPP=([["GATE SUD","GATE",45.95933,12.898,1],["GATE NORD","GATE",46.01087,12.94143,1],["MASW RIVOLI","MASW",45.0603,7.5225,1],["OMILI","OMILI",45.0272,7.6392,1],["MAS1 ORBASSANO","MAS1",44.995,7.5216,1],["MAW2 BRUERE","MAW2",45.0816,7.5416,1],["MFSW4 NONE","MFSW4",44.9333,7.5416,1],["MANW1 CASELETTE","MANW1",45.1055,7.4833,1],["MFNW2 CTR","MFNW2",45.3184,7.473,1],["MF518","MF518",44.89207,7.6301,1],["ERSEP","ERSEP",44.9752,7.6352,1],["SIRLO","SIRLO",45.1544,7.9928,1],["BENQA","BENQA",45.21,7.79195,1],["MFE 2 CHIVASSO","MFE 2",45.1888,7.8911,1],["MFE1 VOLPIANO","MFE1",45.2,7.7772,1],["MFS1 CARIGNANO","MFS1",44.908,7.69,1],["MFN1 CUORGNE","MFN1",45.388,7.6672,1],["MFSE1 POIRINO","MFSE1",44.9194,7.8486,1],["MFW1 FIANO","MFW1",45.2152,7.523,1],["MF746","MF746",45.04538,7.55242,1],["MAW1 ALPIGNANO","MAW1",45.0986,7.525,1],["MFNE1 CANDIA","MFNE1",45.3194,7.8986,1],["MFE3 RONDISSONE","MFE3",45.2394,7.9722,1],["MFNW1","MFNW1",45.2722,7.4772,1],["MF734","MF734",44.89705,7.48452,1],["PXS1","PXS1",45.14028,10.75195,1],["PZSW2","PZSW2",45.26917,11.94112,1],["PRNW6","PRNW6",44.09917,11.98112,1],["POW1","POW1",45.55778,10.07195,1],["PHE4","PHE4",45.63112,12.56612,1],["PHE3","PHE3",45.68638,12.38388,1],["PBN1","PBN1",46.64222,11.35583,1],["POS1","POS1",45.13333,10.36667,1],["POW2","POW2",45.275,10.09167,1],["PQSE1","PQSE1",45.77362,13.60445,1],["PEN4","PEN4",44.83528,11.14333,1],["PAS1","PAS1",45.79667,12.43945,1],["MSSE1","MSSE1",44.69305,10.09888,1],["MLE2","MLE2",45.45083,9.29472,1],["MNN1","MNN1",45.59583,8.61972,1],["LGE1","LGE1",45.74278,8.75305,1],["MJE2","MJE2",44.29083,9.1925,1],["RPNE1-MONTECARLO","RPNE1",43.85222,10.68167,1],["PZW1","PZW1",45.42195,11.95638,1],["PZSW1","PZSW1",45.28667,12.02917,1],["PYW2","PYW2",43.56388,12.83333,1],["PXE1","PXE1",45.425,11.24167,1],["PQSW2","PQSW2",45.67388,13.38833,1],["PKN1","PKN1",44.25417,12.09722,1],["PQSW1","PQSW1",45.66862,13.10445,1],["PBS1","PBS1",46.31083,11.25278,1],["PHNW1","PHNW1",45.75695,11.715,1],["PEW1","PEW1",44.66945,10.84583,1],["PEN2","PEN2",44.7,11.40555,1],["PASW2","PASW2",45.78028,12.25667,1],["MPS1","MPS1",44.64388,10.38138,1],["MPNE1","MPNE1",44.90305,10.51417,1],["MPSW1","MPSW1",44.75055,10.21972,1],["MZW3","MZW3",44.4675,7.35805,1],["MZNE1","MZNE1",44.69583,7.85278,1],["MSNW2","MSNW2",45.075,9.61667,1],["MPNE3","MPNE3",44.98278,10.4175,1],["MENW1","MENW1",45.73112,9.49833,1],["RPS2","RPS2",43.50555,10.32,1],["RPN2","RPN2",43.77888,10.33528,1],["PUS1","PUS1",45.31807,11.86528,1],["PXSW1","PXSW1",45.19862,10.57805,1],["PONE1","PONE1",45.53,10.53917,1],["PQNW1","PQNW1",45.91167,13.30388,1],["PEN3","PEN3",44.62112,11.31305,1],["PQN1","PQN1",45.91722,13.42362,1],["PHSW1","PHSW1",45.48167,11.69278,1],["MPNE2","MPNE2",44.93278,10.37722,1],["PASW1","PASW1",45.90055,12.30805,1],["PASE1","PASE1",45.85972,12.81138,1],["MZNW1","MZNW1",44.64445,7.48888,1],["MPW1","MPW1",44.82612,10.21195,1],["MJW2","MJW2",44.30833,8.47722,1],["MCE3","MCE3",45.625,8.78667,1],["LNNE1","LNNE1",45.78,8.92333,1],["MEE1","MEE1",45.56667,10.0,1],["RQNW2","RQNW2",43.88805,11.05695,1],["RPW1","RPW1",43.67833,10.27055,1],["PZW2","PZW2",45.46417,12.11805,1],["PXW3","PXW3",45.43472,10.83055,1],["PRW1","PRW1",43.94555,11.90555,1],["PRNW4","PRNW4",44.32278,11.90417,1],["PKW1","PKW1",44.17083,11.94722,1],["PRSE1","PRSE1",43.68888,12.80833,1],["PEE3","PEE3",44.57362,11.36388,1],["PBW1","PBW1",46.55417,11.18028,1],["PES2","PES2",44.39445,11.24862,1],["PRNW1","PRNW1",44.39,11.94222,1],["PHW1","PHW1",45.67195,11.92833,1],["PEE1","PEE1",44.66833,11.49055,1],["MSE2","MSE2",44.90833,10.05,1],["MLE1","MLE1",45.39862,9.49612,1],["MZW1","MZW1",44.51667,7.46667,1],["MZN1","MZN1",44.74,7.68083,1],["MJW1","MJW1",44.38945,8.6425,1],["MZE1","MZE1",44.53333,7.7,1],["MZE2","MZE2",44.48445,7.87722,1],["MSW1","MSW1",44.90555,9.33112,1],["RPE1-PONTEDERA","RPE1-",43.66112,10.62945,1],["RQS2","RQS2",43.65167,11.16695,1],["RQNW3","RQNW3",43.82612,11.16195,1],["RPNW1","RPNW1",43.86612,10.25,1],["RPSE2","RPSE2",43.61388,10.46362,1],["PYSW1","PYSW1",43.48333,13.18055,1],["PYSW2","PYSW2",43.44528,13.0275,1],["PZE1","PZE1",45.50722,12.63222,1],["PZS5","PZS5",45.13055,12.08055,1],["PZN1","PZN1",45.51667,12.23555,1],["PZS1","PZS1",45.45805,12.44362,1],["PYSE1","PYSE1",43.55612,13.63333,1],["PZN2","PZN2",45.545,12.30472,1],["PZS2","PZS2",45.42833,12.38805,1],["PZS3","PZS3",45.33472,12.335,1],["PZS4","PZS4",45.2175,12.28722,1],["PXE3","PXE3",45.35638,10.95722,1],["PXSE1","PXSE1",45.27028,10.99972,1],["RQS3","RQS3",43.7025,11.30917,1],["RQE1","RQE1",43.775,11.44028,1],["PXW1","PXW1",45.45,10.69167,1],["PRSW2","PRSW2",43.925,12.51667,1],["PRSW1","PRSW1",43.86945,12.49305,1],["PRNE1","PRNE1",44.12778,12.78667,1],["PRNW2","PRNW2",44.48472,12.28222,1],["PQSE2","PQSE2",45.60305,13.76667,1],["MZW2","MZW2",44.57028,7.36278,1],["MPN1","MPN1",44.96528,10.25862,1],["MWE1","MWE1",45.74222,7.475,1],["MNSW1","MNSW1",45.46555,8.45055,1],["MEN1","MEN1",45.73195,9.73362,1],["MJNE2","MJNE2",44.55278,8.93612,1],["MLW2","MLW2",45.44138,9.23667,1],["MJE3","MJE3",44.27362,9.39667,1],["MJNW1","MJNW1",44.48472,8.73555,1],["MCW3","MCW3",45.63138,8.63222,1],["DTE1","DTE1",46.00722,11.26638,1],["RQS1","RQS1",43.5275,11.17417,1],["RQNW1","RQNW1",43.94333,10.9075,1],["RPSE1","RPSE1",43.42195,10.55722,1],["PUNW1","PUNW1",45.42695,11.78638,1],["PQW1","PQW1",45.85528,13.05638,1],["PON1","PON1",45.51013,10.3252,1],["PES1","PES1",44.16667,11.21638,1],["PES3","PES3",44.44555,11.27028,1],["MPNW2","MPNW2",44.92917,10.12138,1],["PAE1","PAE1",46.11667,12.90862,1],["MPNW1","MPNW1",44.88333,10.17917,1],["MZSE1","MZSE1",44.38945,7.82778,1],["PAW1","PAW1",45.9925,12.31722,1],["MPSE1","MPSE1",44.76305,10.45167,1],["MNS1","MNS1",45.43445,8.70417,1],["MSS1","MSS1",44.76945,9.80055,1],["MCE1","MCE1",45.58805,8.8275,1],["MCE2","MCE2",45.55555,8.95833,1],["MGSE1","MGSE1",44.00583,8.17028,1],["RPN1-QUIESA","RPN1-",43.84805,10.39333,1],["RQE2","RQE2",43.8075,11.3075,1],["RPE2","RPE2",43.675,10.55,1],["PYW1","PYW1",43.61445,13.14667,1],["PYS1","PYS1",43.48333,13.48055,1],["PYN1","PYN1",43.71667,13.21667,1],["PKS1","PKS1",44.12638,12.06112,1],["PEE2","PEE2",44.62083,11.48888,1],["PEN1","PEN1",44.72862,11.28583,1],["PBE1","PBE1",46.51278,11.47638,1],["MPE1","MPE1",44.8275,10.37,1],["MPN2","MPN2",45.00805,10.21805,1],["MSSW1","MSSW1",44.86888,9.6425,1],["MWW1","MWW1",45.71862,7.265,1],["PYE1","PYE1",43.62138,13.50028,1],["PRE1","PRE1",44.00195,13.03167,1],["PQSW3","PQSW3",45.74083,13.3225,1],["PHS1","PHS1",45.54722,12.16028,1],["PRNW3","PRNW3",44.36028,11.70862,1],["PHE2","PHE2",45.6,12.88333,1],["PESE1","PESE1",44.4325,11.66167,1],["PHE1","PHE1",45.78083,12.83555,1],["PESW1","PESW1",44.53195,11.02638,1],["PRNW5","PRNW5",44.22805,11.73472,1],["MZSW1","MZSW1",44.40083,7.585,1],["MLW1","MLW1",45.3875,9.14667,1],["MSE1","MSE1",44.97972,10.04305,1],["MPSE2","MPSE2",44.76945,10.32778,1],["MES1","MES1",45.52278,9.72362,1],["MSNW1","MSNW1",45.08333,9.45,1],["MLNW1","MLNW1",45.48472,9.23612,1],["MJNE1","MJNE1",44.48305,8.91417,1],["MFNW2","MFNW2",45.32083,7.47305,1],["LEN1","LEN1",45.58055,8.05445,1],["LENE1","LENE1",45.57555,8.17333,1],["LGNW2","LGNW2",45.73667,8.60333,1],["LNS1","LNS1",45.68278,8.95,1],["MCW2","MCW2",45.63472,8.38555,1],["DTNE1","DTNE1",46.08945,11.18555,1],["DTN2","DTN2",46.09612,11.11305,1],["MCN1","MCN1",45.76667,8.69112,1],["LGNW1","LGNW1",45.73667,8.66778,1],["SONDRIO EST","SONDR",46.15667,9.9,1],["LNN1","LNN1",45.79695,8.8825,1],["MJN1","MJN1",44.42638,8.81388,1],["MGNE1","MGNE1",44.09638,8.2325,1],["LEW1","LEW1",45.45888,7.87,1],["DTN1","DTN1",46.15583,11.0925,1],["MJE1","MJE1",44.38333,9.03972,1],["MEW1","MEW1",45.605,9.52833,1],["DTS1","DTS1",45.93362,11.09583,1],["DTE2","DTE2",46.0,11.20722,1],["ARDENNO","ARDEN",46.15833,9.64167,1],["LES1","LES1",45.41138,8.04055,1],["LNNW1","LNNW1",45.77667,8.81528,1],["MES2","MES2",45.59417,9.75333,1],["MCW1","MCW1",45.60388,8.55388,1],["LNE1","LNE1",45.74805,8.95305,1],["POE1","POE1",45.46065,10.48505,1],["POSE1","POSE1",45.31935,10.59222,1],["PCN1","PCN1",44.32583,12.34472,1],["PRSE2","PRSE2",43.96362,12.77278,1],["POE2","POE2",45.47142,10.54095,1],["PCS1","PCS1",44.13028,12.31057,1],["PONW1","PONW1",45.5548,10.2422,1]]).map(([name,code,lat,lon,c])=>{ const rest=code&&name.startsWith(code)?name.slice(code.length).trim():name, cd=(code||name).replace(/\s+/g,'');
+  return {id:'RP-'+cd,short:(cd+(rest&&rest!==code?' '+rest:'')).slice(0,16),label:cd+(rest&&rest!==code?' ('+rdTitle(rest)+')':''),name,code:cd,lat,lon,comp:!!c,rp:true,kind:'rp'}; });
 
 function rdDem(lat,lon,z){ try{ return parent&&parent.phDemAt?parent.phDemAt(lat,lon,z||10):NaN; }catch(e){ return NaN; } }
 function rdAspAll(){ return (typeof ASP!=='undefined'&&Array.isArray(ASP)&&ASP_SRC.real)?ASP:[]; }
@@ -1485,7 +1493,7 @@ function rdBuild(){
   d.innerHTML=`<div class="rdt"><button type="button" id="rdClose">✕ Chiudi</button><b>Disegna la rotta</b><button type="button" class="pri" id="rdOk">Fatto</button></div>
     <canvas id="rdCv" aria-label="Mappa per disegnare la rotta"></canvas><div class="rdh" id="rdHint"></div>
     <div class="rdi" id="rdInfo"></div>
-    <div class="rdb"><button type="button" id="rdUndo">↶ Annulla</button><button type="button" id="rdAv">Evita zone</button><button type="button" id="rdAlt">Quota sicura</button><button type="button" id="rdRev">⇄ Inverti</button><button type="button" id="rdClr">Svuota</button></div>`;
+    <div class="rdb"><button type="button" id="rdUndo">↶ Annulla</button><button type="button" id="rdAv">Calcola rotta</button><button type="button" id="rdAlt">Quota sicura</button><button type="button" id="rdRev">⇄ Inverti</button><button type="button" id="rdClr">Svuota</button></div>`;
   document.body.appendChild(d); RD.root=d; RD.cv=d.querySelector('#rdCv'); RD.ctx=RD.cv.getContext('2d');
   $('rdClose').onclick=()=>rdClose(false); $('rdOk').onclick=()=>rdClose(true);
   $('rdUndo').onclick=()=>{ const h=RD.hist.pop(); if(h){ RD.pts=h; rdChanged(false); } };
@@ -1511,6 +1519,8 @@ function rdClose(save){
 function rdSave(){
   let n=0; const keep=new Set();
   const ids=RD.pts.map(p=>{
+    if(p.f && p.f.rp && Math.abs(p.f.lat-p.lat)<1e-7 && Math.abs(p.f.lon-p.lon)<1e-7){ const id=p.f.id; keep.add(id);
+      if(!RD_WPS.some(w=>w.id===id)) RD_WPS.push({id,name:p.f.short,lat:p.f.lat,lon:p.f.lon}); if(!byId(id)) FIELDS.push(rdWpField({id,name:p.f.short,lat:p.f.lat,lon:p.f.lon})); return id; }
     if(p.f && Math.abs(p.f.lat-p.lat)<1e-7 && Math.abs(p.f.lon-p.lon)<1e-7){ if(p.f.rdwp) keep.add(p.f.id); return p.f.id; }
     n++; const id='WP'+Date.now().toString(36).toUpperCase().slice(-5)+n, w={id,name:p.name||('P'+n),lat:+p.lat.toFixed(6),lon:+p.lon.toFixed(6)};
     RD_WPS.push(w); FIELDS.push(rdWpField(w)); keep.add(id); return id; });
@@ -1521,25 +1531,30 @@ function rdSave(){
   renderRoute(); update(); toast('Rotta aggiornata: '+ids.length+' punti');
 }
 function rdPush(){ RD.hist.push(RD.pts.map(p=>Object.assign({},p))); if(RD.hist.length>40) RD.hist.shift(); }
-function rdChanged(){ rdDraw(); clearTimeout(RD.aT); RD.aT=setTimeout(rdAnalyze,250); }
+function rdChanged(){ RD.sel=null; rdDraw(); clearTimeout(RD.aT); RD.aT=setTimeout(rdAnalyze,250); }
 
 // ---------- tratte: prua, minuti, distanza, quota sicura, spazi attraversati ----------
-function rdWindAt(lat,lon){
+// vento previsto (Open-Meteo sui campi della rotta) alla quota data: suolo, 925 hPa (~2500 ft), 850 hPa (~4800 ft), interpolato
+function rdWindAt(lat,lon,ft){
   let best=null, bd=1e12; try{ for(const m of Object.values(MODEL.data||{})){ if(m.lat==null) continue; const d=dist({lat,lon},m).d; if(d<bd){ bd=d; best=m; } } }catch(e){}
   if(!best || bd>80000) return null;
-  const w=PLAN.cruiseFt>3800?(best.w850||best.w925):(best.w925||null); const x=w||{kmh:best.kmh,dir:best.dir};
-  return (x&&x.kmh!=null&&x.dir!=null)?x:null; }
-function rdLeg(a,b){
-  const g=dist(a,b), tas=Math.max(40,PLAN.tas), w=rdWindAt((a.lat+b.lat)/2,(a.lon+b.lon)/2);
-  let hdg=g.brg, gs=tas;
-  if(w){ const wa=(w.dir-g.brg)*D2R, s=clamp(w.kmh*Math.sin(wa)/tas,-0.95,0.95), wca=Math.asin(s)*R2D; hdg=wrap360(g.brg+wca); gs=Math.max(20,tas*Math.cos(wca*D2R)-w.kmh*Math.cos(wa)); }
-  return {d:g.d,crs:g.brg,hdg,min:g.d/1000/gs*60,wind:w};
+  const uv=w=>w&&w.kmh!=null&&w.dir!=null?[-w.kmh*Math.sin(w.dir*D2R),-w.kmh*Math.cos(w.dir*D2R)]:null;
+  const L=[[0,uv({kmh:best.kmh,dir:best.dir})],[2500,uv(best.w925)],[4800,uv(best.w850)]].filter(x=>x[1]);
+  if(!L.length) return null; ft=ft==null?PLAN.cruiseFt:ft;
+  let u, v; if(ft<=L[0][0]){ [u,v]=L[0][1]; } else if(ft>=L[L.length-1][0]){ [u,v]=L[L.length-1][1]; }
+  else for(let i=0;i<L.length-1;i++) if(ft>=L[i][0]&&ft<=L[i+1][0]){ const t=(ft-L[i][0])/(L[i+1][0]-L[i][0]); u=L[i][1][0]+(L[i+1][1][0]-L[i][1][0])*t; v=L[i][1][1]+(L[i+1][1][1]-L[i][1][1])*t; }
+  return {kmh:Math.hypot(u,v), dir:wrap360(Math.atan2(-u,-v)*R2D)}; }
+function rdGs(crs,w,tas){ if(!w) return {gs:tas,hdg:crs}; const wa=(w.dir-crs)*D2R, s=clamp(w.kmh*Math.sin(wa)/tas,-0.95,0.95), wca=Math.asin(s)*R2D;
+  return {hdg:wrap360(crs+wca), gs:Math.max(20,tas*Math.cos(wca*D2R)-w.kmh*Math.cos(wa))}; }
+function rdLeg(a,b,ft){
+  const g=dist(a,b), tas=Math.max(40,PLAN.tas), w=rdWindAt((a.lat+b.lat)/2,(a.lon+b.lon)/2,ft), r=rdGs(g.brg,w,tas);
+  return {d:g.d,crs:g.brg,hdg:r.hdg,gs:r.gs,min:g.d/1000/r.gs*60,wind:w};
 }
 function rdAnalyze(){
   if(!RD.on) return;
   const info=[], asp=rdAspAll(); let pending=false;
   for(let i=0;i<RD.pts.length-1;i++){
-    const a=RD.pts[i], b=RD.pts[i+1], L=rdLeg(a,b), n=Math.max(2,Math.ceil(L.d/250)), cl=Math.cos(a.lat*D2R);
+    const a=RD.pts[i], b=RD.pts[i+1], L=rdLeg(a,b,PLAN.cruiseFt), n=Math.max(2,Math.ceil(L.d/250)), cl=Math.cos(a.lat*D2R);
     const ux=(b.lon-a.lon)*111320*cl/L.d||0, uy=(b.lat-a.lat)*110540/L.d||0;
     let maxM=-1e9, maxAt=null;
     for(let k=0;k<=n;k++){ const t=k/n, lat=a.lat+(b.lat-a.lat)*t, lon=a.lon+(b.lon-a.lon)*t;
@@ -1554,29 +1569,39 @@ function rdAnalyze(){
     for(const x of cand){ if(!rdAvoid(x)) continue;
       for(const sp of samp){ if(!rdPip(sp.p,x.pts)) continue; const lo=rdLim(x.lo,sp.tf);
         if(lo-100>=sp.tf+RD.margin && (ceilFt==null || lo-100<ceilFt)){ ceilFt=Math.floor((lo-100)/100)*100; ceilName=`${x.cls} ${x.name}`; } } }
-    let base=PLAN.cruiseFt; if(ceilFt!=null && ceilFt<base) base=ceilFt;
-    const altFt=Math.max(base,safeFt||0);                     // il terreno vince sempre sugli spazi aerei
+    // quota ideale: dentro la finestra [quota sicura sul terreno, base delle zone da evitare], quella con il vento migliore
+    const lo=safeFt||0, hiW=ceilFt!=null?ceilFt:12000; let altFt, why='';
+    if(lo>hiW){ altFt=lo; why='terreno'; }                      // il terreno vince sempre sugli spazi aerei
+    else { const cands=[...new Set([PLAN.cruiseFt,lo,hiW,2500,3500,4500,5500,6500].map(x=>Math.round(x/100)*100).filter(x=>x>=lo&&x<=hiW&&x>=1000))];
+      if(!cands.length) cands.push(Math.max(lo,Math.min(PLAN.cruiseFt,hiW)));
+      let best=null; for(const c of cands){ const r=rdLeg(a,b,c), sc=r.gs-Math.abs(c-PLAN.cruiseFt)/1000*1.5;   // a parità, vicino alla crociera
+        if(!best||sc>best.sc) best={c,sc,gs:r.gs}; }
+      altFt=best.c; const gs0=rdLeg(a,b,Math.max(lo,Math.min(PLAN.cruiseFt,hiW))).gs;
+      why=altFt<PLAN.cruiseFt&&ceilFt!=null&&altFt>=ceilFt-50?'sotto':(best.gs-gs0>=4?'vento':''); }
+    Object.assign(L,rdLeg(a,b,altFt));
     const hits=new Map();
     if(cand.length) for(const sp of samp){ for(const x of cand){ if(hits.has(x)) continue; if(!rdPip(sp.p,x.pts)) continue;
         const lo=rdLim(x.lo,sp.tf), hi=rdLim(x.hi,sp.tf);
         if(altFt>=lo-50 && altFt<=hi+50){ let v={status:'warn',text:''}; try{ v=IA517_RULES.verdict(x); }catch(e){} hits.set(x,{a:x,v,avoid:rdAvoid(x)}); } } }
-    info.push(Object.assign(L,{terrFt,safeFt,maxAt,altFt,ceilFt,ceilName,hits:[...hits.values()]}));
+    for(const z of rdNoflyHit(a,b)) hits.set(z,{a:{cls:'NO',name:z.name},v:{status:'bad',text:'Punto da non sorvolare'},avoid:true});
+    info.push(Object.assign(L,{terrFt,safeFt,maxAt,altFt,why,ceilFt,ceilName,hits:[...hits.values()]}));
   }
   RD.info=info; RD.pending=pending; rdInfo(); rdDraw();
   if(pending){ clearTimeout(RD.aT); RD.aT=setTimeout(rdAnalyze,900); }
 }
 function rdInfo(){
   const box=$('rdInfo'); if(!box) return;
-  if(RD.pts.length<2){ box.innerHTML=RD.pts.length?'Tocca la mappa per il punto successivo.':'Tocca la mappa sul campo di partenza: i punti vicini a un campo si agganciano al campo.'; return; }
+  if(RD.pts.length<2){ const tt=RD.root&&RD.root.querySelector('.rdt b'); if(tt) tt.textContent='Disegna la rotta'; box.innerHTML=RD.pts.length?'Tocca la mappa per il punto successivo.':'Tocca la mappa sul campo di partenza: i punti vicini a un campo si agganciano al campo.'; return; }
   const km=RD.info.reduce((s,l)=>s+l.d,0)/1000, min=RD.info.reduce((s,l)=>s+l.min,0), mx=Math.max(0,...RD.info.map(l=>l.safeFt||0));
+  const tt=RD.root&&RD.root.querySelector('.rdt b'); if(tt) tt.textContent=`${km.toFixed(km<10?1:0).replace('.',',')} km · ${fmtMin(min)}`;
   const av=new Map(), ot=new Map(); RD.info.forEach((l,i)=>l.hits.forEach(h=>{ if(h.a.cls==='FMC') return; const m=h.avoid?av:ot, k=`${h.a.cls} ${String(h.a.name).slice(0,30)}`; if(!m.has(k)) m.set(k,[]); m.get(k).push(i+1); }));
   const lst=m=>[...m].map(([k,ts])=>`${esc(k)} (T${[...new Set(ts)].join(',')})`), avoid=lst(av), other=lst(ot);
-  const under=RD.info.map((l,i)=>l.altFt<PLAN.cruiseFt?`T${i+1} a ${l.altFt} ft sotto ${esc(l.ceilName)}`:null).filter(Boolean);
+  const under=RD.info.map((l,i)=>l.why==='sotto'?`T${i+1} a ${l.altFt} ft sotto ${esc(l.ceilName)}`:(l.why==='terreno'?`T${i+1} sali a ${l.altFt} ft per il terreno`:null)).filter(Boolean);
   const wind=RD.info.some(l=>l.wind);
   box.innerHTML=`<div><b>${km.toFixed(0)} km · ${fmtMin(min)}</b> a ${PLAN.tas} km/h${wind?' con il vento previsto':' senza vento'} · crociera ${PLAN.cruiseFt} ft · `+
     `margine sul terreno <select id="rdMg">${[500,1000,1500,2000].map(v=>`<option value="${v}"${v===RD.margin?' selected':''}>${v} ft</option>`).join('')}</select></div>`+
     (RD.pending?'<div class="warn">Scarico le quote del terreno…</div>':(mx>PLAN.cruiseFt?`<div class="bad">Quota sicura sulla rotta: ${mx} ft, più alta della crociera. Tocca «Quota sicura» per alzarla.</div>`:(mx?`<div class="ok">Terreno: la crociera di ${PLAN.cruiseFt} ft lascia almeno ${RD.margin} ft (quota sicura ${mx} ft).</div>`:'')))+
-    (under.length?`<div class="warn">Scendi: ${under.join(' · ')}</div>`:'')+
+    (under.length?`<div class="warn">Quote: ${under.join(' · ')}</div>`:'')+
     (avoid.length?`<div class="bad">Dentro zone da evitare: ${avoid.join(' · ')}. Tocca «Evita zone».</div>`:'')+
     (other.length?`<div class="warn">Attraversi: ${other.join(' · ')}</div>`:'')+
     (rdAspAll().length?'':'<div class="warn">Spazi aerei non caricati: Briefing › Scarica gli spazi aerei d\'Italia.</div>')+
@@ -1630,20 +1655,37 @@ function rdDraw(){
   for(const f of FIELDS){ if(f.kind==='wp') continue; if(f.lat<br.lat||f.lat>tl.lat||f.lon<tl.lon||f.lon>br.lon) continue; const q=rdP(f.lat,f.lon);
     c.fillStyle=f.kind==='aero'?'#7fd0ff':'#e8f6ee'; c.strokeStyle='#000'; c.lineWidth=1.2; c.beginPath(); c.arc(q.x,q.y,f.kind==='aero'?5:4,0,7); c.fill(); c.stroke();
     if(RD.mpp<90 || (RD.mpp<220 && f.kind==='aero')){ c.font='700 11px system-ui'; c.lineWidth=3; c.strokeStyle='rgba(0,0,0,.75)'; c.strokeText(f.short,q.x+7,q.y-6); c.fillStyle='#e8f6ee'; c.fillText(f.short,q.x+7,q.y-6); } }
+  for(const z of RD_NOFLY){ const q=rdP(z.lat,z.lon), r=z.r/RD.mpp; if(q.x<-r||q.x>W+r||q.y<-r||q.y>H+r) continue;
+    c.fillStyle='rgba(255,60,60,.22)'; c.strokeStyle='#ff5a5a'; c.lineWidth=2; c.beginPath(); c.arc(q.x,q.y,Math.max(r,6),0,7); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(q.x-Math.max(r,6)*0.7,q.y-Math.max(r,6)*0.7); c.lineTo(q.x+Math.max(r,6)*0.7,q.y+Math.max(r,6)*0.7); c.stroke();
+    c.font='700 11px system-ui'; c.textAlign='center'; c.lineWidth=3; c.strokeStyle='rgba(0,0,0,.8)'; c.strokeText(z.name,q.x,q.y-Math.max(r,6)-6); c.fillStyle='#ff9a9a'; c.fillText(z.name,q.x,q.y-Math.max(r,6)-6); }
+  if(RD.mpp<400) for(const r of RD_RPP){ if(r.lat<br.lat||r.lat>tl.lat||r.lon<tl.lon||r.lon>br.lon) continue; const q=rdP(r.lat,r.lon), z=8;
+    c.beginPath(); c.arc(q.x,q.y,z,0,7); c.fillStyle='#fff'; c.fill(); c.strokeStyle='#5b3bb5'; c.lineWidth=2; c.stroke();
+    c.font='800 10px system-ui'; c.textAlign='center'; c.textBaseline='middle'; c.fillStyle='#5b3bb5'; c.fillText('V',q.x,q.y+0.5);
+    if(RD.mpp<130){ c.font='700 12px system-ui'; c.textAlign='left'; c.lineWidth=3.5; c.strokeStyle='rgba(255,255,255,.9)'; c.strokeText(r.label,q.x+11,q.y); c.fillStyle='#7a2fbf'; c.fillText(r.label,q.x+11,q.y); } }
   // tratte
   const P=RD.pts.map(p=>rdP(p.lat,p.lon));
   c.lineCap='round'; c.lineJoin='round';
   for(let i=0;i<P.length-1;i++){ const l=RD.info[i], bad=l&&l.hits.some(h=>h.avoid);
     c.strokeStyle='rgba(30,0,28,.85)'; c.lineWidth=8; c.beginPath(); c.moveTo(P[i].x,P[i].y); c.lineTo(P[i+1].x,P[i+1].y); c.stroke();
-    c.strokeStyle=bad?'#ff5a5a':'#ff46e0'; c.lineWidth=4; c.setLineDash(bad?[10,6]:[]); c.beginPath(); c.moveTo(P[i].x,P[i].y); c.lineTo(P[i+1].x,P[i+1].y); c.stroke(); c.setLineDash([]); }
-  // etichette delle tratte: prua · minuti · km (e quota sicura se serve salire)
-  for(let i=0;i<P.length-1;i++){ const l=RD.info[i]; if(!l) continue; const a=P[i], b=P[i+1], len=Math.hypot(b.x-a.x,b.y-a.y); if(len<70) continue;
-    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2, up=l.altFt>PLAN.cruiseFt, dn=l.altFt<PLAN.cruiseFt;
-    const t1=`${String(Math.round(l.hdg)).padStart(3,'0')}° · ${fmtMin(l.min)} · ${(l.d/1000).toFixed(l.d<10000?1:0)} km`,
-      t2=up?`SALI a ${l.altFt} ft`:(dn?`${l.altFt} ft · sotto ${String(l.ceilName).split(' ').slice(0,3).join(' ')}`:(l.safeFt?`${l.altFt} ft · sicura ${l.safeFt}`:''));
-    c.font='700 12px system-ui'; const w=Math.max(c.measureText(t1).width,t2?c.measureText(t2).width:0)+12, h=t2?32:19;
-    c.fillStyle='rgba(7,10,15,.86)'; c.strokeStyle=up?'#ff6b6b':'#ff46e0'; c.lineWidth=1.2; c.beginPath(); c.roundRect?c.roundRect(mx-w/2,my-h/2,w,h,6):c.rect(mx-w/2,my-h/2,w,h); c.fill(); c.stroke();
-    c.textAlign='center'; c.fillStyle='#fff'; c.fillText(t1,mx,my-(t2?7:0)); if(t2){ c.font='700 11px system-ui'; c.fillStyle=up?'#ff8a8a':'#9fe6b8'; c.fillText(t2,mx,my+8); } }
+    c.strokeStyle=bad?'#ff5a5a':'#ff46e0'; c.lineWidth=RD.sel===i?7:5; c.setLineDash(bad?[10,6]:[]); c.beginPath(); c.moveTo(P[i].x,P[i].y); c.lineTo(P[i+1].x,P[i+1].y); c.stroke(); c.setLineDash([]);
+    const dx=P[i+1].x-P[i].x, dy=P[i+1].y-P[i].y, len=Math.hypot(dx,dy), ux=dx/len, uy=dy/len;      // frecce del verso di volo
+    if(len>90) for(let t=0.25;t<1;t+=len>300?0.25:0.5){ if(Math.abs(t-0.5)<0.01) continue; const cx=P[i].x+dx*t, cy=P[i].y+dy*t;
+      c.strokeStyle='#5a0a50'; c.lineWidth=2.5; c.beginPath(); c.moveTo(cx-ux*6-uy*7,cy-uy*6+ux*7); c.lineTo(cx,cy); c.lineTo(cx-ux*6+uy*7,cy-uy*6-ux*7); c.stroke(); } }
+  // etichette lungo le tratte: «8,6 km; 4 min; 349°»; toccando la tratta si aggiunge la riga della quota
+  const nf=(v,d)=>v.toFixed(d).replace('.',',');
+  for(let i=0;i<P.length-1;i++){ const l=RD.info[i]; if(!l) continue; const a=P[i], b=P[i+1], len=Math.hypot(b.x-a.x,b.y-a.y), sel=RD.sel===i;
+    const t1=`${nf(l.d/1000,l.d<10000?1:0)} km; ${Math.max(1,Math.round(l.min))} min; ${String(Math.round(l.hdg)).padStart(3,'0')}°`;
+    const up=l.why==='terreno', t2=sel?(up?`SALI a ${l.altFt} ft (terreno)`:(l.why==='sotto'?`${l.altFt} ft sotto ${String(l.ceilName).split(' ').slice(0,3).join(' ')}`:(l.why==='vento'?`${l.altFt} ft · vento migliore`:`${l.altFt} ft`+(l.safeFt?` · sicura ${l.safeFt}`:'')))):'';
+    c.font=(sel?'700 14px':'700 12px')+' system-ui'; const w=Math.max(c.measureText(t1).width,t2?c.measureText(t2).width:0)+12, h=t2?36:(sel?22:19);
+    if(len<w+30 && !sel) continue;
+    let ang=Math.atan2(b.y-a.y,b.x-a.x); if(ang>Math.PI/2) ang-=Math.PI; else if(ang<-Math.PI/2) ang+=Math.PI;
+    c.save(); c.translate((a.x+b.x)/2,(a.y+b.y)/2); c.rotate(ang);
+    c.fillStyle='rgba(255,255,255,.95)'; c.strokeStyle=up?'#d4141b':'#222'; c.lineWidth=sel?2:1.2; c.beginPath(); c.roundRect?c.roundRect(-w/2,-h/2,w,h,h/2>12?8:h/2):c.rect(-w/2,-h/2,w,h); c.fill(); c.stroke();
+    c.textAlign='center'; c.textBaseline='middle'; c.fillStyle='#111'; c.fillText(t1,0,t2?-8:0.5);
+    if(t2){ c.font='700 12px system-ui'; c.fillStyle=up?'#c00':(l.why==='sotto'?'#8a5a00':'#0a6b35'); c.fillText(t2,0,9); }
+    c.restore(); }
+  c.textBaseline='middle';
   // punti
   P.forEach((q,i)=>{ const p=RD.pts[i], fld=p.f&&p.f.kind!=='wp'&&Math.abs(p.f.lat-p.lat)<1e-7, drag=RD.g&&RD.g.idx===i, merge=drag&&RD.g.merge!=null;
     c.fillStyle=merge?'#ff5a5a':(i===0?'#5bd38a':(i===P.length-1?'#ff46e0':'#fff')); c.strokeStyle='#000'; c.lineWidth=2;
@@ -1658,7 +1700,7 @@ function rdDraw(){
 }
 
 // ---------- gesti ----------
-function rdNearField(x,y){ let best=null, bd=RD_HIT; for(const f of FIELDS){ if(f.kind==='wp') continue; const q=rdP(f.lat,f.lon), d=Math.hypot(q.x-x,q.y-y); if(d<bd){ bd=d; best=f; } } return best; }
+function rdNearField(x,y){ let best=null, bd=RD_HIT; for(const f of [...FIELDS,...RD_RPP]){ if(f.kind==='wp') continue; const q=rdP(f.lat,f.lon), d=Math.hypot(q.x-x,q.y-y)+(f.rp?4:0); if(d<bd){ bd=d; best=f; } } return best; }
 function rdNearPt(x,y){ let best=-1, bd=RD_HIT; RD.pts.forEach((p,i)=>{ const q=rdP(p.lat,p.lon), d=Math.hypot(q.x-x,q.y-y); if(d<bd){ bd=d; best=i; } }); return best; }
 function rdNearLeg(x,y){ for(let i=0;i<RD.pts.length-1;i++){ const a=rdP(RD.pts[i].lat,RD.pts[i].lon), b=rdP(RD.pts[i+1].lat,RD.pts[i+1].lon);
     const dx=b.x-a.x, dy=b.y-a.y, L2=dx*dx+dy*dy; if(L2<1) continue; const t=((x-a.x)*dx+(y-a.y)*dy)/L2; if(t<0.08||t>0.92) continue;
@@ -1671,20 +1713,26 @@ function rdGestures(){
     const i=rdNearPt(x,y);
     if(i>=0){ RD.g={kind:'pt',idx:i,x,y,moved:false,before:RD.pts.map(p=>Object.assign({},p))}; return; }
     const l=rdNearLeg(x,y);
-    if(l>=0){ const before=RD.pts.map(p=>Object.assign({},p)), ll=rdLL(x,y); RD.pts.splice(l+1,0,{lat:ll.lat,lon:ll.lon,f:null}); RD.g={kind:'pt',idx:l+1,x,y,moved:true,ins:true,before}; rdDraw(); return; }
-    RD.g={kind:'pan',x,y,lx:x,ly:y,moved:false}; });
+    if(l>=0){ RD.g={kind:'leg',leg:l,x,y,moved:false,before:RD.pts.map(p=>Object.assign({},p))}; return; }
+    RD.g={kind:'pan',x,y,lx:x,ly:y,moved:false};
+    RD.g.lt=setTimeout(()=>{ const g=RD.g; if(g&&g.kind==='pan'&&!g.moved&&pts.size===1){ g.long=true; rdMenu(x,y); } },650); });
   cv.addEventListener('pointermove',e=>{ if(!pts.has(e.pointerId)) return; const [x,y]=xy(e); pts.set(e.pointerId,[x,y]);
     if(pin && pts.size>=2){ const [a,b]=[...pts.values()], d=Math.hypot(a[0]-b[0],a[1]-b[1]); RD.mpp=clamp(pin.mpp*pin.d/d,8,4000);
       const m=[(a[0]+b[0])/2,(a[1]+b[1])/2], now=rdLL(m[0],m[1]); RD.clat+=pin.c.lat-now.lat; RD.clon+=pin.c.lon-now.lon; rdDrawSoon(); return; }
     const g=RD.g; if(!g) return;
     if(Math.hypot(x-g.x,y-g.y)>8) g.moved=true;
     if(g.kind==='pan'){ if(!g.moved) return; const a=rdLL(g.lx,g.ly), b=rdLL(x,y); RD.clat+=a.lat-b.lat; RD.clon+=a.lon-b.lon; g.lx=x; g.ly=y; rdDrawSoon(); return; }
+    if(g.kind==='leg'){ if(!g.moved) return; const ll=rdLL(g.x,g.y); RD.pts.splice(g.leg+1,0,{lat:ll.lat,lon:ll.lon,f:null}); g.kind='pt'; g.idx=g.leg+1; g.ins=true; RD.sel=null; }
     if(!g.moved) return;
     const ll=rdLL(x,y), p=RD.pts[g.idx]; p.lat=ll.lat; p.lon=ll.lon; p.f=null; p.name=null;
     // trascinato sul punto vicino: al rilascio si toglie
     g.merge=null; for(const j of [g.idx-1,g.idx+1]){ if(j<0||j>=RD.pts.length) continue; const q=rdP(RD.pts[j].lat,RD.pts[j].lon); if(Math.hypot(q.x-x,q.y-y)<RD_HIT){ g.merge=j; break; } }
     g.snap=g.merge==null?rdNearField(x,y):null; rdHint(g.merge!=null?'Rilascia per togliere il punto':(g.snap?'Si aggancia a '+g.snap.short:''),1200); rdDrawSoon(); });
   const up=e=>{ pts.delete(e.pointerId); if(pts.size<2) pin=null; const g=RD.g; RD.g=null; if(!g) return;
+    clearTimeout(g.lt); if(g.long) return;
+    if(g.kind==='leg'){ RD.sel=RD.sel===g.leg?null:g.leg; const l=RD.info[g.leg];                       // tocco sulla tratta: etichetta con la quota
+      if(l && RD.sel!=null) rdHint(`Tratta ${g.leg+1}: rotta ${String(Math.round(l.crs)).padStart(3,'0')}°, prua ${String(Math.round(l.hdg)).padStart(3,'0')}°`+(l.wind?` (vento ${String(Math.round(l.wind.dir)).padStart(3,'0')}°/${Math.round(l.wind.kmh)} km/h, GS ${Math.round(l.gs)})`:' (senza vento)')+(l.terrFt!=null?` · terreno max ${Math.round(l.terrFt)} ft`:''),5000);
+      rdDraw(); return; }
     if(g.kind==='pan'){ if(!g.moved && pts.size===0){ const [x,y]=xy(e), f=rdNearField(x,y); rdPush(); const ll=rdLL(x,y);
         RD.pts.push(f?{lat:f.lat,lon:f.lon,f}:{lat:ll.lat,lon:ll.lon,f:null}); rdChanged(); } return; }
     if(!g.moved){ rdHint((()=>{ const l=RD.info[g.idx]||RD.info[g.idx-1]; const p=RD.pts[g.idx]; return (p.f?p.f.name:'Punto '+g.idx)+(l&&l.terrFt!=null?` · terreno max tratta ${Math.round(l.terrFt)} ft`:''); })()); rdDraw(); return; }
@@ -1696,6 +1744,22 @@ function rdGestures(){
   cv.addEventListener('wheel',e=>{ e.preventDefault(); const [x,y]=xy(e), c0=rdLL(x,y); RD.mpp=clamp(RD.mpp*(e.deltaY>0?1.25:0.8),8,4000); const c1=rdLL(x,y); RD.clat+=c0.lat-c1.lat; RD.clon+=c0.lon-c1.lon; rdDrawSoon(); },{passive:false});
 }
 
+// tieni premuto sulla mappa: punto da non sorvolare, punto di rotta qui, oppure togli un punto da non sorvolare
+function rdMenu(x,y){
+  const ll=rdLL(x,y), near=RD_NOFLY.find(z=>{ const q=rdP(z.lat,z.lon); return Math.hypot(q.x-x,q.y-y)<Math.max(RD_HIT,z.r/RD.mpp); });
+  let m=$('rdMenu'); if(!m){ m=document.createElement('div'); m.id='rdMenu'; m.style.cssText='position:absolute;z-index:60;background:#0d1115;border:1px solid #3a4250;border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:6px;min-width:220px;box-shadow:0 6px 24px rgba(0,0,0,.5)'; RD.root.appendChild(m); }
+  const top=RD.cv.getBoundingClientRect().top;
+  m.style.left=Math.min(Math.max(8,x-110),innerWidth-236)+'px'; m.style.top=Math.min(top+y+10,innerHeight-220)+'px';
+  m.innerHTML=(near?`<button type="button" data-a="del">Togli «${esc(near.name)}»</button>`:
+    `<button type="button" data-a="nf1">Da non sorvolare · raggio 1 km</button><button type="button" data-a="nf2">Da non sorvolare · raggio 2 km</button>`)+
+    `<button type="button" data-a="wp">Punto di rotta qui (in fondo)</button><button type="button" data-a="x">Annulla</button>`;
+  m.hidden=false;
+  m.querySelectorAll('button').forEach(b=>b.onclick=()=>{ const a=b.dataset.a; m.hidden=true;
+    if(a==='del'){ RD_NOFLY=RD_NOFLY.filter(z=>z!==near); store.set('ia517_nofly',RD_NOFLY); rdChanged(); }
+    else if(a==='nf1'||a==='nf2'){ const nm=(prompt('Nome del punto da non sorvolare (paese, casa, impianto…)','NO SORVOLO '+(RD_NOFLY.length+1))||'').trim(); if(!nm) return;
+      RD_NOFLY.push({lat:+ll.lat.toFixed(5),lon:+ll.lon.toFixed(5),r:a==='nf1'?1000:2000,name:nm.toUpperCase().slice(0,24)}); store.set('ia517_nofly',RD_NOFLY); rdChanged(); rdHint('Tocca «Calcola rotta» per girarci intorno'); }
+    else if(a==='wp'){ rdPush(); RD.pts.push({lat:ll.lat,lon:ll.lon,f:null}); rdChanged(); } });
+}
 // ---------- rotta intorno alle zone da evitare, passando dove il terreno lascia il margine ----------
 function rdHeap(){ const a=[]; return {push(n,f){ a.push([f,n]); let i=a.length-1; while(i>0){ const p=(i-1)>>1; if(a[p][0]<=a[i][0]) break; [a[p],a[i]]=[a[i],a[p]]; i=p; } },
   pop(){ const top=a[0], last=a.pop(); if(a.length){ a[0]=last; let i=0; for(;;){ const l=2*i+1, r=l+1; let m=i; if(l<a.length&&a[l][0]<a[m][0]) m=l; if(r<a.length&&a[r][0]<a[m][0]) m=r; if(m===i) break; [a[m],a[i]]=[a[i],a[m]]; i=m; } } return top&&top[1]; }, get size(){ return a.length; } }; }
@@ -1706,41 +1770,52 @@ async function rdAround(A,B){
   const nx=Math.ceil(spanE/cell), ny=Math.ceil(spanN/cell), N=nx*ny;
   const LL=(i,j)=>({lat:lat0+(j+0.5)*cell/110540, lon:lon0+(i+0.5)*cell/(111320*cl)});
   const IJ=p=>[clamp(Math.floor((p.lon-lon0)*111320*cl/cell),0,nx-1), clamp(Math.floor((p.lat-lat0)*110540/cell),0,ny-1)];
-  // terreno: aspetta le tessere del DEM (fino a 8 s)
-  const terr=new Float32Array(N);
-  for(let tr=0;tr<16;tr++){ let miss=0; for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ const p=LL(i,j), z=rdDem(p.lat,p.lon,9); if(z!==z){ miss++; terr[j*nx+i]=0; } else terr[j*nx+i]=z/0.3048; }
-    if(!miss) break; RD.busy='Scarico il terreno… '+Math.round(100*(1-miss/N))+'%'; rdDraw(); await new Promise(r=>setTimeout(r,500)); }
-  // celle vietate: dentro una zona da evitare, alla quota di crociera, più una cella di margine
+  // terreno: per ogni cella il punto più alto (centro e 4 punti interni), poi il massimo entro una cella intorno (±1 km come nelle tratte)
+  const terr=new Float32Array(N), off=[[0,0],[-1,-1],[1,-1],[-1,1],[1,1]];
+  for(let tr=0;tr<16;tr++){ let miss=0;
+    for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ let m=-1e9; for(const [u,v] of off){ const z=rdDem(lat0+(j+0.5+v*0.33)*cell/110540, lon0+(i+0.5+u*0.33)*cell/(111320*cl), 10); if(z!==z){ miss++; continue; } if(z>m) m=z; }
+      terr[j*nx+i]=m>-1e8?m/0.3048:0; }
+    if(!miss) break; RD.busy='Scarico il terreno… '+Math.round(100*(1-miss/(N*5)))+'%'; rdDraw(); await new Promise(r=>setTimeout(r,600)); }
+  const tmax=new Float32Array(N);
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ let m=-1e9; for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=i+di, jj=j+dj; if(ii>=0&&jj>=0&&ii<nx&&jj<ny&&terr[jj*nx+ii]>m) m=terr[jj*nx+ii]; } tmax[j*nx+i]=m; }
+  // celle vietate: dentro una zona da evitare dove non ci si passa sotto con il margine sul terreno, più una cella di margine
   const blk=new Uint8Array(N);
-  const skipped=[];
   for(const a of rdAspAll()){ if(!rdAvoid(a)) continue; const bb=a.bb; if(!bb||bb[1]<lat0||bb[0]>lat1||bb[3]<lon0||bb[2]>lon1) continue;
-    if(rdPip(A,a.pts)||rdPip(B,a.pts)){ skipped.push(a); continue; }               // ci parti o ci arrivi: quella non si può girare, resta l'avviso
+    if(rdPip(A,a.pts)||rdPip(B,a.pts)) continue;                      // ci parti o ci arrivi: quella non si può girare, resta l'avviso
     const [i0,j0]=IJ({lat:bb[0],lon:bb[2]}), [i1,j1]=IJ({lat:bb[1],lon:bb[3]});
-    for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){ const p=LL(i,j); if(!rdPip(p,a.pts)) continue; const tf=terr[j*nx+i], lo=rdLim(a.lo,tf), hi=rdLim(a.hi,tf);
-      if(lo-100<tf+margin && hi>tf+margin) blk[j*nx+i]=1; } }        // vietata solo se non ci si passa sotto con il margine sul terreno
+    for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){ const p=LL(i,j); if(!rdPip(p,a.pts)) continue; const k=j*nx+i, tf=tmax[k], lo=rdLim(a.lo,terr[k]), hi=rdLim(a.hi,terr[k]);
+      if(lo-100<tf+margin && hi>tf+margin) blk[k]=1; } }
+  for(const z of RD_NOFLY){ if(dist(z,A).d<z.r||dist(z,B).d<z.r) continue; const [ci,cj]=IJ(z), rr=Math.ceil(z.r/cell)+1;
+    for(let dj=-rr;dj<=rr;dj++) for(let di=-rr;di<=rr;di++){ const ii=ci+di, jj=cj+dj; if(ii<0||jj<0||ii>=nx||jj>=ny) continue; if(dist(LL(ii,jj),z).d<z.r+cell*0.5) blk[jj*nx+ii]=1; } }
   const blk2=blk.slice(); for(let j=0;j<ny;j++) for(let i=0;i<nx;i++) if(blk[j*nx+i]) for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=i+di, jj=j+dj; if(ii>=0&&jj>=0&&ii<nx&&jj<ny) blk2[jj*nx+ii]=1; }
   const [si,sj]=IJ(A), [ei,ej]=IJ(B);
   for(const [ci,cj] of [[si,sj],[ei,ej]]) for(let dj=-2;dj<=2;dj++) for(let di=-2;di<=2;di++){ const ii=ci+di, jj=cj+dj; if(ii>=0&&jj>=0&&ii<nx&&jj<ny) blk2[jj*nx+ii]=0; }
-  // costo: distanza, molto più cara dove il terreno non lascia il margine alla quota di crociera (si passa dalle valli)
-  const hi=k=>terr[k]+margin>cruise;
+  // costo: distanza, tanto più cara quanto il terreno obbliga a salire sopra la crociera (ogni 500 ft in più vale come un'altra cella): si passa dalle valli
+  const w=k=>1+Math.max(0,tmax[k]+margin-cruise)/500;
+  // vento: ogni passo costa il tempo che ci vuole in quella direzione (con vento contrario la strada «costa» di più)
+  const tas=Math.max(40,PLAN.tas), wnd=rdWindAt((A.lat+B.lat)/2,(A.lon+B.lon)/2,cruise), wf={};
+  for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++) if(di||dj) wf[di+','+dj]=tas/rdGs(wrap360(Math.atan2(di,dj)*R2D),wnd,tas).gs;
   const g=new Float32Array(N).fill(Infinity), from=new Int32Array(N).fill(-1), done=new Uint8Array(N), H=rdHeap();
-  const s=sj*nx+si, e=ej*nx+ei, hEst=k=>Math.hypot(k%nx-ei,((k/nx)|0)-ej);
+  const minW=Math.min(...Object.values(wf)), s=sj*nx+si, e=ej*nx+ei, hEst=k=>Math.hypot(k%nx-ei,((k/nx)|0)-ej)*minW;
   g[s]=0; H.push(s,hEst(s)); let it=0;
-  while(H.size){ const k=H.pop(); if(done[k]) continue; done[k]=1; if(k===e) break; if(++it>400000) break;
+  while(H.size){ const k=H.pop(); if(done[k]) continue; done[k]=1; if(k===e) break; if(++it>600000) break;
     const i=k%nx, j=(k/nx)|0;
     for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ if(!di&&!dj) continue; const ii=i+di, jj=j+dj; if(ii<0||jj<0||ii>=nx||jj>=ny) continue; const q=jj*nx+ii; if(blk2[q]||done[q]) continue;
-      const c=g[k]+(di&&dj?1.4142:1)*(hi(q)?12:1); if(c<g[q]){ g[q]=c; from[q]=k; H.push(q,c+hEst(q)); } } }
+      const c=g[k]+(di&&dj?1.4142:1)*wf[di+','+dj]*(w(k)+w(q))/2; if(c<g[q]){ g[q]=c; from[q]=k; H.push(q,c+hEst(q)); } } }
   RD.busy=false;
   if(from[e]<0 && s!==e) return null;
   const path=[]; for(let k=e;k>=0;k=from[k]){ path.push(k); if(k===s) break; } path.reverse();
-  // semplifica: dal punto corrente al più lontano raggiungibile in linea retta senza celle vietate e senza più terreno alto del percorso trovato
-  const cum=[0]; for(let t=1;t<path.length;t++) cum.push(cum[t-1]+(hi(path[t])?1:0));
-  const clear=(a,b)=>{ const ia=path[a]%nx, ja=(path[a]/nx)|0, ib=path[b]%nx, jb=(path[b]/nx)|0, n=Math.max(2,Math.ceil(Math.hypot(ib-ia,jb-ja)*2.5)); let hc=0;
-    for(let t=0;t<=n;t++){ const ii=Math.round(ia+(ib-ia)*t/n), jj=Math.round(ja+(jb-ja)*t/n), q=jj*nx+ii; if(blk2[q]) return false; if(hi(q)) hc++; }
-    return hc/2.5<=cum[b]-cum[a]+1; };
-  const out=[]; let a=0;
-  while(a<path.length-1){ let b=path.length-1; while(b>a+1 && !clear(a,b)) b--; if(b<path.length-1) out.push(path[b]); a=b; }
-  return out.map(k=>LL(k%nx,(k/nx)|0));
+  // semplifica: dal punto corrente al più lontano raggiungibile in linea retta senza celle vietate e senza terreno più alto di quello del percorso trovato
+  const clear=(a,b)=>{ let pm=-1e9; for(let t=a;t<=b;t++) if(tmax[path[t]]>pm) pm=tmax[path[t]];
+    const ia=path[a]%nx, ja=(path[a]/nx)|0, ib=path[b]%nx, jb=(path[b]/nx)|0, n=Math.max(2,Math.ceil(Math.hypot(ib-ia,jb-ja)*3));
+    for(let t=0;t<=n;t++){ const ii=Math.round(ia+(ib-ia)*t/n), jj=Math.round(ja+(jb-ja)*t/n), q=jj*nx+ii; if(blk2[q]) return false; if(tmax[q]>pm+200) return false; }
+    return true; };
+  const keep=[]; let a=0;
+  while(a<path.length-1){ let b=path.length-1; while(b>a+1 && !clear(a,b)) b--; keep.push(b); a=b; }
+  // niente tratte cortissime: un punto a meno di 2 km dal precedente si toglie se la linea resta libera
+  const idx=[0,...keep]; for(let t=1;t<idx.length-1;t++){ const pa=path[idx[t-1]], pb=path[idx[t]];
+    if(Math.hypot(pa%nx-pb%nx,((pa/nx)|0)-((pb/nx)|0))*cell<2000 && clear(idx[t-1],idx[t+1])){ idx.splice(t,1); t--; } }
+  return idx.slice(1,-1).map(t=>LL(path[t]%nx,(path[t]/nx)|0));
 }
 async function rdAvoidAll(){
   if(RD.pts.length<2){ rdHint('Disegna prima partenza e arrivo'); return; }
@@ -1748,14 +1823,14 @@ async function rdAvoidAll(){
   rdAnalyze(); const bad=RD.info.map((l,i)=>l.hits.some(h=>h.avoid)?i:-1).filter(i=>i>=0);
   rdPush(); RD.busy='Calcolo la rotta…'; rdDraw(); let added=0, failed=0, k=1;
   // anche le tratte senza zone: se il terreno chiede di salire, si cerca la valle
-  const todo=RD.info.map((l,i)=>(bad.includes(i)||(l.safeFt&&l.safeFt>PLAN.cruiseFt))?i:-1).filter(i=>i>=0);
-  if(!todo.length){ RD.busy=false; RD.hist.pop(); rdHint('La rotta non attraversa zone da evitare e il terreno lascia il margine alla crociera'); rdDraw(); return; }
+  const todo=RD.info.map((l,i)=>i);                          // tutte le tratte: la più breve in tempo, col vento, intorno alle zone, dalle valli
   for(const i of todo.reverse()){ const A=RD.pts[i], B=RD.pts[i+1], mid=await rdAround(A,B);
     if(mid===null){ failed++; continue; }
-    RD.pts.splice(i+1,0,...mid.map(p=>({lat:p.lat,lon:p.lon,f:null,name:'EVITA'+(k++)}))); added+=mid.length; }
-  RD.busy=false;
-  RD.msg=failed?`Per ${failed} tratte non trovo un passaggio libero alla quota di crociera: prova ad alzarla o abbassarla, oppure sposta i punti a mano.`:(added?`Aggiunti ${added} punti per girare intorno alle zone e passare dalle valli. Controlla la rotta prima del volo.`:'Nessun punto da aggiungere: alla quota di crociera non c\'è un passaggio migliore.');
-  rdChanged(); rdHint(RD.msg,6000);
+    RD.pts.splice(i+1,0,...mid.map(p=>({lat:p.lat,lon:p.lon,f:null,name:'R'+(k++)}))); added+=mid.length; }
+  RD.busy=false; rdAnalyze();
+  const left=new Set(); RD.info.forEach(l=>l.hits.forEach(h=>{ if(h.avoid) left.add(`${h.a.cls} ${h.a.name}`); }));
+  RD.msg=failed?`Per ${failed} tratte non trovo un passaggio libero alla quota di crociera: prova ad alzarla o abbassarla, oppure sposta i punti a mano.`:(added?`Aggiunti ${added} punti (R1, R2…): la rotta più breve in tempo con il vento previsto, intorno alle zone e ai punti da non sorvolare, dalle valli dove il terreno lo chiede.`+(left.size?` Restano da verificare: ${[...left].slice(0,4).join(', ')} (ci parti o ci arrivi, oppure il terreno obbliga a salire dentro). Controlla la rotta prima del volo.`:' Controlla la rotta prima del volo.'):(left.size?`La rotta diritta è già la migliore, ma restano: ${[...left].slice(0,4).join(', ')}.`:'La rotta diritta è già la più breve e libera: nessun punto da aggiungere.'));
+  rdChanged(); rdHint(failed?'Rotta calcolata in parte: vedi sotto la mappa':(added?`Rotta calcolata: ${added} punti aggiunti`+(left.size?' · restano zone, vedi sotto':''):'La rotta diritta è già la migliore'),3500);
 }
 
 // ---------- ingressi: tasto nella scheda Rotta e tocco sulla piccola mappa ----------
