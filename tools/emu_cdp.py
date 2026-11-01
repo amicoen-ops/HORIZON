@@ -124,6 +124,14 @@ if ws:
         const b=X.RD.info.map(l=>({km:Math.round(l.d/1000),sicura:l.safeFt,quota:l.altFt,zone:l.hits.filter(h=>h.avoid).map(h=>h.a.name)}));
         const out=JSON.stringify({prima:a,dopo:b,msg:X.RD.msg}); X.close(false); PH.show('volo'); return out; })()"""))
     shot("06c_rotta")
+    log("rotta Tovière (parco Gran Paradiso)", ev("""(async()=>{ PH.show('piano'); await new Promise(r=>setTimeout(r,1500));
+        const w=document.getElementById('phAppFrame').contentWindow, X=w.IA517_rd; X.plan('IT-0074','FR-0293',3000);
+        X.open(); for(let i=0;i<30;i++){ await new Promise(r=>setTimeout(r,1000)); if(X.RD.info.length && !X.RD.pending) break; }
+        const a=X.RD.info.map(l=>({km:Math.round(l.d/1000),sicura:l.safeFt,zone:l.hits.filter(h=>h.avoid).map(h=>h.a.name)}));
+        w.document.getElementById('rdAv').click(); for(let i=0;i<60;i++){ await new Promise(r=>setTimeout(r,1000)); if(!X.RD.busy && i>2) break; }
+        await new Promise(r=>setTimeout(r,1500));
+        const b=X.RD.info.map(l=>({km:Math.round(l.d/1000),sicura:l.safeFt,quota:l.altFt,zone:l.hits.filter(h=>h.avoid).map(h=>h.a.name)}));
+        const out=JSON.stringify({spazi:w.ASP_SRC.name,prima:a,dopo:b}); X.close(false); PH.show('volo'); return out; })()"""))
     log("profilo verticale", ev("""(async()=>{ document.getElementById('phAsp').click(); await new Promise(r=>setTimeout(r,2500));
         const o=JSON.stringify({aperto:!document.getElementById('phProf').hidden, info:document.getElementById('phProfInfo').innerText.slice(0,200)}); return o; })()"""))
     shot("06d_profilo")

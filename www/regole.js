@@ -52,7 +52,7 @@ window.IA517_RULES = (function () {
       if (c === 'TMZ') return eq().xpdr ? { status: 'warn', text: `${p}: zona con transponder obbligatorio: tienilo acceso in modo ALT` } : { status: 'bad', text: `${p}: zona con transponder obbligatorio, il velivolo non lo ha` };
       if (c === 'RMZ') return eq().radio ? { status: 'warn', text: `${p}: zona con radio obbligatoria, servono radio e contatto` } : { status: 'bad', text: `${p}: zona con radio obbligatoria, il velivolo non ha la radio` };
       if (c === 'Q') return { status: 'warn', text: 'Area pericolosa: verifica attività e orari prima del volo' };
-      if (c === 'OFR') return { status: 'warn', text: 'Sorvolo limitato (per esempio un parco): rispetta la quota minima indicata' };
+      if (c === 'OFR') return { status: 'bad', text: `Parco o area protetta: sorvolo vietato${a.hi && a.hi.txt ? ' fino a ' + a.hi.txt : ''}. Giralo intorno o passa sopra il limite` };
       if (c === 'SPORT' || c === 'W' || c === 'GSEC') return { status: 'warn', text: 'Area di attività sportive o volo a vela: occhi aperti' };
       if (c === 'G') return { status: 'ok', text: `Classe G: consentito al ${p}` };
       return { status: 'warn', text: 'Spazio non classificato: verifica in AIP' };
@@ -66,7 +66,7 @@ window.IA517_RULES = (function () {
     if (c === 'TMZ') return eq().xpdr ? { status: 'ok', text: 'Zona con transponder obbligatorio: tienilo acceso in modo ALT' } : { status: 'bad', text: 'Zona con transponder obbligatorio: il velivolo non lo ha, evitala' };
     if (c === 'RMZ') return eq().radio ? { status: 'warn', text: 'Zona con radio obbligatoria' } : { status: 'bad', text: 'Zona con radio obbligatoria: il velivolo non ha la radio, evitala' };
     if (c === 'Q') return { status: 'warn', text: 'Area pericolosa: verifica attività e orari prima del volo' };
-    if (c === 'OFR') return { status: 'warn', text: 'Sorvolo limitato: rispetta la quota minima indicata' };
+    if (c === 'OFR') return { status: 'bad', text: `Parco o area protetta: sorvolo vietato${a.hi && a.hi.txt ? ' fino a ' + a.hi.txt : ''}. Giralo intorno o passa sopra il limite` };
     if (c === 'SPORT' || c === 'W' || c === 'GSEC') return { status: 'warn', text: 'Area di attività sportive o volo a vela: occhi aperti' };
     if (c === 'G') return { status: 'ok', text: 'Classe G: VFR ammesso' };
     return { status: 'warn', text: 'Spazio non classificato: verifica in AIP' };

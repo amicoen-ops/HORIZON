@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 # Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
-"""Campi del Nord Italia da OurAirports (pubblico dominio) per la versione telefono.
+"""Campi del Nord Italia e delle Alpi vicine (Francia, Svizzera, Austria, Slovenia) da OurAirports (pubblico dominio).
 
 Uso:  python3 campi_ourairports.py cartella_con_airports.csv_e_runways.csv
 Scrive src/campi_nord.json nel formato di FIELDS_RAW:
@@ -14,9 +14,10 @@ from pathlib import Path
 
 REGIONI = {"IT-21", "IT-23", "IT-25", "IT-32", "IT-34", "IT-36", "IT-42", "IT-45"}  # Piemonte, VdA, Lombardia, Trentino-AA, Veneto, FVG, Liguria, Emilia-Romagna
 TIPI = {"small_airport", "medium_airport", "large_airport"}
+ESTERO = {"FR", "CH", "AT", "SI", "MC"}                       # Alpi oltre confine: lat 43,6–47,3 · lon 5,8–14,6
 PAVED = re.compile(r"asp|con|bit|pem|tar|pav|cem", re.I)
-VIA = re.compile(r"\b(aviosuperficie|avio\s?superficie|airfield|airstrip|airport|aeroporto( di)?|aerodromo|campo( di)? volo|ultralight( field)?|field|ulm|ultraleggeri|club)\b", re.I)
-GLAC = re.compile(r"ghiacciaio|glacier|\bgh\.", re.I)
+VIA = re.compile(r"\b(aviosuperficie|avio\s?superficie|airfield|airstrip|airport|aeroporto( di)?|aerodromo|aérodrome|aerodrome|altiport|altisurface|flugplatz|flugfeld|letališče|campo( di)? volo|ultralight( field)?|field|ulm|ultraleggeri|club)\b", re.I)
+GLAC = re.compile(r"ghiacciaio|glacier|gletscher|\bgh\.", re.I)
 
 
 def pulito(nome):
@@ -39,22 +40,25 @@ def main(cart):
         piste.setdefault(r["airport_ident"], []).append(r)
     out = []
     for a in csv.DictReader(open(cart / "airports.csv", encoding="utf-8")):
-        if a["iso_country"] != "IT" or a["type"] not in TIPI:
+        if a["type"] not in TIPI or (a["iso_country"] != "IT" and a["iso_country"] not in ESTERO):
             continue
         lat, lon = num(a["latitude_deg"]), num(a["longitude_deg"])
         if lat is None or lon is None:
             continue
-        if a["iso_region"] not in REGIONI and not (a["iso_region"].startswith("IT-U") and lat > 44.0):
+        if a["iso_country"] == "IT":
+            if a["iso_region"] not in REGIONI and not (a["iso_region"].startswith("IT-U") and lat > 44.0):
+                continue
+        elif not (43.6 <= lat <= 47.3 and 5.8 <= lon <= 14.6):
             continue
         if re.search(r"heli|elisuperficie|eliporto|hospital|ospedale", a["name"], re.I):
             continue
         ident = a["ident"]
         icao = (a["icao_code"] or a["gps_code"] or "").strip()
-        aero = bool(re.fullmatch(r"LI[A-Z]{2}", ident) or re.fullmatch(r"LI[A-Z]{2}", icao)) or a["type"] != "small_airport"
+        aero = bool(re.fullmatch(r"L[IFSOJN][A-Z]{2}", ident) or re.fullmatch(r"L[IFSOJN][A-Z]{2}", icao)) or a["type"] != "small_airport"
         elev = num(a["elevation_ft"])
         nome = pulito(a["name"])
-        kind = "aero" if aero else ("glac" if GLAC.search(a["name"]) else ("alti" if elev and elev > 4000 else "ulm"))
-        sigla = (icao if aero and re.fullmatch(r"LI[A-Z]{2}", icao or "") else (ident if aero and re.fullmatch(r"LI[A-Z]{2}", ident) else nome.upper()))[:13]
+        kind = "aero" if aero else ("glac" if GLAC.search(a["name"]) else ("alti" if (elev and elev > 4000) or re.search(r"altiport|altisurface", a["name"], re.I) else "ulm"))
+        sigla = (icao if aero and re.fullmatch(r"L[IFSOJN][A-Z]{2}", icao or "") else (ident if aero and re.fullmatch(r"L[IFSOJN][A-Z]{2}", ident) else nome.upper()))[:13]
         rws = []
         for r in piste.get(ident, []):
             if r.get("closed") == "1":
@@ -79,7 +83,7 @@ def main(cart):
             rws.append([le, he, round(hdg, 1), round(L * 0.3048), 1 if PAVED.search(r["surface"] or "") else 0])
         out.append([ident, sigla, nome, round(lat, 5), round(lon, 5), int(elev) if elev is not None else None, rws, kind])
     out.sort(key=lambda f: f[0])
-    dest = Path(__file__).resolve().parent / "src" / "campi_nord.json"
+    dest = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).resolve().parent / "src" / "campi_nord.json"
     dest.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     from collections import Counter
     print(len(out), "campi", dict(Counter(f[7] for f in out)), "con piste", sum(1 for f in out if f[6]), "->", dest)

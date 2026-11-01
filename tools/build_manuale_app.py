@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.31"
+VER = "1.0.33"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -361,6 +361,9 @@ s += [side("46_desk.png", [
     P("È comodo per un controllo veloce, ma il sito stesso avverte che non è una fonte ufficiale né a uso operativo: per il volo valgono AIP, NOTAM e meteo ufficiali."),
 ], 74 * mm, "Collegamenti a Desk Aeronautico")]
 
+s += [box("<b>Parchi e aree protette</b> (OFR nei dati openAIP, per esempio il Parco Nazionale del Gran Paradiso, dal suolo a 14.763 ft): per l'app sono zone da non sorvolare con ogni tipo di volo, fino al limite superiore indicato. Danno l'avviso in volo e «Calcola rotta» li gira intorno. Verifica sempre in AIP le regole del singolo parco.")]
+s += [P("Spazi aerei: oltre all'Italia l'app scarica da openAIP Francia, Svizzera, Austria e Slovenia, tenendo solo la fascia alpina vicina al Nord Italia. Campi: anche gli aeroporti, le aviosuperfici e gli altiporti delle Alpi oltre confine (per esempio la Tovière, a Tignes), da OurAirports.")]
+
 # 13 --------------------------------------------------------------
 s += chap(13, CH_[12])
 s += [shots([("21_simula.png", "Prepara la simulazione"), ("20_simula_in_corso.png", "Simulazione in corso"), ("11_volo_circuito.png", "Lo strumento vola da solo")], 50 * mm)]
@@ -494,7 +497,7 @@ s += [table(["Dati del profilo", "Dove servono"], [
     ["VS0, VS1, VFE, VNO, VNE (km/h)", "Archi colorati della scala di velocità: bianco VS0–VFE, verde VS1–VNO, giallo VNO–VNE, rosso VNE"],
     ["VA, VX, VY, miglior planata", "Promemoria nel profilo; la planata con l'efficienza disegna il cerchio di planata"],
     ["Avvicinamento, circuito, crociera", "Simulazione, piano di volo (velocità vera), tempi delle tratte nella rotta disegnata"],
-    ["Rateo di salita, efficienza", "Cerchio di planata sulla mappa: distanza raggiungibile dall'altezza sul terreno, con il 25% di margine"],
+    ["Rateo di salita, efficienza", "Cerchio di planata sulla mappa: distanza raggiungibile dall'altezza sul terreno, con il 25% di margine (si accende e si spegne in Impostazioni › Velivoli)"],
     ["Decollo e atterraggio (m), vento al traverso", "Piano: pista di partenza e di arrivo abbastanza lunghe (+15%); avviso se il traverso supera il massimo dimostrato"],
     ["Quota del circuito", "Circuito e sentiero di discesa sullo strumento e nel piano"],
     ["Serbatoi, non utilizzabile, consumo, riserva, rullaggio", "Piano: carburante necessario, capienza, autonomia"],
