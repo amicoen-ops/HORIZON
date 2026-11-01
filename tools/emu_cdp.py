@@ -2,6 +2,7 @@
 # Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 """Collaudo sull'emulatore: entra nella WebView dell'app (DevTools via adb), la usa come un pilota,
 salva schermate e risultati in out/. Uso: python3 emu_cdp.py out"""
+from pathlib import Path
 import json, os, re, subprocess, sys, time
 import urllib.request
 import websocket  # websocket-client
@@ -108,6 +109,9 @@ if ws:
         const n=w.IA517_asp().length; PH.show('volo');
         return JSON.stringify({spazi:n, messaggio:d.getElementById('oaipMsg').textContent.slice(0,220)}); })()"""))
     shot("06b_spazi_aerei")
+    # invio vero di una segnalazione di prova (solo quando c'è il file tools/prova_segnalazione: manda una mail a Enry)
+    if (Path(__file__).parent / "prova_segnalazione").exists():
+        log("segnalazione (invio vero)", ev("""(async()=>{ try{ await PH.sendReport({kind:'Prova',text:'Prova automatica dal collaudo su emulatore: se leggi questa mail il tasto Invia segnalazione funziona.',reply:'',diag:PH.diag(),t:Date.now()}); return 'inviata'; }catch(e){ return 'ERRORE: '+(e&&e.message||e); } })()"""))
     time.sleep(2); log("spazio qui", ev("document.getElementById('phAsp').textContent"))
     log("bussola", ev("JSON.stringify({prua:PH.mag.hdg!=null?Math.round(PH.mag.hdg):null,fonte:PH.mag.src||null,errore:PH.mag.err||null,in_uso:PH.magInUse()})"))
     log("prestazioni", ev("JSON.stringify({ms:PH.perf.avg.toFixed(1),blocchi:PH.perf.stalls,fps:PH.fps,vicini:PH.nearF&&PH.nearF.length,terreno:PH.dem.size,tessere:PH.tiles.size})"))
