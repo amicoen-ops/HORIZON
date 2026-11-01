@@ -113,6 +113,17 @@ if ws:
     if (Path(__file__).parent / "prova_segnalazione").exists():
         log("segnalazione (invio vero)", ev("""(async()=>{ try{ await PH.sendReport({kind:'Prova',text:'Prova automatica dal collaudo su emulatore: se leggi questa mail il tasto Invia segnalazione funziona.',reply:'',diag:PH.diag(),t:Date.now()}); return 'inviata'; }catch(e){ return 'ERRORE: '+(e&&e.message||e); } })()"""))
     time.sleep(2); log("spazio qui", ev("document.getElementById('phAsp').textContent"))
+    # rotta disegnata: Carolina › Aosta con terreno vero (DEM) e spazi aerei veri, poi «Evita zone»
+    log("rotta disegnata", ev("""(async()=>{ PH.show('piano'); await new Promise(r=>setTimeout(r,1500));
+        const w=document.getElementById('phAppFrame').contentWindow, X=w.IA517_rd; X.plan('IT-0074','LIMW',3000);
+        X.open(); for(let i=0;i<30;i++){ await new Promise(r=>setTimeout(r,1000)); if(X.RD.info.length && !X.RD.pending) break; }
+        const a=X.RD.info.map(l=>({km:Math.round(l.d/1000),terr:l.terrFt&&Math.round(l.terrFt),sicura:l.safeFt,quota:l.altFt,sotto:l.ceilName,zone:l.hits.filter(h=>h.avoid).map(h=>h.a.name)}));
+        document.querySelector('#phAppFrame') && w.document.getElementById('rdAv').click();
+        for(let i=0;i<40;i++){ await new Promise(r=>setTimeout(r,1000)); if(!X.RD.busy && i>2) break; }
+        await new Promise(r=>setTimeout(r,1500));
+        const b=X.RD.info.map(l=>({km:Math.round(l.d/1000),sicura:l.safeFt,quota:l.altFt,zone:l.hits.filter(h=>h.avoid).map(h=>h.a.name)}));
+        const out=JSON.stringify({prima:a,dopo:b,msg:X.RD.msg}); X.close(false); PH.show('volo'); return out; })()"""))
+    shot("06c_rotta")
     log("bussola", ev("JSON.stringify({prua:PH.mag.hdg!=null?Math.round(PH.mag.hdg):null,fonte:PH.mag.src||null,errore:PH.mag.err||null,in_uso:PH.magInUse()})"))
     log("prestazioni", ev("JSON.stringify({ms:PH.perf.avg.toFixed(1),blocchi:PH.perf.stalls,fps:PH.fps,vicini:PH.nearF&&PH.nearF.length,terreno:PH.dem.size,tessere:PH.tiles.size})"))
     step("08_demo", "(typeof PH.setDemo==='function'?(PH.setDemo(true),'demo'):'manca setDemo')", pause=25)
