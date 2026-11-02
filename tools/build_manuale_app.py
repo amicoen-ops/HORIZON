@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.42"
+VER = "1.0.43"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -337,6 +337,12 @@ s += [Paragraph("Quota che sale da sola sul terreno", H3)]
 s += [P("In volo, con una destinazione o una rotta attiva, lo strumento guarda avanti sulla traccia: sempre il primo chilometro, e fino a 10 km le creste per cui, con la velocità e il rateo di salita del velivolo, bisogna cominciare a salire subito. Se alla quota obiettivo il margine sul terreno scende nel giallo (meno di circa 600 ft), la quota obiettivo sale da sola al terreno più 600 ft, arrotondata ai 100 ft: il flight director e il nastro della quota indicano di salire. "
         "La sicurezza dal terreno vince sugli spazi aerei: se salendo entri in uno spazio, l'avviso lo nomina («ENTRI IN …: AVVISA») perché tu chiami l'ente. Passato il rilievo, dopo 20 secondi con il terreno di nuovo libero, compare «PUOI TORNARE A … FT». "
         "Se col rateo di salita del velivolo non si riesce comunque a passare, l'avviso rosso «SALENDO NON PASSI · VIRA» dice di cambiare direzione. In avvicinamento la funzione è spenta.")]
+s += [Paragraph("Salite, discese e giri di 360°", H3)]
+s += [P("Il rateo di salita non è fisso: l'app lo calcola dal profilo del velivolo (rateo a pieno carico al livello del mare e quota massima operativa), più basso man mano che si sale e quando l'aereo è pesante (persone, bagaglio e carburante del piano). "
+        "Nel piano il riquadro <b>«Salite, discese e giri»</b> dice per ogni tratta se la salita (o la discesa) ci sta prima del punto più alto del terreno. Se non ci sta propone giri di 360° a 20° d'inclinazione sul punto di partenza della tratta, con raggio e piedi guadagnati a giro, solo se il terreno intorno lascia spazio; il tempo dei giri entra nel tempo e nel carburante. "
+        "Se la rotta è dritta e passa su zone da evitare o costringe a salire più di 1000 ft sopra la crociera, la rotta migliore dalle valli si calcola da sola; «Torna alla rotta dritta» la annulla.")]
+s += [P("In volo, se salendo diritto non si passa il rilievo davanti, compare l'allarme rosso e dopo 10 secondi parte la manovra guidata dalle barre rosa: <b>spirale in salita</b> dal lato dove il terreno lascia girare, oppure <b>inversione</b> salendo se non c'è spazio. Raggiunta la quota sicura: «RIPRENDI LA ROTTA». "
+        "Se a meno di 8 km dal campo sei troppo alto per scendere al circuito col rateo di discesa del velivolo, l'app propone una <b>spirale in discesa</b> dove c'è spazio.")]
 s += [box("La rotta calcolata è un aiuto alla pianificazione: controllala sempre sulla carta e sul briefing ufficiale (AIP, NOTAM, AUP), soprattutto in montagna. Quote del terreno e spazi aerei possono essere incompleti o non aggiornati.")]
 
 s += [tip("Meteo: in alto c'è sempre l'ora esatta dell'ultimo aggiornamento del modello e dei METAR, con da quanti minuti. Verde fino a 30 minuti, arancio oltre (aggiorna prima di partire), rosso oltre un'ora e mezza. Ogni campo indica anche l'ora a cui si riferisce la previsione e ogni METAR l'ora dell'osservazione.")]
