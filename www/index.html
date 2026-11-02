@@ -3631,6 +3631,7 @@ PH.drawUnusual=function(){
 // vince sugli spazi aerei, quindi si sale anche se si entra in uno spazio (l'app lo dice, per avvisare l'ente).
 // Si torna alla quota pianificata quando è di nuovo libera, con margine, da almeno 20 secondi. Mai in avvicinamento.
 PH.TU=null;
+const CREST_M=150;                                              // margine minimo sopra le creste (m): sotto parte la manovra
 PH.tuAsp=function(fromFt,toFt){                                   // spazi qui intorno in cui si entra salendo da fromFt a toFt
   const list=PH.aspList(), R=window.IA517_RULES, out=[]; if(!R||!list.length) return out;
   const p={lat:S.lat,lon:S.lon};
@@ -3669,10 +3670,12 @@ PH.terrUp=function(){
       // salendo col rateo del velivolo, nel tratto fino al punto più alto, si passa? se no: vira
       const gs=Math.max(15,(S.gs!=null?S.gs:S.ias||100)/3.6), roc=PH.rocNow()*0.00508, gain=roc*(PH.tuD||1000)/gs;
       // salendo diritto non si passa: allarme subito, dopo 10 s (se è ancora così) la manovra calcolata: spirale in salita o inversione
-      if((S.alt||0)*FT2M+gain < zm+TAWS_RED){ T.turnT0=T.turnT0||now; const left=Math.max(0,Math.ceil(10-(now-T.turnT0)/1000));
-        if(!PH.MAN) PH.alert('terrturn','W',`TERRENO: SALENDO DIRITTO NON PASSI · MANOVRA TRA ${left} S`,6000);
+      if((S.alt||0)*FT2M+gain < zm+CREST_M){ T.turnT0=T.turnT0||now; const left=((PH.tuD||1000)/gs>45)?Math.max(0,Math.ceil(10-(now-T.turnT0)/1000)):0;
+        if(!PH.MAN) PH.alert('terrturn','W',`TERRENO: SALENDO DIRITTO PASSI A MENO DI 150 M · MANOVRA TRA ${left} S`,6000);
         if(!T.turn){ T.turn=1; PH.act&&PH.act('terreno: salita insufficiente'); }
-        if(!PH.MAN && now-T.turnT0>10000) PH.manPlan(T.alt); }
+        // 10 s di attesa se la cresta è lontana; se mancano meno di 45 s per arrivarci, la manovra parte subito
+        const tCrest=(PH.tuD||1000)/gs, wait=tCrest>45?10000:0;
+        if(!PH.MAN && now-T.turnT0>=wait) PH.manPlan(T.alt); }
       else T.turnT0=0;
     } else if(T){
       if(base*FT2M-zm>TAWS_YEL+60){ T.clearT=T.clearT||now;
@@ -3698,12 +3701,13 @@ PH.manPlan=function(needFt){
   const kmh=Math.max(50,S.ias||S.gs||0)||null, W=P.weight(a,{pil:wb.pil,pax:wb.pax,bag:wb.bag,fuelL}), orb=P.orbit(a,S.alt||0,{W,kmh}), trk=S.trk!=null?S.trk:S.hdg, here={lat:S.lat,lon:S.lon};
   let best=null;
   for(const dir of [-1,1]){ const c=PH.geoOff(here,trk+dir*90,orb.R), top=PH.ringTop(c,orb.R);
-    if(top>-1e8 && top<(S.alt||0)*FT2M-TAWS_RED && (!best||top<best.top)) best={dir,c,top}; }
+    if(top>-1e8 && top<(S.alt||0)*FT2M-CREST_M && (!best||top<best.top)) best={dir,c,top}; }
   if(best){ const turns=Math.max(1,Math.ceil((needFt-(S.alt||0))/Math.max(30,orb.up)));
     PH.MAN={type:'su',dir:best.dir,c:best.c,R:orb.R,need:needFt,turns,acc:0,lastTrk:trk,t0:performance.now()};
     PH.say(`spirale in salita a ${best.dir<0?'sinistra':'destra'}, ${turns===1?'un giro':turns+' giri'}, fino a ${needFt} piedi`,true); }
   else { // niente spazio per girare in salita qui: inversione dalla parte del terreno più basso, salendo; poi si riprende
-    const zl=PH.ringTop(PH.geoOff(here,trk-90,1500),300), zr=PH.ringTop(PH.geoOff(here,trk+90,1500),300), dir=(zl<=zr)?-1:1;
+    const V=Math.max(15,(S.ias||S.gs||100)/3.6), Rt=V*V/(9.80665*Math.tan(30*D2R));        // inversione stretta: 30°
+    const zl=PH.ringTop(PH.geoOff(here,trk-90,Rt),Rt), zr=PH.ringTop(PH.geoOff(here,trk+90,Rt),Rt), dir=(zl<=zr)?-1:1;
     PH.MAN={type:'inv',dir,tgt:wrap360(trk+180),need:needFt,phase:'vira',t0:performance.now()};
     PH.say(`inversione a ${dir<0?'sinistra':'destra'} e sali a ${needFt} piedi`,true); }
   try{ el('toast').classList.remove('show'); const ad=el('phAlert'); if(ad && /^terr/.test(ad.dataset.key||'')) ad.hidden=true; }catch(e){}
@@ -3735,8 +3739,8 @@ PH.manStep=function(){
   if(M.type==='inv'){
     const rem=angDiff(M.tgt,trk);
     if(M.phase==='vira' && Math.abs(rem)<10) M.phase='sali';
-    const cmdRoll=M.phase==='vira'?M.dir*20:clamp(rem*1.5,-10,10), cmdPitch=S.pitch+clamp((M.need-alt)/300,0,4);
-    return {cmdRoll,cmdPitch,line:M.phase==='vira'?`INVERSIONE A ${M.dir<0?'SINISTRA':'DESTRA'} 20° · SALI`:`PRUA ${String(Math.round(M.tgt)).padStart(3,'0')}° · SALI A ${M.need} FT`,sub:`mancano ${Math.max(0,Math.round(M.need-alt))} ft · motore pieno, velocità di salita`};
+    const cmdRoll=M.phase==='vira'?M.dir*30:clamp(rem*1.5,-10,10), cmdPitch=S.pitch+clamp((M.need-alt)/300,0,4);
+    return {cmdRoll,cmdPitch,line:M.phase==='vira'?`INVERSIONE A ${M.dir<0?'SINISTRA':'DESTRA'} 30° · SALI`:`PRUA ${String(Math.round(M.tgt)).padStart(3,'0')}° · SALI A ${M.need} FT`,sub:`mancano ${Math.max(0,Math.round(M.need-alt))} ft · motore pieno, velocità di salita`};
   }
   // spirale: si tiene il cerchio (raggio R intorno al centro), si contano i giri dalla traccia
   const d=distBrg(M.c,{lat:S.lat,lon:S.lon}).d, cmdRoll=M.dir*clamp(20+(d-M.R)/M.R*15,8,30);
@@ -3778,6 +3782,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.15','Creste: margine minimo 150 m. Se salendo diritto si passerebbe più basso parte la manovra (dopo 10 s, oppure subito se la cresta è a meno di 45 s); la spirale si fa solo dove il cerchio resta 150 m sopra il terreno, altrimenti inversione stretta a 30°.'],
   ['2.0.14','Prestazioni vere del velivolo: il rateo di salita cala con la quota e col peso (nuovo nel profilo: rateo di discesa massimo). Nel piano «Salite, discese e giri»: per ogni tratta se la salita o la discesa ci sta, altrimenti giri di 360° dove il terreno lascia spazio (tempo e carburante inclusi); se la rotta dritta passa su zone vietate o costringe a salire troppo, la rotta migliore dalle valli si calcola da sola. In volo: 10 s dopo «salendo diritto non passi» parte la manovra guidata (spirale in salita dal lato libero, o inversione) fino alla quota sicura, poi si riprende la rotta; troppo alto vicino al campo: spirale in discesa fino al circuito.'],
   ['2.0.13','Quota sul terreno con sguardo adattivo: entro 1 km sempre, e fino a 10 km quando una cresta richiede di cominciare a salire prima, secondo velocità e rateo di salita del velivolo.'],
   ['2.0.12','Terreno davanti: se entro 1 km, alla quota obiettivo, il margine sul terreno scende nel giallo, la quota obiettivo sale da sola (anche se si entra in uno spazio aereo: l\'app lo dice per avvisare l\'ente) e torna a quella pianificata quando il terreno è libero. Se salendo col rateo del velivolo non si passa: «SALENDO NON PASSI · VIRA».'],
