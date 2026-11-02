@@ -924,17 +924,20 @@ PH.show=function(v){
 PH.layout=function(){
   const vw=innerWidth, vh=innerHeight, land=vw>vh*1.15, wide=land && vw>=820;
   document.body.classList.toggle('ph-land',land);
-  PH.split=wide && PH.splitOn!==false && PH.ui!=='simple';
+  PH.split=wide && PH.splitOn!==false && PH.ui!=='simple' && !PH.imc;     // in NUBE niente mappa affiancata
   const side=land?Math.min(300,Math.max(210,vw*0.24)):0;
   let size;
   if(land){ const avail=vw-side-24; size=PH.split?Math.min(avail/2-8,vh-20):Math.min(avail,vh-20); }
   else size=Math.min(vw-12,vh-(vw<420?250:280));
+  if(PH.imc){ const bar=((el('phImcBar')&&el('phImcBar').offsetHeight)||70)+14;      // NUBE: l'orizzonte prende tutto lo spazio sopra i tasti
+    document.body.style.setProperty('--imcbar',bar+'px');
+    size=land?Math.min(vw-Math.min(190,vw*0.2)-16,vh-bar-16):Math.min(vw-8,vh-bar-60); }
   size=Math.max(220,Math.floor(size));
   el('unit').style.width=size+'px';
   el('unit2').hidden=!PH.split; el('unit2').style.width=size+'px';
 };
 PH.drawSplit=function(g){
-  if(!PH.split || !PH.view2) return;
+  if(!PH.split || !PH.view2 || PH.view2.W<40 || el('unit2').offsetWidth<40) return;   // canvas nascosto o non ancora misurato: niente disegno
   const V2=PH.view2, sv={ctx,W,H,CX,CY,R,F,k};
   ctx=V2.ctx; W=V2.W; H=V2.H; CX=W/2; CY=H/2; R=Math.min(W,H)/2-2; F=R/Math.tan(26*Math.PI/180); k=R/240;
   try{ ctx.clearRect(0,0,W,H); if(PAGE==='pfd') drawMap(g); else drawPFD(g); }
@@ -1653,13 +1656,15 @@ PH.terrMaxAround=function(p,km){ let mx=NaN; for(let r=0;r<=km;r+=km/3) for(let 
 PH.imcSet=function(on){
   if(on===PH.imc) return; PH.imc=on; PH.act('NUBE '+(on?'attiva':'spenta'));
   document.body.classList.toggle('ph-imc',on);
+  if(on && !PH.native){ try{ const d=document.documentElement; if(!document.fullscreenElement && d.requestFullscreen){ const q=d.requestFullscreen({navigationUI:'hide'}); PH.imcFs=true; if(q&&q.catch) q.catch(()=>{ PH.imcFs=false; }); } }catch(e){} }
+  if(!on && PH.imcFs){ PH.imcFs=false; try{ if(document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }catch(e){} }
   if(on){ PH.imcPrev={ui:PH.ui,terr:S.terr,obst:S.obst,fd:S.fd,page:PAGE}; if(PAGE!=='pfd') togglePage(); S.obst=false; S.fd=true;
     PH.imcT0=Date.now(); PH.imcPos=S.gpsReal?{lat:S.lat,lon:S.lon,trk:S.trk!=null?S.trk:S.hdg,alt:S.alt}:null;
     // ultimo punto «a vista»: dove eri un minuto prima di entrare in nube (dal diario del volo), se c'è
     const pts=PH.flight&&PH.flight.pts; if(pts&&pts.length){ const t=Date.now()-60e3; let best=null; for(const q of pts){ if(q[3]<=t) best=q; } if(best) PH.imcVmc={lat:best[0],lon:best[1]}; }
     PH.say('modalità nube',true); }
   else { const P=PH.imcPrev||{}; S.terr=P.terr!=null?P.terr:S.terr; S.obst=P.obst!=null?P.obst:S.obst; S.fd=P.fd!=null?P.fd:S.fd; PH.rev=null; }
-  PH.layout&&PH.layout(); PH.imcBar(); };
+  PH.imcBar(); PH.layout&&PH.layout(); setTimeout(()=>PH.layout&&PH.layout(),350); };
 // inversione: virata dalla parte del terreno più basso, inclinazione da virata standard (10–20°), quota mantenuta
 // o portata sopra il terreno più alto nei dintorni + 500 ft; poi prua reciproca
 PH.revStart=function(){

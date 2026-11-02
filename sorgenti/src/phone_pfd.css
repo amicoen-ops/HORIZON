@@ -146,3 +146,6 @@
   .ph-imcbar button[data-a=rev]{border-color:#ff5ae6;color:#ff9cf0}
   .ph-imcbar button[data-a=rev].on{background:#3a0634}
   .ph-imcbar button[data-a=exit]{color:#93a1b2}
+  body.ph-imc #unit{margin:0 auto}
+  body.phone.ph-imc{padding-bottom:calc(var(--imcbar,84px) + 4px)}
+  body.ph-imc .ph-statrow{gap:8px}

@@ -14,6 +14,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.9','NUBE a schermo pieno: l\'orizzonte prende tutto lo spazio sopra i tasti (nel browser anche lo schermo intero del sistema). Corretto l\'errore di visualizzazione in NUBE con lo schermo largo.'],
   ['2.0.5','Modalità ☁ NUBE: solo l\'essenziale, tasti grandi per INVERSIONE 180° (flight director, virata standard dal lato del terreno più basso, quota minima), CAMPO VICINO e PUNTO A VISTA. Recupero da assetti inusuali sempre attivo. Controlli di integrità dell\'assetto (ATT DISAGREE con lo strumento fisico, assetto da GPS, sensori al limite). Strumento fisico via Bluetooth LE con IAS e quota barometrica. Orizzonte di riserva Android se la pagina si blocca.'],
   ['2.0','HORIZON v2 di prova: app separata che si installa accanto alla versione 1, con dati suoi. Qui arrivano le novità per il volo senza visibilità: orizzonte che non si blocca mai, controllo dell\'affidabilità dell\'assetto, modalità NUBE e inversione a 180°.'],
   ['1.0.39','⛽ Alternati con carburante in tre fasce (comodo, riserva, critico): nel piano lungo la rotta, con da dove deviare, con quanti litri arrivi e l\'ultimo rifornimento utile da aggiungere come tappa; in volo il tasto ⛽ li mostra dalla posizione attuale col carburante stimato, correggibile, e «Vai diretto». Dati openAIP aggiornati ogni notte, più i campi che segni tu.'],
