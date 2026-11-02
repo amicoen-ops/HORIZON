@@ -221,7 +221,7 @@ OBST.length=0;                                           // ostacoli sintetici: 
 // ---- app installata (APK Capacitor): funzioni native al posto di quelle del browser ----
 PH.native=(()=>{ const C=window.Capacitor; if(!C||!C.isNativePlatform||!C.isNativePlatform()) return null;
   const P=n=>{ try{ return (C.Plugins&&C.Plugins[n])||C.registerPlugin(n); }catch(e){ return null; } };
-  return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass'),upd:P('Updater')}; })();
+  return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass'),upd:P('Updater'),ahrs:P('Ahrs')}; })();
 // ---- voce e vibrazione ----
 PH.say=function(text,urgent){
   if(!PH.voice || (!window.speechSynthesis && !(PH.native&&PH.native.tts))) return;
@@ -250,7 +250,7 @@ PH.level=function(groundPitchDeg){
   const th=(groundPitchDeg||0)*D2R, c=Math.cos(th), s=Math.sin(th);
   const fwd=[fw[0]*c-dn[0]*s, fw[1]*c-dn[1]*s, fw[2]*c-dn[2]*s], down=[dn[0]*c+fw[0]*s, dn[1]*c+fw[1]*s, dn[2]*c+fw[2]*s];
   const right=[down[1]*fwd[2]-down[2]*fwd[1], down[2]*fwd[0]-down[0]*fwd[2], down[0]*fwd[1]-down[1]*fwd[0]];
-  PH.M=[fwd,right,down]; PH.mountCal=true; PH.attF=null; PH.groundPitch=groundPitchDeg||0;
+  PH.M=[fwd,right,down]; PH.mountCal=true; PH.attF=null; PH.groundPitch=groundPitchDeg||0; PH.ahrsMount&&PH.ahrsMount();
   lsSet('ia517p_mount',PH.M); lsSet('ia517p_gpitch',PH.groundPitch);
   const fb=PH.toBody(a).map(x=>x/9.80665); PH.ahrs.levelFrom(fb[0],fb[1],fb[2]);   // forza specifica in g
   toast('ASSETTO LIVELLATO'+(PH.groundPitch?` · A TERRA ${PH.groundPitch}°`:''));
@@ -301,7 +301,7 @@ PH.scrAng=function(){ if(PH.angTest!=null) return PH.angTest;
 PH.onRotate=function(){ const ang=PH.scrAng(); if(ang===PH.lastAng) return; PH.lastAng=ang;
   PH.ahrsInit=false; PH.attF=null; PH.aAvg=[0,0,0]; PH.act('schermo '+ang+'°'); };
 PH.smoothTxt=function(){ const v=PH.smooth; return v<=0?'immediato':(v/10).toFixed(1).replace('.',',')+' s'; };
-PH.resetMount=function(){ PH.M=[[0,0,-1],[1,0,0],[0,-1,0]]; PH.mountCal=false; try{ localStorage.removeItem('ia517p_mount'); }catch(e){} PH.ahrsInit=false; toast('MONTAGGIO: TELEFONO VERTICALE'); };
+PH.resetMount=function(){ PH.M=[[0,0,-1],[1,0,0],[0,-1,0]]; PH.mountCal=false; PH.ahrsMount&&PH.ahrsMount(); try{ localStorage.removeItem('ia517p_mount'); }catch(e){} PH.ahrsInit=false; toast('MONTAGGIO: TELEFONO VERTICALE'); };
 
 // ---- sensori di movimento ----
 PH.onMotion=function(e){
@@ -334,7 +334,10 @@ PH.onMotion=function(e){
   const V=(S.gpsReal && S.gs>15)?(PH.tas||S.gs/3.6):0;
   const fx=fb[0]-(V>0?PH.dvdt/9.80665:0), fy=fb[1]-wb[2]*V/9.80665, fz=fb[2]+wb[1]*V/9.80665;
   PH.ahrs.update(wb[0],wb[1],wb[2],fx,fy,fz,dt);
-  const [ro,pi]=PH.ahrs.euler();
+  let [ro,pi]=PH.ahrs.euler();
+  // v2: assetto dal modulo nativo (200 Hz, thread suo) quando arriva fresco; altrimenti quello della pagina
+  const NA=PH.natAtt; PH.attSrc='pagina';
+  if(NA && now-NA.t<150 && !PH.sim){ ro=NA.r; pi=NA.p; PH.attSrc='nativo'; }
   // orizzonte più morbido: filtro del primo ordine regolabile (0 = immediato, 10 = 1 s)
   const tau=clamp(PH.smooth,0,10)*0.1, kf=tau>0?1-Math.exp(-dt/tau):1;
   if(!PH.attF || !(PH.attF[0]===PH.attF[0])) PH.attF=[ro,pi];
@@ -849,6 +852,7 @@ PH.status=function(){
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
     ['ok','Posizione in uso',PH.demo?'simulata':(PH.src==='glo'?'Garmin GLO 2':(PH.src==='phone'?'GPS del telefono':'nessuna'))+' · scelta '+{auto:'automatica',phone:'solo telefono',glo:'solo GLO 2'}[PH.srcPref]],
     [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz':'nessun dato'],
+    ...(PH.native&&PH.native.ahrs?[[PH.natAtt&&performance.now()-PH.natAtt.t<500?'ok':'bad','Assetto nativo (v2)',PH.natAtt?`${PH.natAtt.hz} Hz · ${PH.attSrc==='nativo'?'in uso':'non in uso'}`:'nessun dato']]:[]),
     [PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?'ok':'warn','Bussola',PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?`${String(Math.round(PH.mag.hdg)).padStart(3,'0')}° vera · ${PH.magInUse()?'in uso':(PH.compassMode==='never'?'spenta':'in volo usa la traccia GPS')}${PH.mag.acc!=null&&PH.mag.acc<2?' · da calibrare (muovi a otto)':''}`:(PH.mag.iosNeed?'inclina un momento il telefono in avanti (quasi in piano) per trovare il nord':(PH.mag.err?'non disponibile: '+PH.mag.err:'nessun dato'))],
     [PH.mountCal?'ok':'warn','Montaggio',PH.mountCal?('livellato'+(PH.groundPitch?` · a terra ${PH.groundPitch}°`:'')):'telefono verticale (predefinito)'],
     [PH.altCal?'ok':'warn','Quota GPS',PH.altCal?`tarata a ${PH.altCal.field}`:'geoide '+PH.geoid+' m, non tarata'],
@@ -1035,6 +1039,9 @@ PH.renderImp=function(){
   <section><h3>Montaggio del telefono</h3>
     <p class="ph-sub">Di serie il telefono è verticale, schermo verso di te, in verticale o orizzontale. Se è montato in un altro modo, o per togliere l'errore di beccheggio, livella: in volo rettilineo e livellato, oppure a terra indicando di quanto è cabrato l'aereo fermo (biciclo come l'Avid: circa 10–12°).</p>
     <div class="ph-btns"><button class="ph-btn pri" id="phLevelAir">Livella ora (in volo, ali livellate)</button></div>
+    ${PH.native&&PH.native.ahrs?`<div class="ph-row" style="margin-top:10px"><span>Orizzonte di riserva (v2)</span><small id="phResInfo">assetto nativo: ${PH.natAtt?PH.natAtt.hz+' Hz':'in avvio'}</small></div>
+    <p class="ph-sub">Se lo schermo principale non risponde per più di 0,3 secondi, Android mostra da solo un orizzonte essenziale calcolato in modo indipendente, finché la pagina riprende.</p>
+    <div class="ph-btns"><label class="ph-fld" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="phResOn" ${lsGet('ia517p_reserve',true)?'checked':''}> Attivo</label><button class="ph-btn" id="phResTest">Provalo 5 secondi</button></div>`:''}
     <div class="ph-btns"><label class="ph-fld">Assetto a terra (°)<input id="phGp" type="number" step="0.5" value="${PH.groundPitch||11}"></label><button class="ph-btn" id="phLevelGnd">Livella a terra</button><button class="ph-btn" id="phMountReset">Telefono verticale</button></div>
     <label class="ph-fld ph-range"><span>Orizzonte più morbido: <b id="phSmV">${PH.smoothTxt()}</b></span><input id="phSm" type="range" min="0" max="10" step="1" value="${PH.smooth}"></label>
     <div class="ph-row"><span>Fotogrammi al secondo</span></div>
@@ -1092,10 +1099,12 @@ PH.renderImp=function(){
     PH.renderImp(); el('phGloMsg').textContent=ok?'GLO 2 collegato.':('Non collegato: '+(PH.glo.err||'annullato')); };
   if(el('phGloOff')) el('phGloOff').onclick=async()=>{ await PH.gloClose(true); PH.renderImp(); };
   el('phFps').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.fps=+b.dataset.f; lsSet('ia517p_fps',PH.fps); el('phFps').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
-  el('phSm').oninput=e=>{ PH.smooth=+e.target.value; lsSet('ia517p_smooth',PH.smooth); el('phSmV').textContent=PH.smoothTxt(); };
+  el('phSm').oninput=e=>{ PH.smooth=+e.target.value; lsSet('ia517p_smooth',PH.smooth); PH.ahrsMount&&PH.ahrsMount(); el('phSmV').textContent=PH.smoothTxt(); };
   el('phLevelAir').onclick=()=>{ if(PH.level(0)) stat(); };
   el('phLevelGnd').onclick=()=>{ if(PH.level(+el('phGp').value||0)) stat(); };
   el('phMountReset').onclick=()=>{ PH.resetMount(); stat(); };
+  if(el('phResOn')) el('phResOn').onchange=e=>{ lsSet('ia517p_reserve',e.target.checked); PH.native.ahrs.setWatch({on:e.target.checked}).catch(()=>{}); PH.act('riserva '+(e.target.checked?'attiva':'spenta')); };
+  if(el('phResTest')) el('phResTest').onclick=()=>{ PH.act('prova riserva'); PH.native.ahrs.showReserve({ms:5000}).catch(()=>{}); };
   el('phGeo').onchange=()=>{ const v=+el('phGeo').value; if(v>-110&&v<90){ PH.geoid=v; lsSet('ia517p_geoid',v); PH.vario.h=NaN; } };
   PH.acSectionWire&&PH.acSectionWire();
   el('phTq').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.terrQ=b.dataset.q; lsSet('ia517p_terrq',PH.terrQ); el('phTq').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.tqNow(); });
@@ -1486,6 +1495,14 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
   try{ screen.orientation&&screen.orientation.addEventListener('change',PH.onRotate); }catch(e){}
   addEventListener('orientationchange',PH.onRotate); addEventListener('resize',PH.onRotate);
   addEventListener('devicemotion',PH.onMotion);
+  // v2: assetto nativo e orizzonte di riserva (vedi AhrsPlugin.java)
+  PH.ahrsMount=function(){ const A=PH.native&&PH.native.ahrs; if(!A) return; A.setMount({M:PH.M,tau:clamp(PH.smooth,0,10)*0.1,scr:PH.scrAng()}).catch(()=>{}); };
+  if(PH.native && PH.native.ahrs){ const A=PH.native.ahrs;
+    A.addListener('att',d=>{ PH.natAtt={r:d.r,p:d.p,s:d.s,tr:d.tr,hz:d.hz,t:performance.now()}; }).catch(()=>{});
+    A.start().then(r=>{ PH.natInfo=r; PH.ahrsMount(); }).catch(()=>{});
+    setInterval(()=>{ A.beat({scr:PH.scrAng()}).catch(()=>{}); },100);
+    setTimeout(()=>A.start().catch(()=>{}),15000);                  // dopo il permesso di posizione il GPS nativo riparte
+  }
   PH.isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints>1);
   PH.iosPermNeeded=PH.isIOS && typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function';
   PH.iosPerm=async function(){ if(!PH.iosPermNeeded || PH.iosPermAsked) return; PH.iosPermAsked=true;

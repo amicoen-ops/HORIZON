@@ -19,6 +19,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CompassPlugin.class);            // bussola: sensore di rotazione di Android
         registerPlugin(LicenzaPlugin.class);            // licenza: firma dell'app e acquisto su Google Play
         registerPlugin(UpdaterPlugin.class);            // aggiornamenti: APK di GitHub o Google Play
+        registerPlugin(AhrsPlugin.class);               // v2: assetto nativo a 200 Hz e orizzonte di riserva
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);   // in volo lo schermo non si spegne
         immersive();

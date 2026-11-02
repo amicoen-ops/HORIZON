@@ -35,6 +35,7 @@ jobs:
 
       - name: Pagine dell'app dai sorgenti
         run: |
+          pip install --quiet pillow
           python3 sorgenti/build_android.py
           python3 tools/prepare_www.py sorgenti/www_build
           echo "window.IA517_BUILD={version:'2.0.${{ github.run_number }}',build:'${{ github.run_number }}',channel:'apk',line:'v2'};" > www/version.js

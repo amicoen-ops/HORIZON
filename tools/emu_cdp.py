@@ -123,6 +123,16 @@ if ws:
     log("carburante (volo)", ev("""(async()=>{ PH.show('fuel'); await new Promise(r=>setTimeout(r,800)); const b=document.getElementById('phFuelBody');
         const n=b.querySelectorAll('.fu-row').length, top=b.querySelector('.fu-row'); PH.show('volo'); return JSON.stringify({righe:n,primo:top&&top.innerText.replace(/\\s+/g,' ').slice(0,90)}); })()"""))
     shot("06c_carburante")
+    # v2: assetto nativo e orizzonte di riserva quando la pagina si blocca
+    if os.environ.get("PKG", "").endswith(".v2"):
+        log("assetto nativo", ev("""(async()=>{ const A=PH.native&&PH.native.ahrs; if(!A) return 'modulo assente'; const s=await A.status();
+            return JSON.stringify({hz:s.hz,att:s.attAge,battito:s.beatAge,riserva:s.reserve,fonte:PH.attSrc,roll:Math.round(s.roll),pitch:Math.round(s.pitch)}); })()"""))
+        global mid
+        mid += 1; ws.send(json.dumps({"id": mid, "method": "Runtime.evaluate", "params": {"expression": "(()=>{ const t=Date.now(); while(Date.now()-t<2500){} return 1; })()"}}))   # pagina bloccata 2,5 s, senza aspettare
+        time.sleep(1.2); shot("09_riserva_pagina_bloccata"); time.sleep(2.5)
+        log("riserva durante il blocco", ev("""(async()=>{ const s=await PH.native.ahrs.status(); return JSON.stringify({riserva_ora:s.reserve,battito:s.beatAge}); })()"""))
+        time.sleep(1)
+        log("riserva dopo il blocco", ev("""(async()=>{ const s=await PH.native.ahrs.status(); return JSON.stringify({riserva_ora:s.reserve,battito:s.beatAge,blocchi:PH.perf.stalls}); })()"""))
     time.sleep(2); log("spazio qui", ev("document.getElementById('phAsp').textContent"))
     # rotta disegnata: Carolina › Aosta con terreno vero (DEM) e spazi aerei veri, poi «Evita zone»
     log("rotta disegnata", ev("""(async()=>{ PH.show('piano'); await new Promise(r=>setTimeout(r,1500));
