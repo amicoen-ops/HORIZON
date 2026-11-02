@@ -1,0 +1,57 @@
+<!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+     Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE). -->
+<div class="unit unit2" id="unit2" hidden><canvas id="pfd2"></canvas></div>
+<aside class="ph-side" id="phSide">
+  <div class="ph-stat" id="phStat"></div>
+  <div class="ph-ctl">
+    <button id="phL" type="button" aria-label="Ruota a sinistra">◀</button>
+    <button id="phOK" type="button" aria-label="Premi (tieni premuto: cambia pagina)">OK</button>
+    <button id="phR" type="button" aria-label="Ruota a destra">▶</button>
+    <button id="phPage" type="button" class="pg">PAGINA</button>
+  </div>
+  <div class="ph-cards">
+    <div class="ph-card" id="phGs"><span>GS</span><b>---</b><small></small></div>
+    <div class="ph-card" id="phAlt"><span>QUOTA</span><b>---</b><small></small></div>
+    <div class="ph-card" id="phVs"><span>VARIO</span><b>---</b><small></small></div>
+    <div class="ph-card" id="phTrk"><span>TRK</span><b>---</b><small></small></div>
+    <div class="ph-card" id="phWind"><span>VENTO</span><b>---</b><small></small></div>
+    <div class="ph-card" id="phDest"><span>DESTINAZIONE</span><b>---</b><small></small></div>
+    <div class="ph-card" id="phTime"><span>VOLO</span><b>--:--</b><small></small></div>
+    <div class="ph-card" id="phSun"><span>TRAMONTO</span><b>--:--</b><small></small></div>
+  </div>
+  <nav class="ph-nav">
+    <button type="button" data-v="volo" aria-current="page">VOLO</button>
+    <button type="button" data-v="piano">PIANO</button>
+    <button type="button" data-v="imp">IMPOSTAZIONI</button>
+    <button type="button" data-v="sim">SIMULA</button>
+    <button type="button" data-v="prof">PROFILO</button>
+    <button type="button" data-v="fuel" class="ph-nav-fuel" aria-label="Carburante e alternati">⛽</button>
+    <button type="button" data-v="info">INFO</button>
+  </nav>
+</aside>
+<div class="ph-sheet" id="phPiano" hidden>
+  <div class="ph-sheet-h"><button type="button" data-close>◀ Strumento</button><b>Piano, campi e meteo</b></div>
+  <iframe id="phAppFrame" src="app.html" title="Piano di volo"></iframe>
+</div>
+<div class="ph-sheet" id="phProf" hidden>
+  <div class="ph-sheet-h"><button type="button" data-close>◀ Strumento</button><b>Profilo verticale</b></div>
+  <div class="ph-prof-bar" id="phProfBar"></div>
+  <canvas id="phProfCv" aria-label="Profilo verticale: terreno, spazi aerei e quota davanti all'aereo"></canvas>
+  <div class="ph-prof-info" id="phProfInfo"></div>
+</div>
+<div class="ph-sheet" id="phFuel" hidden>
+  <div class="ph-sheet-h"><button type="button" data-close>◀ Strumento</button><b>⛽ Carburante e alternati</b></div>
+  <div class="ph-imp" id="phFuelBody"></div>
+</div>
+<div class="ph-sheet" id="phInfo" hidden>
+  <div class="ph-sheet-h"><button type="button" data-close>◀ Strumento</button><b>Info, aggiornamenti e segnalazioni</b></div>
+  <div class="ph-imp" id="phInfoBody"></div>
+</div>
+<div class="ph-sheet" id="phSim" hidden>
+  <div class="ph-sheet-h"><button type="button" data-close>◀ Strumento</button><b>Simula una rotta</b></div>
+  <div class="ph-imp" id="phSimBody"></div>
+</div>
+<div class="ph-sheet" id="phImp" hidden>
+  <div class="ph-sheet-h"><button type="button" data-close>◀ Strumento</button><b>Impostazioni</b></div>
+  <div class="ph-imp" id="phImpBody"></div>
+</div>

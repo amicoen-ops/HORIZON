@@ -2,7 +2,7 @@
 # HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 # Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 # Collaudo dell'APK sull'emulatore. Uso: emu_test.sh file.apk cartella_uscita
-APK="$1"; OUT="$2"; PKG=it.amicoen.horizon
+APK="$1"; OUT="$2"; PKG=${PKG:-it.amicoen.horizon}
 mkdir -p "$OUT"
 adb wait-for-device
 adb shell input keyevent 82 || true
@@ -10,7 +10,7 @@ adb logcat -c
 echo "== installazione"; adb install -r "$APK" 2>&1 | tail -2
 
 echo "== A: primo avvio senza permessi"
-adb shell am start -W -n $PKG/.MainActivity
+adb shell am start -W -n $PKG/it.amicoen.horizon.MainActivity
 sleep 15
 adb exec-out screencap -p > "$OUT/00_primo_avvio.png"
 echo "viva: $(adb shell pidof $PKG)"
@@ -30,7 +30,7 @@ adb shell pm grant $PKG android.permission.ACCESS_COARSE_LOCATION || true
 adb emu geo fix 7.8656 45.2683 230 || true
 ( for i in $(seq 1 120); do adb emu geo fix 7.8656 45.2683 230 >/dev/null 2>&1; sleep 2; done ) &
 GEO=$!
-adb shell pidof $PKG >/dev/null || adb shell am start -W -n $PKG/.MainActivity
+adb shell pidof $PKG >/dev/null || adb shell am start -W -n $PKG/it.amicoen.horizon.MainActivity
 python3 tools/emu_cdp.py "$OUT" 2>&1 | tee "$OUT/cdp.txt"
 kill $GEO 2>/dev/null || true
 

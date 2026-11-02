@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">HORIZON</string>
-    <string name="title_activity_main">HORIZON</string>
+    <string name="app_name">HORIZON v2</string>
+    <string name="title_activity_main">HORIZON v2</string>
     <string name="package_name">it.amicoen.horizon</string>
     <string name="custom_url_scheme">it.amicoen.horizon</string>
 </resources>

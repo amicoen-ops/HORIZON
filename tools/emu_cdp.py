@@ -8,7 +8,7 @@ import urllib.request
 import websocket  # websocket-client
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "out"
-PKG = "it.amicoen.horizon"
+PKG = os.environ.get("PKG", "it.amicoen.horizon")
 os.makedirs(OUT, exist_ok=True)
 res = []
 

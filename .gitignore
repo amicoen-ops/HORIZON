@@ -6,3 +6,5 @@ android/capacitor-cordova-android-plugins/build/
 android/local.properties
 *.apk
 keystore/strumento.keystore
+sorgenti/www_build/
+/node_modules

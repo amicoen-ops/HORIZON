@@ -4,7 +4,7 @@ android {
     namespace = "it.amicoen.horizon"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "it.amicoen.horizon"
+        applicationId "it.amicoen.horizon.v2"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")

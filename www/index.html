@@ -3419,6 +3419,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0','HORIZON v2 di prova: app separata che si installa accanto alla versione 1, con dati suoi. Qui arrivano le novità per il volo senza visibilità: orizzonte che non si blocca mai, controllo dell\'affidabilità dell\'assetto, modalità NUBE e inversione a 180°.'],
   ['1.0.39','⛽ Alternati con carburante in tre fasce (comodo, riserva, critico): nel piano lungo la rotta, con da dove deviare, con quanti litri arrivi e l\'ultimo rifornimento utile da aggiungere come tappa; in volo il tasto ⛽ li mostra dalla posizione attuale col carburante stimato, correggibile, e «Vai diretto». Dati openAIP aggiornati ogni notte, più i campi che segni tu.'],
   ['1.0.37','Controllo della versione a ogni avvio e tasto «Aggiorna ora»: l\'app scarica e installa da sola la versione nuova (dal Play Store nella versione del Play Store, ricarica sul browser). Mai in volo. Le segnalazioni arrivano per posta in italiano, con oggetto chiaro e campi in ordine. Corretto il tipo di volo nelle impostazioni, che non si cambiava.'],
   ['1.0.36','Calcola rotta più veloce sulle rotte lunghe con parchi e zone dai confini molto dettagliati: lo schermo resta sempre reattivo durante il calcolo.'],
@@ -3481,12 +3482,15 @@ PH.checkUpdate=async function(manual){
       const t=await r.text(), bu=(t.match(/build:'([^']*)'/)||[])[1]||'', ve=(t.match(/version:'([^']*)'/)||[])[1]||'';
       Object.assign(out,{state:bu&&bu!==String(b.build)&&b.build!=='web'?'nuova':'ok',latest:ve||b.version,build:bu}); }
     else {
-      const r=await window.IA517.http(PH_INFO.releases);
+      const v2=b.line==='v2';                                 // HORIZON v2: solo le sue pre-release «v2-build-N»
+      const r=await window.IA517.http(v2?PH_INFO.releases.replace(/\/latest$/,'?per_page=30'):PH_INFO.releases);
       if(r.status===404){ out.state='privato'; }
       else if(r.status!==200){ out.state='errore'; out.msg='risposta '+r.status; }
-      else { const j=JSON.parse(r.text), n=parseInt(String(j.tag_name||'').replace(/\D+/g,''))||0, cur=parseInt(b.build)||0;
+      else { let j=JSON.parse(r.text);
+        if(v2){ j=(Array.isArray(j)?j:[]).filter(x=>/^v2-build-\d+$/.test(x.tag_name||'')&&!x.draft).sort((a,c)=>parseInt(c.tag_name.slice(9))-parseInt(a.tag_name.slice(9)))[0]||{}; }
+        const n=parseInt(String(j.tag_name||'').replace(/^v2-/,'').replace(/\D+/g,''))||0, cur=parseInt(b.build)||0;
         const apk=(j.assets||[]).find(a=>/\.apk$/i.test(a.name)&&!/play/i.test(a.name));
-        Object.assign(out,{state:n>cur?'nuova':'ok',latest:(j.name||j.tag_name||'').replace(/^HORIZON\s*/,''),build:n,
+        Object.assign(out,{state:n>cur?'nuova':'ok',latest:(j.name||j.tag_name||'').replace(/^HORIZON\s*(v2\s*·\s*)?/,'').replace(/\s*\(prova\)$/,''),build:n,
           url:apk?apk.browser_download_url:j.html_url,apk:!!apk,size:apk?apk.size:0,date:j.published_at,notes:j.body||''}); } }
   }catch(e){ out.state=navigator.onLine?'errore':'offline'; out.msg=e&&e.message; }
   out.t=Date.now(); lsSet('ia517p_update',out); PH.upd=out;
@@ -3639,7 +3643,7 @@ PH.renderInfo=function(){
   const upWire=()=>{ const x=el('phUpdNowI'); if(x) x.onclick=()=>PH.doUpdate(null,el('phUpdMsgI'),x); };
   const box=el('phInfoBody');
   box.innerHTML=`
-  <section class="ph-hero"><img src="icon-192.png" alt="" width="64" height="64"><div><b>HORIZON · strumento di volo</b><span>${PH_INFO.author}</span><span class="ph-sub">© 2026 ${PH_INFO.owner} · Tutti i diritti riservati</span></div></section>
+  <section class="ph-hero"><img src="icon-192.png" alt="" width="64" height="64"><div><b>HORIZON${b.line==='v2'?' v2 · prova':''} · strumento di volo</b><span>${PH_INFO.author}</span><span class="ph-sub">© 2026 ${PH_INFO.owner} · Tutti i diritti riservati</span></div></section>
   <section><h3>Versione</h3>
     <div class="ph-row"><span>Installata</span><small><b>${b.version}</b> · build ${b.build} · ${b.channel==='apk'?'app Android':(b.channel==='play'?'Play Store':'app dal browser')}</small></div>
     <div class="ph-row"><span>Installata o aggiornata il</span><small>${dt(h[0]&&h[0].t)}</small></div>

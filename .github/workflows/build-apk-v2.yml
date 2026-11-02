@@ -1,0 +1,124 @@
+name: Compila APK v2
+
+# HORIZON v2: app separata (it.amicoen.horizon.v2) che si installa accanto alla versione 1.
+# Solo APK di prova, pubblicato come pre-release «v2-build-N»: la versione 1 non la vede come aggiornamento.
+on:
+  push:
+    branches: [v2]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      tag: v2-build-${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Dipendenze
+        run: npm ci --no-audit --no-fund
+
+      - name: Pagine dell'app dai sorgenti
+        run: |
+          python3 sorgenti/build_android.py
+          python3 tools/prepare_www.py sorgenti/www_build
+          echo "window.IA517_BUILD={version:'2.0.${{ github.run_number }}',build:'${{ github.run_number }}',channel:'apk',line:'v2'};" > www/version.js
+          npx cap sync android
+
+      - name: Chiave di firma (cifrata nel repository, la password è nel secret KEYSTORE_PASSWORD)
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_PASSWORD" ]; then echo "::error::Manca il secret KEYSTORE_PASSWORD"; exit 1; fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in keystore/strumento.keystore.enc -out keystore/strumento.keystore -pass env:KEYSTORE_PASSWORD
+
+      - name: Compila e firma
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 2.0.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />#' app/src/main/AndroidManifest.xml
+          ./gradlew assembleRelease --no-daemon 2>&1 | tee ../build.log
+
+      - name: Nome del file
+        run: cp android/app/build/outputs/apk/release/app-release.apk HORIZON-v2-2.0.${{ github.run_number }}.apk
+
+      - name: Registro dell'errore
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo '```'; grep -n -E "error:|ERROR|What went wrong|FAILURE|e: |warning: \[" build.log | head -60; echo '---'; tail -80 build.log; echo '```'; } > errore.md || true
+          gh issue create -R ${{ github.repository }} --title "Compilazione v2-${{ github.run_number }} fallita" --body-file errore.md || true
+
+      - name: Pubblica l'APK (pre-release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v2-build-${{ github.run_number }}
+          name: HORIZON v2 · 2.0.${{ github.run_number }} (prova)
+          prerelease: true
+          make_latest: false
+          body: |
+            Versione 2 di prova: si installa accanto a HORIZON 1, con dati suoi. Non sostituisce la versione 1.
+          files: HORIZON-v2-2.0.${{ github.run_number }}.apk
+
+  emulatore:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: KVM per l'emulatore
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: APK appena pubblicato
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ needs.apk.outputs.tag }}" -R ${{ github.repository }} -p '*.apk' -O app.apk
+          pip install websocket-client
+      - name: Prova sull'emulatore (Android 14)
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          PKG: it.amicoen.horizon.v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash tools/emu_test.sh app.apk out
+      - name: Risultati in una issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          R=${{ github.repository }}; TAG=${{ needs.apk.outputs.tag }}
+          gh release view diagnostica -R $R >/dev/null 2>&1 || gh release create diagnostica -R $R --prerelease --title "Diagnostica (schermate del collaudo)" --notes "Non è una versione da installare."
+          cd out 2>/dev/null || exit 0
+          for f in *.png; do mv "$f" "${TAG}_$f"; done
+          gh release upload diagnostica -R $R --clobber *.png logcat.txt 2>/dev/null || true
+          { echo "APK: $TAG"; echo; echo '```'; cat cdp.txt 2>/dev/null | tail -70; echo '```'; echo; echo '```'; cat sintesi.txt 2>/dev/null | cut -c1-300 | head -250; echo '```'; } > ../report.md
+          gh issue create -R $R --title "Collaudo emulatore $TAG" --body-file ../report.md
