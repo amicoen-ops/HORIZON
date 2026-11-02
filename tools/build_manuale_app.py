@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.46"
+VER = "1.0.47"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -340,7 +340,7 @@ s += [P("In volo, con una destinazione o una rotta attiva, lo strumento guarda a
 s += [Paragraph("Salite, discese e giri di 360°", H3)]
 s += [P("Il rateo di salita non è fisso: l'app lo calcola dal profilo del velivolo (rateo a pieno carico al livello del mare e quota massima operativa), più basso man mano che si sale e quando l'aereo è pesante (persone, bagaglio e carburante del piano). "
         "Nel piano il riquadro <b>«Salite, discese e giri»</b> calcola un profilo continuo su tutta la rotta: le salite sono <b>graduali</b> (il 60% del rateo disponibile, al massimo 500 ft/min, a una velocità fra quella di salita e la crociera, così liquidi e motore restano freschi) e cominciano prima quando più avanti c'è una cresta; le discese sono al massimo di 500 ft/min. "
-        "La rotta migliore cerca la strada dove il terreno sale piano: prende quota dove il terreno è basso e si avvicina alle creste solo quando ci si arriva sopra. "
+        "La rotta migliore cerca la strada dove il terreno sale piano: prende quota avanzando verso l'arrivo dove il terreno è basso e si avvicina alle creste solo quando ci si arriva sopra; per salire non si allontana più di 10 km dalla rotta. "
         "Solo se la strada non basta propone giri di 360° <b>larghi</b> (10° d'inclinazione, poi 15° o 20° se lo spazio è poco), <b>al massimo 4 in salita e 4 in discesa</b>, sopra il campo di partenza o su un punto della rotta dove il terreno intorno lascia spazio; il tempo dei giri entra nel tempo e nel carburante. "
         "Se nemmeno così ci si arriva l'app lo dice in rosso e suggerisce un'altra rotta. "
         "Se la rotta è dritta e passa su zone da evitare o costringe a salire più di 1000 ft sopra la crociera, la rotta migliore dalle valli si calcola da sola; «Torna alla rotta dritta» la annulla.")]

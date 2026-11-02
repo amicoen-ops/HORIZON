@@ -133,7 +133,9 @@ if ws:
         for(let i=0;i<40;i++){ await new Promise(r=>setTimeout(r,1000)); if(!X.RD.busy && i>2) break; }
         await new Promise(r=>setTimeout(r,1500));
         const b=X.RD.info.map(l=>({km:Math.round(l.d/1000),sicura:l.safeFt,quota:l.altFt,zone:l.hits.filter(h=>h.avoid).map(h=>h.a.name)}));
-        const out=JSON.stringify({prima:a,dopo:b,msg:X.RD.msg}); X.close(false); PH.show('volo'); return out; })()"""))
+        const A0=X.RD.pts[0], B0=X.RD.pts[X.RD.pts.length-1], cl=Math.cos(A0.lat*Math.PI/180), bx=(B0.lon-A0.lon)*111.32*cl, by=(B0.lat-A0.lat)*110.54, L0=Math.hypot(bx,by)||1;
+        const punti=X.RD.pts.slice(1,-1).map(p=>{ const x=(p.lon-A0.lon)*111.32*cl, y=(p.lat-A0.lat)*110.54; return [Math.round((x*bx+y*by)/L0),Math.round(Math.abs(-x*by+y*bx)/L0)]; });
+        const out=JSON.stringify({punti_km_avanti_lato:punti,prima:a,dopo:b,msg:X.RD.msg}); X.close(false); PH.show('volo'); return out; })()"""))
     shot("06c_rotta")
     log("rotta Tovière (parco Gran Paradiso)", ev("""(async()=>{ PH.show('piano'); await new Promise(r=>setTimeout(r,1500));
         const w=document.getElementById('phAppFrame').contentWindow, X=w.IA517_rd; X.plan('IT-0074','FR-0293',3000);
