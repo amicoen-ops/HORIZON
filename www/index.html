@@ -1909,7 +1909,15 @@ function terrain(E,N){
   const L=(PH&&PH.nearF)||FIELDS;
   for(let i=0;i<L.length;i++){ const f=L[i], dx=E-f.E, dy=N-f.N, lim=f.flat*2.2;
     if(dx>lim||dx<-lim||dy>lim||dy<-lim) continue;
-    const w=Math.exp(-(dx*dx+dy*dy)/(f.flat*f.flat)); z+=(f.elev-z)*w; }
+    // il campo si spiana alla sua quota; se la quota dell'elenco non torna col rilievo (oltre 50 m) si spiana al rilievo:
+    // altrimenti il raccordo diventa un cono a punta («piramide») in mezzo alla pianura
+    let tgt=f.elev;
+    if(PH && f.demZ===undefined){ const t=performance.now(); if(!(t-(f.demTry||0)<1000)){ f.demTry=t; const dz=phDemAt(f.lat,f.lon,11);
+        if(dz===dz){ f.demZ=dz; if(f.elev===f.elev && Math.abs(f.elev-dz)>50){ f.elevBad=true; (PH.elevBad||(PH.elevBad=new Set())).add(f.short);
+          PH.act&&PH.act(`quota dubbia ${f.short}: elenco ${Math.round(f.elev/FT2M)} ft, rilievo ${Math.round(dz/FT2M)} ft`); } } } }
+    if(f.elevBad) tgt=f.demZ;
+    if(tgt!==tgt || z!==z) continue;
+    const w=Math.exp(-(dx*dx+dy*dy)/(f.flat*f.flat)); z+=(tgt-z)*w; }
   return z;
 }
 PH_nearFields=function(){ if(!PH) return; const ac=enu(S.lat,S.lon), r=Math.max(30000,ZOOMS[zi]*1500), r2=r*r;
@@ -1918,15 +1926,20 @@ PH_nearFields=function(){ if(!PH) return; const ac=enu(S.lat,S.lon), r=Math.max(
 // Griglia più fitta (fino a 47×95 riquadri, lati di ~120 m vicino all'aereo) ma disegnata in modo più leggero:
 // ogni vertice si calcola una volta sola, la foschia è mescolata nel colore, e i riquadri dello stesso colore di una fila
 // si riempiono insieme (niente righe tra un riquadro e l'altro). Il livello si abbassa da solo se il telefono rallenta.
-const TERR_Q=[[30,48],[40,72],[48,96]];                       // file in profondità × colonne
+// file in profondità × colonne. Le colonne sono a ventaglio (angolo costante dall'aereo): ogni riquadro occupa
+// più o meno lo stesso spazio sullo schermo e nessuna colonna finisce fuori vista, come succedeva con la larghezza fissa.
+const TERR_Q=[[30,48],[40,72],[48,96],[60,128],[72,160]];   // misurati: 4 · 7 · 12 · 17 · 27 ms (browser del server, schermo da telefono)
+const TERR_NAMES=['normale','alto','fine','molto fine','massimo','ultra'].slice(0,TERR_Q.length);
+const TERR_HALF=46*Math.PI/180;                               // mezza apertura: copre lo schermo anche con l'aereo inclinato
 const TERR_FAR=70*Math.pow(1.205,29);                         // distanza massima come prima (~15 km)
 function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
-  const lvl=PH?(PH.terrQ==='auto'?PH.terrLvl:+PH.terrQ):0, FN=TERR_Q[lvl][0], LN=TERR_Q[lvl][1];
+  const lvl=PH?Math.min(TERR_Q.length-1,PH.terrQ==='auto'?PH.terrLvl:(+PH.terrQ||0)):0, FN=TERR_Q[lvl][0], LN=TERR_Q[lvl][1];
   const ratio=Math.pow(TERR_FAR/70,1/(FN-1)), sinH=Math.sin(hdgRad), cosH=Math.cos(hdgRad);
   const n=FN*LN, Z=new Float32Array(n), X=new Float32Array(n), Y=new Float32Array(n), OK=new Uint8Array(n);
-  const fd=i=>70*Math.pow(ratio,i), ld=j=>(j/(LN-1)*2-1)*5600;
+  const TA=new Float32Array(LN); for(let j=0;j<LN;j++) TA[j]=Math.tan((j/(LN-1)*2-1)*TERR_HALF);
+  const fd=i=>70*Math.pow(ratio,i);
   for(let i=0;i<FN;i++){ const f=fd(i);
-    for(let j=0;j<LN;j++){ const l=ld(j), E=ac.E+f*sinH+l*cosH, N=ac.N+f*cosH-l*sinH, z=terrain(E,N), k2=i*LN+j;
+    for(let j=0;j<LN;j++){ const l=f*TA[j], E=ac.E+f*sinH+l*cosH, N=ac.N+f*cosH-l*sinH, z=terrain(E,N), k2=i*LN+j;
       if(z!==z) continue; const pr=project(l,f,z-acAlt,sinP,cosP); if(!pr) continue; Z[k2]=z; X[k2]=pr.x; Y[k2]=pr.y; OK[k2]=1; } }
   const air=PH_air();
   for(let i=FN-2;i>=0;i--){
@@ -1935,7 +1948,7 @@ function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
       const a=i*LN+j, b=(i+1)*LN+j, c2=(i+1)*LN+j+1, d=i*LN+j+1;
       if(!(OK[a]&OK[b]&OK[c2]&OK[d])) continue;
       const zc=(Z[a]+Z[b]+Z[c2]+Z[d])/4, slope=((Z[b]+Z[c2])-(Z[a]+Z[d]))/2/(f1-f0);
-      let clr=acAlt-zc; if(!air) clr=1e9; else if(inhField()){ const lm=(ld(j)+ld(j+1))/2; if(tawsInhibit(ac.E+fm*sinH+lm*cosH, ac.N+fm*cosH-lm*sinH)) clr=1e9; }
+      let clr=acAlt-zc; if(!air) clr=1e9; else if(inhField()){ const lm=fm*(TA[j]+TA[j+1])/2; if(tawsInhibit(ac.E+fm*sinH+lm*cosH, ac.N+fm*cosH-lm*sinH)) clr=1e9; }
       let [r,g,bb]=tawsRGB(zc,1-slope*2.4,clr);
       if(haze>0){ r+=(134-r)*haze; g+=(171-g)*haze; bb+=(210-bb)*haze; }
       const key=((r/5)|0)*5+','+((g/5)|0)*5+','+((bb/5)|0)*5;
@@ -2463,11 +2476,11 @@ PH.profDraw=function(){
     (firstBad?`<div class="b">${firstBad.d<150?'Sei dentro':'A '+(firstBad.d/1000).toFixed(1)+' km'}: ${firstBad.r.a.cls} ${firstBad.r.a.name} (${firstBad.r.a.lo.txt}–${firstBad.r.a.hi.txt}) vietato per il tuo tipo di volo</div>`:'')+
     (asp.length?'':'<div class="w">Spazi aerei non caricati: Piano › Briefing.</div>');
 };
-PH.tqNow=function(){ const e=el('phTqNow'); if(e) e.textContent=PH.terrQ==='auto'?'ora: '+['normale','alto','massimo'][PH.terrLvl]+` · ${PH.perf.avg.toFixed(0)} ms per fotogramma`:''; };
+PH.tqNow=function(){ const e=el('phTqNow'); if(e) e.textContent=PH.terrQ==='auto'?'ora: '+TERR_NAMES[PH.terrLvl]+` · ${PH.perf.avg.toFixed(0)} ms per fotogramma`:''; };
 // livello automatico: se il disegno occupa troppo del tempo di un fotogramma si scende, se avanza molto si risale
 setInterval(()=>{ if(!PH || PH.terrQ!=='auto' || document.hidden) return; const budget=1000/(PH.fps||30), avg=PH.perf.avg;
   if(avg>budget*0.7){ PH.terrLow++; PH.terrHigh=0; if(PH.terrLow>=2 && PH.terrLvl>0){ PH.terrLvl--; PH.terrLow=0; PH.act&&PH.act('terreno 3D: livello '+PH.terrLvl); } }
-  else if(avg<budget*0.35){ PH.terrHigh++; PH.terrLow=0; if(PH.terrHigh>=6 && PH.terrLvl<2){ PH.terrLvl++; PH.terrHigh=0; } }
+  else if(avg<budget*0.35){ PH.terrHigh++; PH.terrLow=0; if(PH.terrHigh>=6 && PH.terrLvl<TERR_Q.length-1){ PH.terrLvl++; PH.terrHigh=0; PH.act&&PH.act('terreno 3D: livello '+PH.terrLvl); } }
   else { PH.terrLow=0; PH.terrHigh=0; }
   PH.tqNow(); },1500);
 // ---- avvisi: terreno davanti, spazi aerei, tramonto ----
@@ -2889,7 +2902,7 @@ PH.renderImp=function(){
     <div class="ph-seg" id="phFps">${[[30,'30 · consuma meno'],[60,'60 · più fluido']].map(([v,l])=>`<button data-f="${v}" aria-pressed="${PH.fps===v}">${l}</button>`).join('')}</div>
     <p class="ph-sub">Più morbido toglie il tremolio di vibrazioni e movimenti della mano, ma l'orizzonte arriva un po' dopo il movimento vero. In volo va bene 2–4; 0 è la risposta immediata.</p>
     <div class="ph-row"><span>Dettaglio del terreno 3D</span><small id="phTqNow"></small></div>
-    <div class="ph-seg" id="phTq">${[['auto','Automatico'],['0','Normale'],['1','Alto'],['2','Massimo']].map(([v,l])=>`<button data-q="${v}" aria-pressed="${String(PH.terrQ)===v}">${l}</button>`).join('')}</div>
+    <div class="ph-seg" id="phTq">${[['auto','Automatico'],['0','Normale'],['2','Fine'],[String(TERR_Q.length-1),'Massimo']].map(([v,l])=>`<button data-q="${v}" aria-pressed="${String(PH.terrQ)===v}">${l}</button>`).join('')}</div>
     <p class="ph-sub">Più dettaglio = riquadri più piccoli nella vista sintetica. In automatico parte dal massimo e scende da solo se il telefono non tiene i fotogrammi al secondo.</p>
   </section>
   <section><h3>Tipo di volo</h3>
@@ -3419,6 +3432,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['1.0.40','Terreno 3D più dettagliato: griglia a ventaglio (riquadri vicini circa 7 volte più stretti) e due livelli più fini, scelti da soli se il telefono ce la fa. Niente più «piramidi» sui campi con la quota d\'elenco sbagliata.'],
   ['1.0.39','⛽ Alternati con carburante in tre fasce (comodo, riserva, critico): nel piano lungo la rotta, con da dove deviare, con quanti litri arrivi e l\'ultimo rifornimento utile da aggiungere come tappa; in volo il tasto ⛽ li mostra dalla posizione attuale col carburante stimato, correggibile, e «Vai diretto». Dati openAIP aggiornati ogni notte, più i campi che segni tu.'],
   ['1.0.37','Controllo della versione a ogni avvio e tasto «Aggiorna ora»: l\'app scarica e installa da sola la versione nuova (dal Play Store nella versione del Play Store, ricarica sul browser). Mai in volo. Le segnalazioni arrivano per posta in italiano, con oggetto chiaro e campi in ordine. Corretto il tipo di volo nelle impostazioni, che non si cambiava.'],
   ['1.0.36','Calcola rotta più veloce sulle rotte lunghe con parchi e zone dai confini molto dettagliati: lo schermo resta sempre reattivo durante il calcolo.'],
