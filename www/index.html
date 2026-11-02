@@ -1923,7 +1923,15 @@ function terrain(E,N){
   const L=(PH&&PH.nearF)||FIELDS;
   for(let i=0;i<L.length;i++){ const f=L[i], dx=E-f.E, dy=N-f.N, lim=f.flat*2.2;
     if(dx>lim||dx<-lim||dy>lim||dy<-lim) continue;
-    const w=Math.exp(-(dx*dx+dy*dy)/(f.flat*f.flat)); z+=(f.elev-z)*w; }
+    // il campo si spiana alla sua quota; se la quota dell'elenco non torna col rilievo (oltre 50 m) si spiana al rilievo:
+    // altrimenti il raccordo diventa un cono a punta («piramide») in mezzo alla pianura
+    let tgt=f.elev;
+    if(PH && f.demZ===undefined){ const t=performance.now(); if(!(t-(f.demTry||0)<1000)){ f.demTry=t; const dz=phDemAt(f.lat,f.lon,11);
+        if(dz===dz){ f.demZ=dz; if(f.elev===f.elev && Math.abs(f.elev-dz)>50){ f.elevBad=true; (PH.elevBad||(PH.elevBad=new Set())).add(f.short);
+          PH.act&&PH.act(`quota dubbia ${f.short}: elenco ${Math.round(f.elev/FT2M)} ft, rilievo ${Math.round(dz/FT2M)} ft`); } } } }
+    if(f.elevBad) tgt=f.demZ;
+    if(tgt!==tgt || z!==z) continue;
+    const w=Math.exp(-(dx*dx+dy*dy)/(f.flat*f.flat)); z+=(tgt-z)*w; }
   return z;
 }
 PH_nearFields=function(){ if(!PH) return; const ac=enu(S.lat,S.lon), r=Math.max(30000,ZOOMS[zi]*1500), r2=r*r;
@@ -2719,6 +2727,7 @@ PH.status=function(){
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
     ['ok','Posizione in uso',PH.demo?'simulata':(PH.src==='glo'?'Garmin GLO 2':(PH.src==='phone'?'GPS del telefono':'nessuna'))+' · scelta '+{auto:'automatica',phone:'solo telefono',glo:'solo GLO 2'}[PH.srcPref]],
     [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz':'nessun dato'],
+    ...(PH.elevBad&&PH.elevBad.size?[['warn','Campi con quota dubbia',[...PH.elevBad].slice(0,12).join(', ')+' (rilievo usato per il 3D)']]:[]),
     ...(PH.EXT&&PH.EXT.want?[[PH.extAtt()?'ok':'bad','Strumento fisico',PH.extInfo()]]:[]),
     ...(PH.native&&PH.native.ahrs?[[PH.natAtt&&performance.now()-PH.natAtt.t<500?'ok':'bad','Assetto nativo (v2)',PH.natAtt?`${PH.natAtt.hz} Hz · ${PH.attSrc==='nativo'?'in uso':'non in uso'}`:'nessun dato']]:[]),
     [PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?'ok':'warn','Bussola',PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?`${String(Math.round(PH.mag.hdg)).padStart(3,'0')}° vera · ${PH.magInUse()?'in uso':(PH.compassMode==='never'?'spenta':'in volo usa la traccia GPS')}${PH.mag.acc!=null&&PH.mag.acc<2?' · da calibrare (muovi a otto)':''}`:(PH.mag.iosNeed?'inclina un momento il telefono in avanti (quasi in piano) per trovare il nord':(PH.mag.err?'non disponibile: '+PH.mag.err:'nessun dato'))],
@@ -3626,6 +3635,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.10','Terreno 3D: niente più «piramidi» sui campi con la quota d\'elenco sbagliata (si spiana alla quota del rilievo; i campi con quota dubbia sono nella segnalazione).'],
   ['2.0.9','NUBE a schermo pieno: l\'orizzonte prende tutto lo spazio sopra i tasti (nel browser anche lo schermo intero del sistema). Corretto l\'errore di visualizzazione in NUBE con lo schermo largo.'],
   ['2.0.5','Modalità ☁ NUBE: solo l\'essenziale, tasti grandi per INVERSIONE 180° (flight director, virata standard dal lato del terreno più basso, quota minima), CAMPO VICINO e PUNTO A VISTA. Recupero da assetti inusuali sempre attivo. Controlli di integrità dell\'assetto (ATT DISAGREE con lo strumento fisico, assetto da GPS, sensori al limite). Strumento fisico via Bluetooth LE con IAS e quota barometrica. Orizzonte di riserva Android se la pagina si blocca.'],
   ['2.0','HORIZON v2 di prova: app separata che si installa accanto alla versione 1, con dati suoi. Qui arrivano le novità per il volo senza visibilità: orizzonte che non si blocca mai, controllo dell\'affidabilità dell\'assetto, modalità NUBE e inversione a 180°.'],
