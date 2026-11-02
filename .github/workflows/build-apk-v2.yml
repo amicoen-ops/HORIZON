@@ -5,11 +5,13 @@ name: Compila APK v2
 on:
   push:
     branches: [v2]
+    paths-ignore: ['.github/workflows/**', '**.md', 'firmware/**']   # solo workflow, testi o firmware: nessuna nuova APK
   workflow_dispatch:
 
 permissions:
   contents: write
   issues: write
+  actions: write
 
 jobs:
   apk:
@@ -81,6 +83,15 @@ jobs:
           body: |
             Versione 2 di prova: si installa accanto a HORIZON 1, con dati suoi. Non sostituisce la versione 1.
           files: HORIZON-v2-2.0.${{ github.run_number }}.apk
+
+  sito:
+    needs: apk
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggiorna anche la v2 sul sito (/v2/)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pubblica-web.yml -R ${{ github.repository }} --ref main
 
   emulatore:
     needs: apk
