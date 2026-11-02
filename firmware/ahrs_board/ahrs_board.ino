@@ -48,9 +48,7 @@
 #include <Preferences.h>
 #include <SparkFun_BMP581_Arduino_Library.h>
 #include "ahrs_core.h"
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLE2902.h>
+#include <NimBLEDevice.h>                               // libreria «NimBLE-Arduino» 2.x
 
 #define FW_VERSION "2.1"
 
@@ -387,36 +385,36 @@ static uint8_t nmeaChecksum(const char* s) { uint8_t c = 0; for (const char* p =
 #define NUS_SVC "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 #define NUS_RX  "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"   // dal telefono
 #define NUS_TX  "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"   // al telefono (notify)
-static BLECharacteristic* bleTx = nullptr;
+static NimBLECharacteristic* bleTx = nullptr;
 static volatile bool bleConn = false;
 static char bleCmd[80]; static volatile bool bleCmdReady = false;
-class HzSrvCb : public BLEServerCallbacks {
-  void onConnect(BLEServer*) override { bleConn = true; }
-  void onDisconnect(BLEServer* s) override { bleConn = false; s->getAdvertising()->start(); }
+class HzSrvCb : public NimBLEServerCallbacks {
+  void onConnect(NimBLEServer* s, NimBLEConnInfo& ci) override { bleConn = true; s->updateConnParams(ci.getConnHandle(), 12, 24, 0, 400); }
+  void onDisconnect(NimBLEServer* s, NimBLEConnInfo& ci, int reason) override { bleConn = false; NimBLEDevice::startAdvertising(); }
 };
-class HzRxCb : public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic* c) override {
-    String v = c->getValue();
-    if (!bleCmdReady && v.length() > 0 && v.length() < sizeof(bleCmd)) { memcpy(bleCmd, v.c_str(), v.length()); bleCmd[v.length()] = 0; bleCmdReady = true; }
+class HzRxCb : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* c, NimBLEConnInfo& ci) override {
+    NimBLEAttValue v = c->getValue();
+    if (!bleCmdReady && v.length() > 0 && v.length() < sizeof(bleCmd)) { memcpy(bleCmd, v.data(), v.length()); bleCmd[v.length()] = 0; bleCmdReady = true; }
   }
 };
 static void bleInit() {
-  BLEDevice::init("HORIZON-AHRS");
-  BLEDevice::setMTU(185);
-  BLEServer* srv = BLEDevice::createServer(); srv->setCallbacks(new HzSrvCb());
-  BLEService* svc = srv->createService(NUS_SVC);
-  bleTx = svc->createCharacteristic(NUS_TX, BLECharacteristic::PROPERTY_NOTIFY);
-  bleTx->addDescriptor(new BLE2902());
-  BLECharacteristic* rx = svc->createCharacteristic(NUS_RX, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
+  NimBLEDevice::init("HORIZON-AHRS");
+  NimBLEDevice::setMTU(185);
+  NimBLEServer* srv = NimBLEDevice::createServer(); srv->setCallbacks(new HzSrvCb());
+  NimBLEService* svc = srv->createService(NUS_SVC);
+  bleTx = svc->createCharacteristic(NUS_TX, NIMBLE_PROPERTY::NOTIFY);
+  NimBLECharacteristic* rx = svc->createCharacteristic(NUS_RX, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
   rx->setCallbacks(new HzRxCb());
   svc->start();
-  BLEAdvertising* adv = BLEDevice::getAdvertising(); adv->addServiceUUID(NUS_SVC); adv->setScanResponse(true);
-  BLEDevice::startAdvertising();
+  NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
+  adv->addServiceUUID(NUS_SVC); adv->setName("HORIZON-AHRS"); adv->enableScanResponse(true);
+  adv->start();
 }
 static void sendNMEA(const char* body) {
   char line[140]; snprintf(line, sizeof(line), "$%s*%02X\r\n", body, nmeaChecksum(body));
   PiSerial.print(line);
-  if (bleConn && bleTx) { bleTx->setValue((uint8_t*)line, strlen(line)); bleTx->notify(); }
+  if (bleConn && bleTx) { bleTx->setValue((const uint8_t*)line, strlen(line)); bleTx->notify(); }
 }
 
 void outputTask(void*) {

@@ -222,6 +222,9 @@ OBST.length=0;                                           // ostacoli sintetici: 
 PH.native=(()=>{ const C=window.Capacitor; if(!C||!C.isNativePlatform||!C.isNativePlatform()) return null;
   const P=n=>{ try{ return (C.Plugins&&C.Plugins[n])||C.registerPlugin(n); }catch(e){ return null; } };
   return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass'),upd:P('Updater'),ahrs:P('Ahrs'),ble:P('StrumentoBle')}; })();
+// ascolto di un evento nativo: con Capacitor 8 addListener può restituire una Promise o no; mai un errore che ferma l'avvio
+PH.listen=function(pl,ev,cb){ try{ const r=pl&&pl.addListener&&pl.addListener(ev,cb); if(r&&typeof r.catch==='function') r.catch(()=>{}); return r; }catch(e){ PH.logErr&&PH.logErr('ascolto '+ev+': '+e.message); return null; } };
+PH.call=function(pr){ try{ if(pr&&typeof pr.catch==='function') pr.catch(()=>{}); return pr; }catch(e){ return null; } };
 // ---- voce e vibrazione ----
 PH.say=function(text,urgent){
   if(!PH.voice || (!window.speechSynthesis && !(PH.native&&PH.native.tts))) return;
@@ -1109,10 +1112,10 @@ PH.renderImp=function(){
   el('phLevelAir').onclick=()=>{ if(PH.level(0)) stat(); };
   el('phLevelGnd').onclick=()=>{ if(PH.level(+el('phGp').value||0)) stat(); };
   el('phMountReset').onclick=()=>{ PH.resetMount(); stat(); };
-  if(el('phResOn')) el('phResOn').onchange=e=>{ lsSet('ia517p_reserve',e.target.checked); PH.native.ahrs.setWatch({on:e.target.checked}).catch(()=>{}); PH.act('riserva '+(e.target.checked?'attiva':'spenta')); };
+  if(el('phResOn')) el('phResOn').onchange=e=>{ lsSet('ia517p_reserve',e.target.checked); PH.call(PH.native.ahrs.setWatch({on:e.target.checked})); PH.act('riserva '+(e.target.checked?'attiva':'spenta')); };
   if(el('phExtOn')) el('phExtOn').onchange=e=>PH.extConnect(e.target.checked);
   clearInterval(PH.extInfoT); PH.extInfoT=setInterval(()=>{ const x=el('phExtInfo'); if(!x||el('phImp').hidden){ clearInterval(PH.extInfoT); return; } x.textContent=PH.extInfo(); },1000);
-  if(el('phResTest')) el('phResTest').onclick=()=>{ PH.act('prova riserva'); PH.native.ahrs.showReserve({ms:5000}).catch(()=>{}); };
+  if(el('phResTest')) el('phResTest').onclick=()=>{ PH.act('prova riserva'); PH.call(PH.native.ahrs.showReserve({ms:5000})); };
   el('phGeo').onchange=()=>{ const v=+el('phGeo').value; if(v>-110&&v<90){ PH.geoid=v; lsSet('ia517p_geoid',v); PH.vario.h=NaN; } };
   PH.acSectionWire&&PH.acSectionWire();
   el('phTq').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.terrQ=b.dataset.q; lsSet('ia517p_terrq',PH.terrQ); el('phTq').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.tqNow(); });
@@ -1504,13 +1507,13 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
   addEventListener('orientationchange',PH.onRotate); addEventListener('resize',PH.onRotate);
   addEventListener('devicemotion',PH.onMotion);
   // v2: assetto nativo e orizzonte di riserva (vedi AhrsPlugin.java)
-  PH.ahrsMount=function(){ const A=PH.native&&PH.native.ahrs; if(!A) return; A.setMount({M:PH.M,tau:clamp(PH.smooth,0,10)*0.1,scr:PH.scrAng()}).catch(()=>{}); };
-  if(PH.native && PH.native.ahrs){ const A=PH.native.ahrs;
-    A.addListener('att',d=>{ PH.natAtt={r:d.r,p:d.p,s:d.s,tr:d.tr,hz:d.hz,t:performance.now()}; }).catch(()=>{});
-    A.start().then(r=>{ PH.natInfo=r; PH.ahrsMount(); }).catch(()=>{});
-    setInterval(()=>{ A.beat({scr:PH.scrAng()}).catch(()=>{}); },100);
-    setTimeout(()=>A.start().catch(()=>{}),15000);                  // dopo il permesso di posizione il GPS nativo riparte
-  }
+  PH.ahrsMount=function(){ const A=PH.native&&PH.native.ahrs; if(!A) return; try{ PH.call(A.setMount({M:PH.M,tau:clamp(PH.smooth,0,10)*0.1,scr:PH.scrAng()})); }catch(e){} };
+  if(PH.native && PH.native.ahrs) try{ const A=PH.native.ahrs;
+    PH.listen(A,'att',d=>{ PH.natAtt={r:d.r,p:d.p,s:d.s,tr:d.tr,hz:d.hz,t:performance.now()}; });
+    PH.call(Promise.resolve(A.start()).then(r=>{ PH.natInfo=r; PH.ahrsMount(); }));
+    setInterval(()=>{ try{ PH.call(A.beat({scr:PH.scrAng()})); }catch(e){} },100);
+    setTimeout(()=>{ try{ PH.call(A.start()); }catch(e){} },15000);   // dopo il permesso di posizione il GPS nativo riparte
+  }catch(e){ PH.logErr&&PH.logErr('assetto nativo: '+e.message); }
   PH.isIOS=/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints>1);
   PH.iosPermNeeded=PH.isIOS && typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function';
   PH.iosPerm=async function(){ if(!PH.iosPermNeeded || PH.iosPermAsked) return; PH.iosPermAsked=true;
@@ -1609,9 +1612,9 @@ PH.extConnect=async function(on){ const B=PH.native&&PH.native.ble; if(!B){ toas
   PH.EXT.want=on; lsSet('ia517p_ext',on);
   try{ if(on){ await B.connect(); PH.act('strumento: ricerca'); } else { await B.disconnect(); PH.act('strumento: spento'); } }catch(e){ toast(String(e&&e.message||e).toUpperCase()); } };
 if(PH.native && PH.native.ble){
-  PH.native.ble.addListener('line',d=>PH.extLine(d.l)).catch(()=>{});
-  PH.native.ble.addListener('state',d=>{ PH.EXT.state=d.s; if(d.n) PH.EXT.name=d.n; PH.act&&PH.act('strumento: '+d.s);
-    if(d.s==='collegato') toast('STRUMENTO COLLEGATO'); else if(d.s==='perso') toast('STRUMENTO PERSO'); }).catch(()=>{});
+  PH.listen(PH.native.ble,'line',d=>PH.extLine(d.l));
+  PH.listen(PH.native.ble,'state',d=>{ PH.EXT.state=d.s; if(d.n) PH.EXT.name=d.n; PH.act&&PH.act('strumento: '+d.s);
+    if(d.s==='collegato') toast('STRUMENTO COLLEGATO'); else if(d.s==='perso') toast('STRUMENTO PERSO'); });
   if(PH.EXT.want) setTimeout(()=>PH.extConnect(true),3000);
 }
 

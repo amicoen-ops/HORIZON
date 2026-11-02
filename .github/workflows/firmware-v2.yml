@@ -27,7 +27,7 @@ jobs:
           $HOME/bin/arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           $HOME/bin/arduino-cli core update-index
           $HOME/bin/arduino-cli core install esp32:esp32@3.0.7
-          $HOME/bin/arduino-cli lib install "SparkFun BMP581 Arduino Library"
+          $HOME/bin/arduino-cli lib install "SparkFun BMP581 Arduino Library" "NimBLE-Arduino"
       - name: Compila
         run: |
           set -o pipefail
