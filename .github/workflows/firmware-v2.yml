@@ -1,0 +1,53 @@
+name: Firmware strumento (controllo)
+
+# Compila il firmware della scheda sensori (XIAO ESP32-S3) per controllare che non abbia errori,
+# e pubblica il .bin da caricare sulla scheda nella pre-release «firmware-N».
+on:
+  push:
+    branches: [v2]
+    paths: ["firmware/**", ".github/workflows/firmware-v2.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Arduino CLI e core ESP32
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=$HOME/bin sh
+          echo "$HOME/bin" >> $GITHUB_PATH
+          $HOME/bin/arduino-cli config init
+          $HOME/bin/arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          $HOME/bin/arduino-cli core update-index
+          $HOME/bin/arduino-cli core install esp32:esp32@3.0.7
+          $HOME/bin/arduino-cli lib install "SparkFun BMP581 Arduino Library"
+      - name: Compila
+        run: |
+          set -o pipefail
+          arduino-cli compile --fqbn esp32:esp32:XIAO_ESP32S3:CDCOnBoot=cdc --output-dir out firmware/ahrs_board 2>&1 | tee fw.log
+          ls -la out
+      - name: Errore in una issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo '```'; grep -n -E "error|Error" fw.log | head -40; echo '---'; tail -40 fw.log; echo '```'; } > e.md || true
+          gh issue create -R ${{ github.repository }} --title "Firmware ${{ github.run_number }} non compila" --body-file e.md || true
+      - name: Pubblica il firmware (pre-release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: firmware-${{ github.run_number }}
+          name: Firmware strumento 2.1 · ${{ github.run_number }} (prova)
+          prerelease: true
+          make_latest: false
+          body: |
+            Firmware della scheda sensori con uscita Bluetooth LE verso HORIZON v2. Si carica sulla XIAO ESP32-S3 (file .merged.bin da 0x0, oppure da Arduino IDE).
+          files: |
+            out/ahrs_board.ino.bin
+            out/ahrs_board.ino.merged.bin

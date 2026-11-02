@@ -97,9 +97,9 @@ def build_pfd():
     s = rep(s, "function ask(text,yes,secs){", "function askShow(text,yes,secs){")
     s = rep(s, "function buildApproach(f,pick,ac){", "function buildApproachBase(f,pick,ac){")
     s = rep(s, "tape(-1,S.ias,5,10,R/42,v=>Math.round(v),'km/h',ARCS);",
-            "tape(-1,S.ias,5,10,R/42,v=>Math.round(v),PH&&!PH.demo?'GS km/h':'km/h',PH&&!PH.demo?null:ARCS);")
+            "tape(-1,S.ias,5,10,R/42,v=>Math.round(v),PH&&!PH.demo&&!(PH.extAir&&PH.extAir())?'GS km/h':'IAS km/h',PH&&!PH.demo&&!(PH.extAir&&PH.extAir())?null:ARCS);")
     s = rep(s, "tape(1,S.alt,20,100,R/520,v=>Math.round(v),'ft',null,NAV.dest?g.tgtAlt:null);",
-            "tape(1,S.alt,20,100,R/520,v=>Math.round(v),PH&&!PH.demo?'ft GPS':'ft',null,NAV.dest?g.tgtAlt:null);")
+            "tape(1,S.alt,20,100,R/520,v=>Math.round(v),PH&&!PH.demo?(PH.extBaro&&PH.extBaro()?'ft QNH':'ft GPS'):'ft',null,NAV.dest?g.tgtAlt:null);")
     # mappa libera: col dito la sposti (nord in alto), lo zoom resta sul punto guardato; «Centra» torna all'aereo
     s = rep(s, "  const ac=enu(S.lat,S.lon), t=((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000;",
             "  const acA=enu(S.lat,S.lon), pan=PH&&PH.pan, ac=pan?{E:acA.E+pan.E,N:acA.N+pan.N}:acA, t=pan?0:((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000;")
@@ -122,7 +122,7 @@ def build_pfd():
     # con la quota GPS il contatto con la pista si riconosce con più tolleranza
     s = rep(s, "if(S.alt*FT2M-f.elev>5) continue;", "if(S.alt*FT2M-f.elev>(PH&&!PH.demo?30:5)) continue;")
     s = rep(s, "<span>PREMI: SÌ · RUOTA: NO</span>", "<span>OK: SÌ · ◀ ▶: NO</span>")
-    s = rep(s, "failBox(CX-R*0.79,CY+R*0.42,R*0.28,R*0.1,'IAS');", "failBox(CX-R*0.79,CY+R*0.42,R*0.28,R*0.1,PH&&!PH.demo?'GS':'IAS');")
+    s = rep(s, "failBox(CX-R*0.79,CY+R*0.42,R*0.28,R*0.1,'IAS');", "failBox(CX-R*0.79,CY+R*0.42,R*0.28,R*0.1,PH&&!PH.demo&&!(PH.extAir&&PH.extAir())?'GS':'IAS');")
     css = (SRC / "phone_pfd.css").read_text(encoding="utf-8")
     s = rep(s, "</style>", css + "</style>", what="fine stile")
     unit_extra = (SRC / "phone_pfd_unit.html").read_text(encoding="utf-8")

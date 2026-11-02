@@ -2069,7 +2069,7 @@ OBST.length=0;                                           // ostacoli sintetici: 
 // ---- app installata (APK Capacitor): funzioni native al posto di quelle del browser ----
 PH.native=(()=>{ const C=window.Capacitor; if(!C||!C.isNativePlatform||!C.isNativePlatform()) return null;
   const P=n=>{ try{ return (C.Plugins&&C.Plugins[n])||C.registerPlugin(n); }catch(e){ return null; } };
-  return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass'),upd:P('Updater'),ahrs:P('Ahrs')}; })();
+  return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass'),upd:P('Updater'),ahrs:P('Ahrs'),ble:P('StrumentoBle')}; })();
 // ---- voce e vibrazione ----
 PH.say=function(text,urgent){
   if(!PH.voice || (!window.speechSynthesis && !(PH.native&&PH.native.tts))) return;
@@ -2186,13 +2186,15 @@ PH.onMotion=function(e){
   // v2: assetto dal modulo nativo (200 Hz, thread suo) quando arriva fresco; altrimenti quello della pagina
   const NA=PH.natAtt; PH.attSrc='pagina';
   if(NA && now-NA.t<150 && !PH.sim){ ro=NA.r; pi=NA.p; PH.attSrc='nativo'; }
+  PH.integCheck(now,ro,pi,wb,fb);
   // orizzonte più morbido: filtro del primo ordine regolabile (0 = immediato, 10 = 1 s)
   const tau=clamp(PH.smooth,0,10)*0.1, kf=tau>0?1-Math.exp(-dt/tau):1;
   if(!PH.attF || !(PH.attF[0]===PH.attF[0])) PH.attF=[ro,pi];
   PH.attF[0]+=angDiff(ro,PH.attF[0])*kf; if(PH.attF[0]>180) PH.attF[0]-=360; else if(PH.attF[0]<-180) PH.attF[0]+=360;
   PH.attF[1]+=(pi-PH.attF[1])*kf;
-  S.roll=PH.attF[0]; S.pitch=PH.attF[1];
-  PH.slipF+=(-fb[1]-PH.slipF)*Math.min(1,dt*3); S.slip=clamp(PH.slipF,-1,1);
+  if(PH.extAtt(now)){ const E=PH.EXT; S.roll=E.r; S.pitch=E.p; PH.attSrc='strumento'; }   // v2: lo strumento fisico, se c'è, è la fonte principale
+  else { S.roll=PH.attF[0]; S.pitch=PH.attF[1]; }
+  PH.slipF+=(-fb[1]-PH.slipF)*Math.min(1,dt*3); S.slip=PH.extAtt(now)?clamp(PH.EXT.s,-1,1):clamp(PH.slipF,-1,1);
   // prua: giroscopio tra un fix e l'altro
   const phi=ro*D2R, th=pi*D2R, psiDot=(wb[1]*Math.sin(phi)+wb[2]*Math.cos(phi))/Math.max(0.2,Math.cos(th));
   if(PH.hdg==null) PH.hdg=S.hdg;
@@ -2235,7 +2237,7 @@ PH.applyFix=function(fx){
   PH.prevFix={lat:fx.lat,lon:fx.lon,t:tFix};
   S.lat=fx.lat; S.lon=fx.lon; S.gpsReal=true;
   if(PH.gsPrev!=null) PH.dvdt+=(clamp((gs-PH.gsPrev)/dtF,-4,4)-PH.dvdt)*Math.min(1,dtF/2); PH.gsPrev=gs;
-  S.gs=gs*3.6; S.ias=S.gs; PH.lastFix.gs=S.gs;
+  S.gs=gs*3.6; if(!PH.extAir()) S.ias=S.gs; PH.lastFix.gs=S.gs;
   if(gs>1.5 && trk!=null && trk===trk) S.trk=trk;
   else if(gs<1.2) S.trk=null;                    // fermo: la traccia GPS è solo rumore, conta la prua
   // velocità di virata dalla traccia GPS: serve all'orizzonte quando il giroscopio manca o non segue la virata
@@ -2256,7 +2258,7 @@ PH.applyFix=function(fx){
     if(PH.altSrc!==fx.src){ PH.altSrc=fx.src; PH.vario.h=NaN; }      // cambio di fonte: il filtro riparte dalla nuova quota
     PH.mslRaw=msl;
     PH.vario.correct(msl+ofs,dtF);
-    S.alt=PH.vario.h/FT2M; S.vs=clamp(PH.vario.v,-30,30);
+    if(!PH.extBaro()){ S.alt=PH.vario.h/FT2M; S.vs=clamp(PH.vario.v,-30,30); }
     LIVE.baro=now;
     PH.autoCal(msl,gs,fx.acc,fx.src,tFix);
   }
@@ -2700,6 +2702,7 @@ PH.status=function(){
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
     ['ok','Posizione in uso',PH.demo?'simulata':(PH.src==='glo'?'Garmin GLO 2':(PH.src==='phone'?'GPS del telefono':'nessuna'))+' · scelta '+{auto:'automatica',phone:'solo telefono',glo:'solo GLO 2'}[PH.srcPref]],
     [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz':'nessun dato'],
+    ...(PH.EXT&&PH.EXT.want?[[PH.extAtt()?'ok':'bad','Strumento fisico',PH.extInfo()]]:[]),
     ...(PH.native&&PH.native.ahrs?[[PH.natAtt&&performance.now()-PH.natAtt.t<500?'ok':'bad','Assetto nativo (v2)',PH.natAtt?`${PH.natAtt.hz} Hz · ${PH.attSrc==='nativo'?'in uso':'non in uso'}`:'nessun dato']]:[]),
     [PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?'ok':'warn','Bussola',PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?`${String(Math.round(PH.mag.hdg)).padStart(3,'0')}° vera · ${PH.magInUse()?'in uso':(PH.compassMode==='never'?'spenta':'in volo usa la traccia GPS')}${PH.mag.acc!=null&&PH.mag.acc<2?' · da calibrare (muovi a otto)':''}`:(PH.mag.iosNeed?'inclina un momento il telefono in avanti (quasi in piano) per trovare il nord':(PH.mag.err?'non disponibile: '+PH.mag.err:'nessun dato'))],
     [PH.mountCal?'ok':'warn','Montaggio',PH.mountCal?('livellato'+(PH.groundPitch?` · a terra ${PH.groundPitch}°`:'')):'telefono verticale (predefinito)'],
@@ -2890,6 +2893,9 @@ PH.renderImp=function(){
     ${PH.native&&PH.native.ahrs?`<div class="ph-row" style="margin-top:10px"><span>Orizzonte di riserva (v2)</span><small id="phResInfo">assetto nativo: ${PH.natAtt?PH.natAtt.hz+' Hz':'in avvio'}</small></div>
     <p class="ph-sub">Se lo schermo principale non risponde per più di 0,3 secondi, Android mostra da solo un orizzonte essenziale calcolato in modo indipendente, finché la pagina riprende.</p>
     <div class="ph-btns"><label class="ph-fld" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="phResOn" ${lsGet('ia517p_reserve',true)?'checked':''}> Attivo</label><button class="ph-btn" id="phResTest">Provalo 5 secondi</button></div>`:''}
+    ${PH.native&&PH.native.ble?`<div class="ph-row" style="margin-top:10px"><span>Strumento fisico HORIZON (Bluetooth)</span><small id="phExtInfo">${PH.extInfo()}</small></div>
+    <p class="ph-sub">La scheda dello strumento da 80 mm manda assetto, velocità all'aria e quota barometrica. Quando è collegata diventa la fonte principale e il telefono la controlla: se non concordano compare «ATT DISAGREE».</p>
+    <div class="ph-btns"><label class="ph-fld" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="phExtOn" ${PH.EXT.want?'checked':''}> Collega</label></div>`:''}
     <div class="ph-btns"><label class="ph-fld">Assetto a terra (°)<input id="phGp" type="number" step="0.5" value="${PH.groundPitch||11}"></label><button class="ph-btn" id="phLevelGnd">Livella a terra</button><button class="ph-btn" id="phMountReset">Telefono verticale</button></div>
     <label class="ph-fld ph-range"><span>Orizzonte più morbido: <b id="phSmV">${PH.smoothTxt()}</b></span><input id="phSm" type="range" min="0" max="10" step="1" value="${PH.smooth}"></label>
     <div class="ph-row"><span>Fotogrammi al secondo</span></div>
@@ -2952,6 +2958,8 @@ PH.renderImp=function(){
   el('phLevelGnd').onclick=()=>{ if(PH.level(+el('phGp').value||0)) stat(); };
   el('phMountReset').onclick=()=>{ PH.resetMount(); stat(); };
   if(el('phResOn')) el('phResOn').onchange=e=>{ lsSet('ia517p_reserve',e.target.checked); PH.native.ahrs.setWatch({on:e.target.checked}).catch(()=>{}); PH.act('riserva '+(e.target.checked?'attiva':'spenta')); };
+  if(el('phExtOn')) el('phExtOn').onchange=e=>PH.extConnect(e.target.checked);
+  clearInterval(PH.extInfoT); PH.extInfoT=setInterval(()=>{ const x=el('phExtInfo'); if(!x||el('phImp').hidden){ clearInterval(PH.extInfoT); return; } x.textContent=PH.extInfo(); },1000);
   if(el('phResTest')) el('phResTest').onclick=()=>{ PH.act('prova riserva'); PH.native.ahrs.showReserve({ms:5000}).catch(()=>{}); };
   el('phGeo').onchange=()=>{ const v=+el('phGeo').value; if(v>-110&&v<90){ PH.geoid=v; lsSet('ia517p_geoid',v); PH.vario.h=NaN; } };
   PH.acSectionWire&&PH.acSectionWire();
@@ -3419,6 +3427,66 @@ PH.fuelClose=function(){ clearInterval(PH.fuelT); PH.fuelT=null; };
 setTimeout(()=>{ if(!window.IA517_FUEL) return;
   IA517_FUEL.refresh(async()=>{ const u=PH.native?PH_INFO.web+'dati/carburante.json':'dati/carburante.json', r=await window.IA517.http(u+'?chk='+Date.now()); return r.status===200?JSON.parse(r.text):null; })
     .then(ok=>{ if(ok){ try{ const w=el('phAppFrame').contentWindow; w.renderFuelAlt&&w.renderFuelAlt(); }catch(e){} } }); },12000);
+
+// ---------------- v2 · integrità dell'assetto e strumento fisico HORIZON (Bluetooth LE) ----------------
+// Lo strumento fisico manda $RPYL (assetto), $POV (pressione statica, dinamica, vario) e $STAT.
+// Quando c'è è la fonte principale; il telefono resta come confronto. Senza strumento il telefono
+// si controlla da solo: giroscopio che non vede le virate, sensori saturi, filtro nativo e della pagina in disaccordo.
+PH.EXT={want:lsGet('ia517p_ext',false),state:'spento',name:'',att:0,air:0,baro:0,r:0,p:0,y:0,s:0,ias:0,altFt:0,vs:0,stat:'',n:0};
+PH.extAtt=now=>PH.EXT.att && (now||performance.now())-PH.EXT.att<500 && !PH.sim && !PH.demo;
+PH.extAir=()=>PH.EXT.air && performance.now()-PH.EXT.air<2500 && !PH.sim && !PH.demo;
+PH.extBaro=()=>PH.EXT.baro && performance.now()-PH.EXT.baro<2500 && !PH.sim && !PH.demo;
+PH.extLine=function(line){ try{
+  const p=line.trim().replace(/^\$/,'').split('*')[0].split(','), now=performance.now(), E=PH.EXT; E.n++;
+  if(p[0]==='RPYL'){ const r=+p[1], pt=+p[2]; if(!isFinite(r)||!isFinite(pt)||Math.abs(r)>180||Math.abs(pt)>90) return;
+    E.r=r; E.p=pt; E.y=+p[3]; E.s=+p[4]||0; E.att=now;
+    if(PH.extAtt(now)){ S.roll=r; S.pitch=pt; S.slip=clamp(E.s,-1,1); LIVE.att=now; LIVE.any=true; } }
+  else if(p[0]==='POV'){ for(let i=1;i<p.length-1;i+=2){ const v=+p[i+1]; if(!isFinite(v)) continue;
+      if(p[i]==='Q'){ E.ias=Math.sqrt(2*Math.max(0,v)/1.225)*3.6; E.air=now; }
+      else if(p[i]==='P' && v>300 && v<1100){ E.altFt=44330*(1-Math.pow(v/QNH,0.1903))/FT2M; E.baro=now; }
+      else if(p[i]==='E') E.vs=clamp(v,-30,30); }
+    if(PH.extAir()){ S.ias=E.ias; LIVE.air=now; }
+    if(PH.extBaro()){ S.alt=E.altFt; S.vs=E.vs; LIVE.baro=now; } }
+  else if(p[0]==='STAT') E.stat=p.slice(1).join(',');
+}catch(e){} };
+PH.extInfo=function(){ const E=PH.EXT, n=performance.now();
+  if(!E.want) return 'non collegato';
+  if(PH.extAtt(n)) return `${E.name||'collegato'} · ${Math.round(E.r)}° / ${Math.round(E.p)}°${PH.extAir()?' · '+Math.round(E.ias)+' km/h':''}${PH.extBaro()?' · '+Math.round(E.altFt)+' ft':''}`;
+  return ({ricerca:'in ricerca…',collego:'collegamento…',collegato:'collegato, in attesa dei dati',perso:'perso, riprovo…',errore:'errore'})[E.state]||E.state; };
+PH.extConnect=async function(on){ const B=PH.native&&PH.native.ble; if(!B){ toast('BLUETOOTH LE NON DISPONIBILE'); return; }
+  PH.EXT.want=on; lsSet('ia517p_ext',on);
+  try{ if(on){ await B.connect(); PH.act('strumento: ricerca'); } else { await B.disconnect(); PH.act('strumento: spento'); } }catch(e){ toast(String(e&&e.message||e).toUpperCase()); } };
+if(PH.native && PH.native.ble){
+  PH.native.ble.addListener('line',d=>PH.extLine(d.l)).catch(()=>{});
+  PH.native.ble.addListener('state',d=>{ PH.EXT.state=d.s; if(d.n) PH.EXT.name=d.n; PH.act&&PH.act('strumento: '+d.s);
+    if(d.s==='collegato') toast('STRUMENTO COLLEGATO'); else if(d.s==='perso') toast('STRUMENTO PERSO'); }).catch(()=>{});
+  if(PH.EXT.want) setTimeout(()=>PH.extConnect(true),3000);
+}
+
+// controlli: un messaggio per volta, il più grave; ogni condizione deve durare prima di comparire
+PH.INTEG={msg:null,lvl:0,t:{},sat:0};
+PH.integCheck=function(now,ro,pi,wb,fb){
+  const I=PH.INTEG, hold=(k,cond,ms)=>{ if(cond){ I.t[k]=I.t[k]||now; return now-I.t[k]>ms; } I.t[k]=0; return false; };
+  const rate=Math.hypot(wb[0],wb[1],wb[2])*R2D, gload=Math.hypot(fb[0],fb[1],fb[2]);
+  if(rate>240||gload>3.6) I.sat=now;                                     // giroscopio o accelerometro al limite
+  const E=PH.EXT, ext=PH.extAtt(now), NA=PH.natAtt;
+  const pr=(PH.attF?PH.attF[0]:ro), pp=(PH.attF?PH.attF[1]:pi);
+  const dis=ext && hold('dis',Math.abs(angDiff(E.r,pr))>6||Math.abs(E.p-pp)>5,2000);
+  const nat=NA && now-NA.t<300 && hold('nat',Math.abs(angDiff(NA.r,PH.ahrs.euler()[0]))>10||Math.abs(NA.p-PH.ahrs.euler()[1])>8,3000);
+  const gyr=hold('gyr',!!PH.gyroSus,1000);
+  let m=null,l=0;
+  if(dis){ m=['ATT DISAGREE',`strumento ${Math.round(E.r)}°/${Math.round(E.p)}° · telefono ${Math.round(pr)}°/${Math.round(pp)}°`]; l=2; }
+  else if(gyr){ m=['ASSETTO DA GPS','il giroscopio non vede la virata: assetto stimato dalla traccia']; l=2; }
+  else if(now-I.sat<5000){ m=['SENSORI AL LIMITE','manovra brusca: l\'assetto si riallinea in pochi secondi']; l=1; }
+  else if(nat){ m=['ASSETTO INCERTO','i due calcoli del telefono non concordano']; l=1; }
+  if(m && (!I.msg||I.msg[0]!==m[0])) PH.act&&PH.act('integrità: '+m[0]);
+  I.msg=m; I.lvl=l;
+};
+// disegno: riquadro in alto sull'orizzonte, rosso o arancio; la croce rossa resta quella di «ASSETTO NON DISPONIBILE»
+{ const dff=drawFailFlags; drawFailFlags=function(){ dff();
+    const I=PH&&PH.INTEG; if(!I||!I.msg) return;
+    if(lost('att')) return;
+    ctx.save(); roundClip(); failBox(CX,CY-R*0.42,R*0.92,R*0.17,I.msg[0],I.msg[1],I.lvl>=2?'#ff3b3b':'#ffb020'); ctx.restore(); }; }
 
 // HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
