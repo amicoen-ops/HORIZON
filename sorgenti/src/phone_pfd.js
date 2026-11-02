@@ -1762,7 +1762,7 @@ PH.drawUnusual=function(){
 // durante l'inversione e il recupero da assetto inusuale niente scritte a comparsa sopra lo strumento
 { const tt=toast; toast=function(m){ if((PH.imc&&PH.rev)||(PH.uaSaid&&Date.now()-PH.uaSaid<6000)){ PH.act&&PH.act('(zitto) '+String(m).slice(0,40)); return; } return tt(m); }; }
 
-// ---------------- terreno davanti: se alla quota obiettivo diventa giallo entro 1 km, la quota obiettivo sale ----------------
+// ---------------- terreno davanti: se alla quota obiettivo diventa giallo (entro 1 km, o prima se la salita richiede tempo), la quota obiettivo sale ----------------
 // Si guarda 1 km avanti sulla traccia (e 150 m ai lati). Se alla quota obiettivo il margine sul terreno scende sotto la soglia
 // gialla (TAWS_YEL), la quota obiettivo sale al terreno + soglia + 30 m, arrotondata ai 100 ft: la sicurezza dal terreno
 // vince sugli spazi aerei, quindi si sale anche se si entra in uno spazio (l'app lo dice, per avvisare l'ente).
@@ -1784,9 +1784,17 @@ PH.terrUp=function(){
     if(T && NAV.altTgt!==T.alt) T.base=NAV.altTgt;              // obiettivo cambiato (nuovo punto della rotta o scelto a mano)
     const base=T?T.base:NAV.altTgt;
     if(!PH.tuT || now-PH.tuT>500){ PH.tuT=now;
-      const ac=enu(S.lat,S.lon), tr=(S.trk!=null?S.trk:S.hdg)*D2R, sx=Math.sin(tr), cy=Math.cos(tr); let zm=-1e9;
-      let dm=1000; for(let d=100; d<=1000; d+=100) for(const l of [-150,0,150]){ const z=terrain(ac.E+d*sx+l*cy, ac.N+d*cy-l*sx); if(z===z && z>zm){ zm=z; dm=d; } }
-      PH.tuZ=zm; PH.tuD=dm; }
+      // sguardo adattivo: entro 1 km sempre; più avanti (fino a 10 km) solo i rilievi per cui, con la velocità e il rateo
+      // di salita del velivolo, bisogna cominciare a salire adesso per passarli col margine giallo
+      const ac=enu(S.lat,S.lon), tr=(S.trk!=null?S.trk:S.hdg)*D2R, sx=Math.sin(tr), cy=Math.cos(tr);
+      const gs=Math.max(15,(S.gs!=null?S.gs:S.ias||100)/3.6), roc=Math.max(0.5,(+((PH.ac&&PH.ac.roc)||600))*0.00508), now_m=(S.alt||0)*FT2M;
+      let zm=-1e9, dm=1000, look=1000;
+      for(let d=100; d<=10000; d+=d<2000?100:250){ let zz=-1e9;
+        for(const l of [-150,0,150]){ const z=terrain(ac.E+d*sx+l*cy, ac.N+d*cy-l*sx); if(z===z && z>zz) zz=z; }
+        if(!(zz>-1e8)) continue;
+        const req=zz+TAWS_YEL, urgent=d<=1000 || (req-now_m) > roc*d/gs*0.7;   // 0,7: in crociera si sale meno del rateo massimo dichiarato
+        if(urgent && base*FT2M<req){ look=Math.max(look,d); if(zz>zm){ zm=zz; dm=d; } } }
+      PH.tuZ=zm; PH.tuD=dm; PH.tuLook=look; }
     const zm=PH.tuZ; if(!(zm>-1e8)) return;
     if(base*FT2M-zm<TAWS_YEL){                                    // alla quota obiettivo il terreno davanti sarebbe giallo
       const need=Math.max(base,Math.ceil(((zm+TAWS_YEL+30)/FT2M)/100)*100);
@@ -1794,7 +1802,7 @@ PH.terrUp=function(){
         if(first||!T.said||need-T.said>=300){ T.said=need; PH.act&&PH.act(`terreno: quota obiettivo ${base} → ${need} ft`+(T.asp.length?' (entra in '+T.asp.join(', ')+')':'')); } }
       else T.clearT=0;
       // un solo avviso che si aggiorna (la voce al massimo ogni 8 s)
-      PH.alert('terrup','C',`TERRENO A 1 KM · SALI A ${T.alt} FT`+(T.asp&&T.asp.length?` · ENTRI IN ${T.asp.join(', ')}: AVVISA`:''),8000);
+      PH.alert('terrup','C',`TERRENO A ${(PH.tuD/1000).toFixed(1).replace('.',',')} KM · SALI A ${T.alt} FT`+(T.asp&&T.asp.length?` · ENTRI IN ${T.asp.join(', ')}: AVVISA`:''),8000);
       // salendo col rateo del velivolo, nel tratto fino al punto più alto, si passa? se no: vira
       const gs=Math.max(15,(S.gs!=null?S.gs:S.ias||100)/3.6), roc=(+((PH.ac&&PH.ac.roc)||600))*0.00508, gain=roc*(PH.tuD||1000)/gs;
       if((S.alt||0)*FT2M+gain < zm+TAWS_RED){ PH.alert('terrturn','W',`TERRENO: SALENDO NON PASSI · VIRA`,6000); if(!T.turn){ T.turn=1; PH.act&&PH.act('terreno: salita insufficiente, vira'); } }

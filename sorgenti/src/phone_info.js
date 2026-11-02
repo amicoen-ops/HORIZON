@@ -14,6 +14,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.13','Quota sul terreno con sguardo adattivo: entro 1 km sempre, e fino a 10 km quando una cresta richiede di cominciare a salire prima, secondo velocità e rateo di salita del velivolo.'],
   ['2.0.12','Terreno davanti: se entro 1 km, alla quota obiettivo, il margine sul terreno scende nel giallo, la quota obiettivo sale da sola (anche se si entra in uno spazio aereo: l\'app lo dice per avvisare l\'ente) e torna a quella pianificata quando il terreno è libero. Se salendo col rateo del velivolo non si passa: «SALENDO NON PASSI · VIRA».'],
   ['2.0.11','Terreno 3D più dettagliato: griglia a ventaglio e due livelli più fini (fino a 72×160), scelti da soli se il telefono ce la fa.'],
   ['2.0.10','Terreno 3D: niente più «piramidi» sui campi con la quota d\'elenco sbagliata (si spiana alla quota del rilievo; i campi con quota dubbia sono nella segnalazione).'],
