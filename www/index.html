@@ -3697,7 +3697,7 @@ PH.checkUpdate=async function(manual){
   if(out.state==='nuova' && !manual) PH.updPrompt(out);
   return out;
 };
-PH.updMoving=()=>!!(PH.flight || PH.sim || (S.gpsReal && S.gs>35));
+PH.updMoving=()=>!!(PH.flight || PH.sim || PH.imc || (S.gpsReal && S.gs>35));
 // la finestra «Nuova versione»: mai sopra lo strumento in volo, aspetta l'atterraggio
 PH.updPrompt=function(u){
   if(!u || u.state!=='nuova' || PH.updLater===u.build || document.getElementById('phUpdAsk')) return;
@@ -3923,7 +3923,7 @@ PH.renderInfo=function(){
 };
 // donazione: invito nei primi 5 avvii (non nella versione del Play Store, che non permette donazioni nell'app)
 PH.donateNag=function(){
-  if(PH.version().channel==='play' || lsGet('ia517p_donated',false)) return;
+  if(PH.version().channel==='play' || PH.version().line==='v2' || PH.imc || lsGet('ia517p_donated',false)) return;   // mai nella v2 di prova né in NUBE
   const n=PH.launchN||0; if(n<1 || n>5 || document.getElementById('phNag') || document.getElementById('phTerms')) return;
   if(PH.flight || PH.sim || (S.gpsReal && S.gs>25)) return;          // mai sopra lo strumento in volo o in movimento
   const d=document.createElement('div'); d.className='ph-sheet ph-terms'; d.id='phNag';
