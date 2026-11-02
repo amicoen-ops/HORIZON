@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.39"
+VER = "1.0.41"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -333,6 +333,10 @@ s += [P("La barra in alto mostra la rotta colorata secondo il carburante che res
         "Se il carburante non basta, l'app indica l'ultimo rifornimento utile: toccalo e premi <b>«Aggiungi come tappa»</b>. "
         "In volo il tasto <b>⛽</b> in basso apre lo stesso schema dalla posizione attuale: carburante stimato (a bordo al decollo meno consumo × tempo di volo), correggibile con −5, +5 o «Imposta», e per ogni campo rotta, distanza, tempo e litri all'arrivo; toccando un campo, <b>«Vai diretto»</b>.")]
 s += [P("I dati vengono da openAIP, aggiornati ogni notte, ma in Italia pochi campi hanno il carburante indicato. Segna tu quelli che conosci (in fondo alla scheda: campo, carburanti, nota): restano sul telefono e valgono sopra openAIP. Prima di contare su un rifornimento, telefona o chiama per radio.")]
+s += [Paragraph("Quota che sale da sola sul terreno", H3)]
+s += [P("In volo, con una destinazione o una rotta attiva, lo strumento guarda 1 km avanti sulla traccia. Se alla quota obiettivo il margine sul terreno scende nel giallo (meno di circa 600 ft), la quota obiettivo sale da sola al terreno più 600 ft, arrotondata ai 100 ft: il flight director e il nastro della quota indicano di salire. "
+        "La sicurezza dal terreno vince sugli spazi aerei: se salendo entri in uno spazio, l'avviso lo nomina («ENTRI IN …: AVVISA») perché tu chiami l'ente. Passato il rilievo, dopo 20 secondi con il terreno di nuovo libero, compare «PUOI TORNARE A … FT». "
+        "1 km a 115 km/h sono circa 30 secondi: se col rateo di salita del velivolo non si riesce a passare, l'avviso rosso «SALENDO NON PASSI · VIRA» dice di cambiare direzione. In avvicinamento la funzione è spenta.")]
 s += [box("La rotta calcolata è un aiuto alla pianificazione: controllala sempre sulla carta e sul briefing ufficiale (AIP, NOTAM, AUP), soprattutto in montagna. Quote del terreno e spazi aerei possono essere incompleti o non aggiornati.")]
 
 s += [tip("Meteo: in alto c'è sempre l'ora esatta dell'ultimo aggiornamento del modello e dei METAR, con da quanti minuti. Verde fino a 30 minuti, arancio oltre (aggiorna prima di partire), rosso oltre un'ora e mezza. Ogni campo indica anche l'ora a cui si riferisce la previsione e ogni METAR l'ora dell'osservazione.")]
