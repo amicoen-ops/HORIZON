@@ -14,6 +14,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.11','Terreno 3D più dettagliato: griglia a ventaglio e due livelli più fini (fino a 72×160), scelti da soli se il telefono ce la fa.'],
   ['2.0.10','Terreno 3D: niente più «piramidi» sui campi con la quota d\'elenco sbagliata (si spiana alla quota del rilievo; i campi con quota dubbia sono nella segnalazione).'],
   ['2.0.9','NUBE a schermo pieno: l\'orizzonte prende tutto lo spazio sopra i tasti (nel browser anche lo schermo intero del sistema). Corretto l\'errore di visualizzazione in NUBE con lo schermo largo.'],
   ['2.0.5','Modalità ☁ NUBE: solo l\'essenziale, tasti grandi per INVERSIONE 180° (flight director, virata standard dal lato del terreno più basso, quota minima), CAMPO VICINO e PUNTO A VISTA. Recupero da assetti inusuali sempre attivo. Controlli di integrità dell\'assetto (ATT DISAGREE con lo strumento fisico, assetto da GPS, sensori al limite). Strumento fisico via Bluetooth LE con IAS e quota barometrica. Orizzonte di riserva Android se la pagina si blocca.'],
