@@ -14,6 +14,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.16',"Piano: il calcolo automatico della rotta migliore parte solo dopo una modifica (il piano salvato resta com'è), si ferma se apri l'editor della rotta e non sovrascrive mai un piano cambiato nel frattempo. Mentre il terreno si scarica il profilo si ricalcola ogni 2 s senza bloccare l'app."],
   ['2.0.15','Creste: margine minimo 150 m. Se salendo diritto si passerebbe più basso parte la manovra (dopo 10 s, oppure subito se la cresta è a meno di 45 s); la spirale si fa solo dove il cerchio resta 150 m sopra il terreno, altrimenti inversione stretta a 30°.'],
   ['2.0.14','Prestazioni vere del velivolo: il rateo di salita cala con la quota e col peso (nuovo nel profilo: rateo di discesa massimo). Nel piano «Salite, discese e giri»: per ogni tratta se la salita o la discesa ci sta, altrimenti giri di 360° dove il terreno lascia spazio (tempo e carburante inclusi); se la rotta dritta passa su zone vietate o costringe a salire troppo, la rotta migliore dalle valli si calcola da sola. In volo: 10 s dopo «salendo diritto non passi» parte la manovra guidata (spirale in salita dal lato libero, o inversione) fino alla quota sicura, poi si riprende la rotta; troppo alto vicino al campo: spirale in discesa fino al circuito.'],
   ['2.0.13','Quota sul terreno con sguardo adattivo: entro 1 km sempre, e fino a 10 km quando una cresta richiede di cominciare a salire prima, secondo velocità e rateo di salita del velivolo.'],

@@ -22,6 +22,7 @@ const rdTitle=t=>t.toLowerCase().replace(/(^|[\s'(-])([a-zàèéìòù])/g,(m,a,
 const RD_RPP=(__RPP__).map(([name,code,lat,lon,c])=>{ const rest=code&&name.startsWith(code)?name.slice(code.length).trim():name, cd=(code||name).replace(/\s+/g,'');
   return {id:'RP-'+cd,short:(cd+(rest&&rest!==code?' '+rest:'')).slice(0,16),label:cd+(rest&&rest!==code?' ('+rdTitle(rest)+')':''),name,code:cd,lat,lon,comp:!!c,rp:true,kind:'rp'}; });
 
+function rdChk(){ if(typeof PV!=='undefined' && PV.busy && PV.abort) throw new Error('annullato'); }   // l'utente apre l'editor: il calcolo automatico si ferma
 function rdDem(lat,lon,z){ try{ return parent&&parent.phDemAt?parent.phDemAt(lat,lon,z||10):NaN; }catch(e){ return NaN; } }
 function rdAspAll(){ return (typeof ASP!=='undefined'&&Array.isArray(ASP)&&ASP_SRC.real)?ASP:[]; }
 function rdPip(p,poly){ let ins=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i], b=poly[j];
@@ -74,6 +75,7 @@ function rdBuild(){
 }
 function rdHint(t,ms){ const h=$('rdHint'); h.textContent=t; h.hidden=!t; clearTimeout(RD.hT); if(t) RD.hT=setTimeout(()=>{ h.hidden=true; },ms||3500); }
 function rdOpen(){
+  if(typeof PV!=='undefined' && PV.busy){ PV.openAfter=true; PV.abort=true; RD.info=[]; return; }   // sta calcolando la rotta migliore: lo fermo e si apre subito dopo
   rdBuild();
   RD.pts=[PLAN.from,...PLAN.wps,PLAN.dest].map(byId).filter(Boolean).map(f=>({lat:f.lat,lon:f.lon,f}));
   RD.hist=[]; RD.root.hidden=false; RD.on=true;
@@ -416,7 +418,7 @@ async function rdAround(A,B){
   for(let tr=0;tr<16;tr++){ let miss=0;
     for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ let m=-1e9; for(const [u,v] of off){ const z=rdDem(lat0+(j+0.5+v*0.33)*cell/110540, lon0+(i+0.5+u*0.33)*cell/(111320*cl), 10); if(z!==z){ miss++; continue; } if(z>m) m=z; }
       terr[j*nx+i]=m>-1e8?m/0.3048:0; }
-    if(!miss) break; RD.busy='Scarico il terreno… '+Math.round(100*(1-miss/(N*5)))+'%'; rdDraw(); await new Promise(r=>setTimeout(r,600)); }
+    if(!miss) break; RD.busy='Scarico il terreno… '+Math.round(100*(1-miss/(N*5)))+'%'; rdDraw(); await new Promise(r=>setTimeout(r,600)); rdChk(); }
   const tmax=new Float32Array(N);
   for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ let m=-1e9; for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=i+di, jj=j+dj; if(ii>=0&&jj>=0&&ii<nx&&jj<ny&&terr[jj*nx+ii]>m) m=terr[jj*nx+ii]; } tmax[j*nx+i]=m; }
   // celle vietate: dentro una zona da evitare dove non ci si passa sotto con il margine sul terreno, più una cella di margine
@@ -472,14 +474,14 @@ async function rdAvoidAll(){
   rdPush(); RD.busy='Calcolo la rotta…'; rdDraw(); let added=0, failed=0, k=1;
   // anche le tratte senza zone: se il terreno chiede di salire, si cerca la valle
   const todo=RD.info.map((l,i)=>i);                          // tutte le tratte: la più breve in tempo, col vento, intorno alle zone, dalle valli
-  for(const i of todo.reverse()){ const A=RD.pts[i], B=RD.pts[i+1], mid=await rdAround(A,B);
+  for(const i of todo.reverse()){ const A=RD.pts[i], B=RD.pts[i+1], mid=await rdAround(A,B); rdChk();
     if(mid===null){ failed++; continue; }
     RD.pts.splice(i+1,0,...mid.map(p=>({lat:p.lat,lon:p.lon,f:null,name:'R'+(k++)}))); added+=mid.length; }
   // pulizia: via i punti aggiunti che non servono (tratte corte), se senza di loro la tratta resta fuori dalle zone e il terreno non chiede di salire di più
   for(let pass=0;pass<3;pass++){ let removed=0;
     for(let i=1;i<RD.pts.length-1;i++){ const p=RD.pts[i]; if(!(p.name&&/^R\d+$/.test(p.name))) continue;
       const A=RD.pts[i-1], B=RD.pts[i+1], d1=dist(A,p).d, d2=dist(p,B).d; if(d1>4000 && d2>4000 && pass<2) continue;
-      await new Promise(r=>setTimeout(r,0)); RD.busy='Rifinisco la rotta…'; rdDraw();
+      await new Promise(r=>setTimeout(r,0)); rdChk(); RD.busy='Rifinisco la rotta…'; rdDraw();
       const c1=rdLegCheck(A,p), c2=rdLegCheck(p,B), c=rdLegCheck(A,B);
       if([...c.zones].some(z=>!c1.zones.has(z)&&!c2.zones.has(z))) continue;          // senza il punto si entrerebbe in una zona nuova if(c.safe>Math.max(c1.safe,c2.safe)+300) continue;
       RD.pts.splice(i,1); i--; removed++; }
@@ -592,7 +594,7 @@ function rdWxHtml(R){
 window.IA517_routeEditor=rdOpen;
 // per il collaudo automatico (emulatore): accesso dall'app dello strumento
 window.IA517_rd={get RD(){ return RD; }, close:rdClose, open:rdOpen,
-  plan(from,dest,ft){ PLAN.from=from; PLAN.wps=[]; PLAN.dest=dest; if(ft){ PLAN.cruiseFt=ft; $('pAlt').value=ft; } PV.autoDone=PV.sig(); renderRoute(); update(); }};
+  plan(from,dest,ft){ PLAN.from=from; PLAN.wps=[]; PLAN.dest=dest; if(ft){ PLAN.cruiseFt=ft; $('pAlt').value=ft; } clearTimeout(PV.at); PV.autoDone=PV.sig(); renderRoute(); update(); }};
 
 // riquadro nel Briefing: ultimo controllo meteo della rotta alle quote
 (()=>{ const host=$('bSummary')&&$('bSummary').closest('section'); if(!host) return; const sec=document.createElement('section'); sec.className='card'; sec.id='wxRouteCard';
@@ -616,11 +618,14 @@ function pvCompute(force){
   const pts=[PLAN.from,...PLAN.wps,PLAN.dest].map(byId).filter(Boolean).map(f=>({lat:f.lat,lon:f.lon,f}));
   if(pts.length<2){ PV.res=null; return null; }
   const a=ACP(), key=JSON.stringify([pts.map(p=>p.f.id),PLAN.cruiseFt,PLAN.tas,PLAN.fuel,PLAN.wb,RD.margin,a.roc,a.rod,a.ceil,a.mtow,a.empty,!!rdAspAll().length]);
-  if(!force && PV.key===key && PV.res && !PV.res.pending) return PV.res;
+  if(!force && PV.key===key && PV.res && (!PV.res.pending || PV.tOn)) return PV.res;     // terreno in arrivo: ci pensa il controllo a tempo
   const st={asp:rdAspAll(),pending:false}, info=[];
   for(let i=0;i<pts.length-1;i++) info.push(rdLegAnalyze(pts[i],pts[i+1],st));
   const V=rdVert(pts,info); PV.res={pts,info,V,pending:st.pending}; PV.key=key;
-  if(st.pending){ clearTimeout(PV.t); PV.t=setTimeout(()=>{ try{ pvCompute(true); renderPV(); pvAutoCheck(); update(); }catch(e){} },1500); }
+  PV.tries=st.pending?(PV.tKey===key?(PV.tries||0)+1:0):0; PV.tKey=key;
+  clearTimeout(PV.t); PV.tOn=false;
+  // terreno non ancora scaricato: si riprova ogni 2 s (al massimo 30 volte); il piano si aggiorna solo quando arriva tutto
+  if(st.pending && PV.tries<30){ PV.tOn=true; PV.t=setTimeout(()=>{ PV.tOn=false; try{ const r=pvCompute(true); renderPV(); if(!r||!r.pending){ update(); pvAutoCheck(); } }catch(e){ console.error(e); } },2000); }
   return PV.res;
 }
 (()=>{ const sec=document.createElement('section'); sec.className='card'; sec.id='pvCard';
@@ -648,16 +653,19 @@ function renderPV(){
 // rotta migliore senza aprire l'editor (stesso calcolo di «Calcola rotta»)
 async function pvBest(manual){
   if(PV.busy||RD.on) return; const pts=[PLAN.from,...PLAN.wps,PLAN.dest].map(byId).filter(Boolean); if(pts.length!==2) return;
-  PV.busy='Calcolo la rotta migliore (valli, zone, vento, salite)…'; PV.msg=''; renderPV();
+  PV.busy='Calcolo la rotta migliore (valli, zone, vento, salite)…'; PV.msg=''; renderPV(); const k0=PLAN.from+'>'+PLAN.dest;
   try{ rdBuild(); RD.pts=pts.map(f=>({lat:f.lat,lon:f.lon,f})); RD.hist=[]; RD.on=true; RD.msg='';
     await rdAvoidAll();
-    if(RD.pts.length>2){ PV.straight={from:PLAN.from,dest:PLAN.dest}; rdSave(); PV.msg=`Rotta migliore: ${RD.pts.length-2} ${RD.pts.length-2===1?"punto aggiunto (R1)":"punti aggiunti (R1, R2…)"} dalle valli, col vento previsto${RD.msgNoAsp?'. Spazi aerei non caricati: zone non considerate (Briefing › Scarica gli spazi aerei)':''}.`; }
+    if(k0!==PLAN.from+'>'+PLAN.dest||PLAN.wps.length){ PV.msg=''; }        // il piano è cambiato nel frattempo: il risultato non vale più
+    else if(RD.pts.length>2){ PV.straight={from:PLAN.from,dest:PLAN.dest}; rdSave(); PV.msg=`Rotta migliore: ${RD.pts.length-2} ${RD.pts.length-2===1?"punto aggiunto (R1)":"punti aggiunti (R1, R2…)"} dalle valli, col vento previsto${RD.msgNoAsp?'. Spazi aerei non caricati: zone non considerate (Briefing › Scarica gli spazi aerei)':''}.`; }
     else PV.msg=manual?'La rotta dritta è già la migliore.':''; }
-  catch(e){ PV.msg='Calcolo non riuscito: '+e.message; }
-  finally{ RD.on=false; PV.busy=false; PV.autoDone=PV.sig(); renderPV(); }
+  catch(e){ PV.msg=PV.abort?'':'Calcolo non riuscito: '+e.message; }
+  finally{ RD.on=false; RD.busy=false; PV.busy=false; PV.abort=false; PV.autoDone=PV.sig(); renderPV(); if(PV.openAfter){ PV.openAfter=false; setTimeout(rdOpen,50); } }
 }
 function pvAutoCheck(){
-  const R=PV.res; if(!R||R.pending||PLAN.wps.length||PV.busy||RD.on||PV.autoDone===PV.sig()||!R.info.length) return;
+  if(PV.first===undefined){ PV.first=PV.sig(); PV.autoDone=PV.first; return; }                // all'avvio: il piano salvato resta com'è
+  let vis=true; try{ const sh=parent.document.getElementById('phPiano'); vis=!sh||!sh.hidden; }catch(e){}
+  const R=PV.res; if(!vis||!R||R.pending||PLAN.wps.length||PV.busy||RD.on||PV.autoDone===PV.sig()||!R.info.length) return;
   const L=R.info[0], bad=L.hits.some(h=>h.avoid) || ((L.safeFt||0)>PLAN.cruiseFt+1000) || (R.V&&!R.V.ok);
   PV.autoDone=PV.sig();
   if(bad){ clearTimeout(PV.at); PV.at=setTimeout(()=>pvBest(false),800); }
