@@ -2035,11 +2035,17 @@ async function rdAround(A,B){
   // salite graduali: una cella costa di più se, salendo piano dalla partenza (o scendendo piano verso l'arrivo), lì non si è ancora abbastanza alti;
   // così la rotta prende quota dove il terreno è basso e si avvicina alle creste solo quando ci si arriva sopra, senza giri di 360°
   const PF=window.IA517_PERF||(parent&&parent.IA517_PERF), ac=ACP(), vC=PF?PF.vgentle(ac):30;
-  const baseA=A.f?(rdFieldFt(A)||0)+500:cruise, circB=B.f?(rdFieldFt(B)||0)+(+ac.hcFt||1000):null;
-  const gU=PF?PF.gentle(ac,(baseA+cruise)/2,{W:PF.weight(ac,{})})/60/vC:0.1, gD=PF?PF.gentleDn(ac)/60/vC:0.1;
-  const climbPen=new Float32Array(N);
-  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ const k=j*nx+i, need=terr[k]+margin, dA=Math.hypot(i-si0,j-sj0)*cell, dB=Math.hypot(i-ei0,j-ej0)*cell;
-    let pen=Math.max(0,need-(baseA+gU*dA))/300; if(circB!=null) pen+=Math.max(0,need-(circB+gD*dB))/300; climbPen[k]=pen; }
+  // la quota si prende sulla rotta: avanzando verso l'arrivo (non allontanandosi di lato), più al massimo 4 giri larghi vicino alla partenza.
+  // Niente giri lunghi per prendere quota: la penalità vale solo dove nemmeno così ci si arriva, e oltre 10 km di lato da quella rotta non si va
+  const baseA=A.f?(rdFieldFt(A)||0)+1000:cruise, circB=B.f?(rdFieldFt(B)||0)+(+ac.hcFt||1000):null, Wt=PF?PF.weight(ac,{}):0;
+  const o4=PF?PF.orbit(ac,baseA,{W:Wt,bank:10,soft:true}):{up:0,down:0}, G4u=4*o4.up, G4d=0;            // in discesa niente giri messi in conto: meglio arrivare da una valle
+  const gU=PF?PF.gentle(ac,(baseA+cruise)/2,{W:Wt})/60/vC:0.1, gD=PF?PF.gentleDn(ac)/60/vC:0.1;
+  const climbPen=new Float32Array(N), Lab=Math.hypot(ei0-si0,ej0-sj0)||1, ex=(ei0-si0)/Lab, ey=(ej0-sj0)/Lab;
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ const k=j*nx+i, need=terr[k]+margin, u=(i-si0)*ex+(j-sj0)*ey, v=Math.abs(-(i-si0)*ey+(j-sj0)*ex);
+    const along=Math.max(0,u)*cell, back=Math.max(0,Lab-u)*cell, cross=v*cell;
+    let pen=Math.max(0,need-(baseA+G4u+gU*along))/300; if(circB!=null) pen+=Math.max(0,need-(circB+G4d+gD*back))/300;
+    if(pen>0 && cross>10000) pen+=50;                                   // salite lontane dalla rotta: no
+    climbPen[k]=pen; }
   const w=k=>1+Math.max(0,terr[k]+margin-cruise)/500+climbPen[k];
   // vento: ogni passo costa il tempo che ci vuole in quella direzione (con vento contrario la strada «costa» di più)
   const tas=Math.max(40,PLAN.tas), wnd=rdWindAt((A.lat+B.lat)/2,(A.lon+B.lon)/2,cruise), wf={};
