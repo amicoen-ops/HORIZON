@@ -13,6 +13,7 @@
 <script src="version.js"></script>
 <script src="regole.js"></script>
 <script src="carburante.js"></script>
+<script src="prestazioni.js"></script>
 <script src="licenza.js"></script>
 </head><body>
 <!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
@@ -1664,11 +1665,11 @@ function rdLeg(a,b,ft){
   const g=dist(a,b), tas=Math.max(40,PLAN.tas), w=rdWindAt((a.lat+b.lat)/2,(a.lon+b.lon)/2,ft), r=rdGs(g.brg,w,tas);
   return {d:g.d,crs:g.brg,hdg:r.hdg,gs:r.gs,min:g.d/1000/r.gs*60,wind:w};
 }
-function rdAnalyze(){
-  if(!RD.on) return;
-  const info=[], asp=rdAspAll(); let pending=false;
-  for(let i=0;i<RD.pts.length-1;i++){
-    const a=RD.pts[i], b=RD.pts[i+1], L=rdLeg(a,b,PLAN.cruiseFt), n=Math.max(2,Math.ceil(L.d/250)), cl=Math.cos(a.lat*D2R);
+// analisi di una tratta: terreno, zone, quota ideale; usata dall'editor e dal piano (profilo verticale)
+function rdLegAnalyze(a,b,st){
+  const asp=st.asp; let pending=false;
+  {
+    const L=rdLeg(a,b,PLAN.cruiseFt), n=Math.max(2,Math.ceil(L.d/250)), cl=Math.cos(a.lat*D2R);
     const ux=(b.lon-a.lon)*111320*cl/L.d||0, uy=(b.lat-a.lat)*110540/L.d||0;
     let maxM=-1e9, maxAt=null;
     for(let k=0;k<=n;k++){ const t=k/n, lat=a.lat+(b.lat-a.lat)*t, lon=a.lon+(b.lon-a.lon)*t;
@@ -1700,10 +1701,60 @@ function rdAnalyze(){
         const lo=rdLim(x.lo,sp.tf), hi=rdLim(x.hi,sp.tf);
         if(altFt>=lo-50 && altFt<=hi+50){ let v={status:'warn',text:''}; try{ v=IA517_RULES.verdict(x); }catch(e){} hits.set(x,{a:x,v,avoid:rdAvoid(x)}); } } }
     for(const z of rdNoflyHit(a,b)) hits.set(z,{a:{cls:'NO',name:z.name},v:{status:'bad',text:'Punto da non sorvolare'},avoid:true});
-    info.push(Object.assign(L,{terrFt,safeFt,maxAt,altFt,why,ceilFt,ceilName,hits:[...hits.values()]}));
+    if(pending) st.pending=true;
+    return Object.assign(L,{terrFt,safeFt,maxAt,altFt,why,ceilFt,ceilName,hits:[...hits.values()]});
   }
-  RD.info=info; RD.pending=pending; rdInfo(); rdDraw();
+}
+function rdAnalyze(){
+  if(!RD.on) return;
+  const st={asp:rdAspAll(),pending:false}, info=[];
+  for(let i=0;i<RD.pts.length-1;i++) info.push(rdLegAnalyze(RD.pts[i],RD.pts[i+1],st));
+  const pending=st.pending;
+  RD.info=info; RD.vert=rdVert(RD.pts,info); RD.pending=pending; rdInfo(); rdDraw();
   if(pending){ clearTimeout(RD.aT); RD.aT=setTimeout(rdAnalyze,900); }
+}
+// ---------- profilo verticale: salite e discese possibili col velivolo, giri di 360° dove non bastano le tratte ----------
+// Si parte dalla quota del campo di partenza, si arriva alla quota del circuito del campo d'arrivo. Una salita che il terreno
+// chiede va finita prima del punto più alto della tratta. Peso: quello del piano (persone, bagaglio, carburante a bordo).
+function rdFieldFt(p){ const f=p&&p.f; if(f&&f.elft!=null) return f.elft; const z=rdDem(p.lat,p.lon,11); return z===z?z/0.3048:null; }
+function rdOrbitRoom(p,R,belowFt){ // giri possibili intorno al punto se il terreno nel cerchio (raggio + 200 m) resta sotto belowFt
+  let mx=-1e9; const cl=Math.cos(p.lat*D2R);
+  for(const r of [0,R*0.6,R+200]) for(let k=0;k<(r?12:1);k++){ const an=k*Math.PI/6, z=rdDem(p.lat+r*Math.cos(an)/110540,p.lon+r*Math.sin(an)/(111320*cl),11); if(z===z&&z>mx) mx=z; }
+  return {ok:mx<=-1e8?true:mx/0.3048<belowFt, topFt:mx>-1e8?Math.round(mx/0.3048):null}; }
+function rdVertHtml(V){ if(!V) return ''; const ls=V.legs.filter(v=>v.note);
+  if(!ls.length) return `<div class="ok">Salite e discese stanno nelle tratte (peso stimato ${V.W} kg).</div>`;
+  return ls.map(v=>`<div class="${v.ok?'warn':'bad'}">${v.arrive?'Arrivo':'T'+(v.i+1)}: ${v.dir==='su'?'salita':'discesa'} ${v.from}→${v.to} ft · ${esc(v.note)}${v.ok&&v.sec?` (+${fmtMin(v.sec/60)})`:''}</div>`).join('')+`<div class="sub">Peso stimato ${V.W} kg: rateo di salita calcolato con quota e peso.</div>`; }
+function rdVert(pts,info){
+  const P=window.IA517_PERF||(parent&&parent.IA517_PERF); if(!P||!info.length) return null;
+  const a=ACP(), wb=PLAN.wb||{}, W=P.weight(a,{pil:wb.pil,pax:wb.pax,bag:wb.bag,fuelL:PLAN.fuel}), o={W,isa:0};
+  const marg=600, dep=rdFieldFt(pts[0]), arr=rdFieldFt(pts[pts.length-1]), hc=+a.hcFt||1000;
+  let h=dep!=null?dep:info[0].altFt; const out=[]; let extra=0;
+  for(let i=0;i<info.length;i++){ const L=info[i], A=pts[i], gs=Math.max(15,(L.gs||PLAN.tas)/3.6), tgt=L.altFt, v={i,from:Math.round(h),to:tgt,turns:0,dir:'',note:'',ok:true};
+    if(tgt>h+50){ // salita
+      const need=P.climbDist(a,h,tgt,gs,o), terr=L.why==='terreno'||(L.safeFt&&L.safeFt>=tgt-100);
+      const avail=terr&&L.maxAt?Math.max(0,dist(A,L.maxAt).d-300):L.d;
+      v.need=need; v.avail=avail; v.dir='su';
+      if(need>avail){ const hReach=P.climbIn(a,h,avail,gs,o), orb=P.orbit(a,(h+tgt)/2,o);
+        if(!isFinite(need)||P.roc(a,tgt,o)<50){ v.ok=false; v.note=`il velivolo non arriva a ${tgt} ft (quota massima del profilo ${a.ceil||'?'} ft)`; }
+        else { v.turns=Math.ceil((tgt-hReach)/Math.max(30,orb.up)); v.sec=v.turns*orb.sec; v.R=orb.R;
+          const room=rdOrbitRoom(A,orb.R,i===0?h+500:h-marg);   // sul campo di partenza la spirale comincia a ~500 ft dal suolo
+          if(!room.ok){ v.ok=false; v.note=`servirebbero ${v.turns} giri di 360° su ${A.f?A.f.short:('punto '+(i+1))}, ma il terreno intorno (${room.topFt} ft) non lascia spazio: cambia percorso o parti più in alto`; }
+          else { extra+=v.sec; v.note=`${v.turns} ${v.turns===1?'giro':'giri'} di 360° in salita su ${A.f?A.f.short:('punto '+(i+1))} (raggio ${Math.round(orb.R)} m, ${Math.round(orb.up)} ft a giro)`; } } }
+      h=tgt; }
+    else if(tgt<h-50){ // discesa
+      const need=P.descDist(a,h,tgt,gs), avail=L.d; v.dir='giù'; v.need=need; v.avail=avail;
+      if(need>avail){ const orb=P.orbit(a,(h+tgt)/2,o), lost=avail/gs*P.rod(a)/60; v.turns=Math.ceil((h-tgt-lost)/Math.max(30,orb.down)); v.sec=v.turns*orb.sec; extra+=v.sec;
+        const room=rdOrbitRoom(A,orb.R,tgt-marg); if(!room.ok){ v.ok=false; v.note=`discesa troppo ripida e il terreno non lascia girare: allunga la tratta`; }
+        else v.note=`${v.turns} ${v.turns===1?'giro':'giri'} di 360° in discesa su ${A.f?A.f.short:('punto '+(i+1))}`; }
+      h=tgt; }
+    out.push(v); }
+  // arrivo: dalla quota dell'ultima tratta al circuito del campo
+  if(arr!=null){ const L=info[info.length-1], B=pts[pts.length-1], gs=Math.max(15,(L.gs||PLAN.tas)/3.6), circ=Math.round((arr+hc)/50)*50;
+    if(h>circ+100){ const need=P.descDist(a,h,circ,gs);
+      if(need>L.d){ const orb=P.orbit(a,(h+circ)/2,o), lost=L.d/gs*P.rod(a)/60, turns=Math.ceil((h-circ-lost)/Math.max(30,orb.down));
+        const room=rdOrbitRoom(B,orb.R,circ-200); extra+=turns*orb.sec;
+        out.push({i:info.length,arrive:true,from:Math.round(h),to:circ,turns,dir:'giù',sec:turns*orb.sec,ok:room.ok,note:room.ok?`${turns} ${turns===1?'giro':'giri'} di 360° in discesa sopra ${B.f?B.f.short:'l\'arrivo'} fino al circuito (${circ} ft)`:`arrivi troppo alto e il terreno intorno al campo non lascia girare: comincia a scendere prima`}); } } }
+  return {legs:out,extraMin:extra/60,W:Math.round(W),ok:out.every(v=>v.ok)};
 }
 function rdInfo(){
   const box=$('rdInfo'); if(!box) return;
@@ -1718,6 +1769,7 @@ function rdInfo(){
     `margine sul terreno <select id="rdMg">${[500,1000,1500,2000].map(v=>`<option value="${v}"${v===RD.margin?' selected':''}>${v} ft</option>`).join('')}</select></div>`+
     (RD.pending?'<div class="warn">Scarico le quote del terreno…</div>':(mx>PLAN.cruiseFt?`<div class="bad">Quota sicura sulla rotta: ${mx} ft, più alta della crociera. Tocca «Quota sicura» per alzarla.</div>`:(mx?`<div class="ok">Terreno: la crociera di ${PLAN.cruiseFt} ft lascia almeno ${RD.margin} ft (quota sicura ${mx} ft).</div>`:'')))+
     (under.length?`<div class="warn">Quote: ${under.join(' · ')}</div>`:'')+
+    rdVertHtml(RD.vert)+
     (avoid.length?`<div class="bad">Dentro zone da evitare: ${avoid.join(' · ')}. Tocca «Evita zone».</div>`:'')+
     (other.length?`<div class="warn">Attraversi: ${other.join(' · ')}</div>`:'')+
     (rdAspAll().length?'':'<div class="warn">Spazi aerei non caricati: Briefing › Scarica gli spazi aerei d\'Italia.</div>')+
@@ -1960,7 +2012,8 @@ async function rdAround(A,B){
 }
 async function rdAvoidAll(){
   if(RD.pts.length<2){ rdHint('Disegna prima partenza e arrivo'); return; }
-  if(!rdAspAll().length){ rdHint('Spazi aerei non caricati: Briefing › Scarica gli spazi aerei d\'Italia',5000); return; }
+  const noAsp=!rdAspAll().length;                            // senza spazi aerei si calcola lo stesso: valli, terreno e vento
+  if(noAsp) rdHint('Spazi aerei non caricati: calcolo con terreno e vento soltanto',4000);
   rdAnalyze(); const bad=RD.info.map((l,i)=>l.hits.some(h=>h.avoid)?i:-1).filter(i=>i>=0);
   rdPush(); RD.busy='Calcolo la rotta…'; rdDraw(); let added=0, failed=0, k=1;
   // anche le tratte senza zone: se il terreno chiede di salire, si cerca la valle
@@ -1980,6 +2033,7 @@ async function rdAvoidAll(){
   let kk=1; for(const p of RD.pts) if(p.name&&/^R\d+$/.test(p.name)) p.name='R'+(kk++);
   added=RD.pts.filter(p=>p.name&&/^R\d+$/.test(p.name)).length;
   RD.busy=false; rdAnalyze();
+  if(noAsp) RD.msgNoAsp=true; else RD.msgNoAsp=false;
   const left=new Set(); RD.info.forEach(l=>l.hits.forEach(h=>{ if(h.avoid) left.add(`${h.a.cls} ${h.a.name}`); }));
   RD.msg=failed?`Per ${failed} tratte non trovo un passaggio libero alla quota di crociera: prova ad alzarla o abbassarla, oppure sposta i punti a mano.`:(added?`Aggiunti ${added} punti (R1, R2…): la rotta più breve in tempo con il vento previsto, intorno alle zone e ai punti da non sorvolare, dalle valli dove il terreno lo chiede.`+(left.size?` Restano da verificare: ${[...left].slice(0,4).join(', ')} (ci parti o ci arrivi, oppure il terreno obbliga a salire dentro). Controlla la rotta prima del volo.`:' Controlla la rotta prima del volo.'):(left.size?`La rotta diritta è già la migliore, ma restano: ${[...left].slice(0,4).join(', ')}.`:'La rotta diritta è già la più breve e libera: nessun punto da aggiungere.'));
   rdChanged(); rdHint(failed?'Rotta calcolata in parte: vedi sotto la mappa':(added?`Rotta calcolata: ${added} punti aggiunti`+(left.size?' · restano zone, vedi sotto':''):'La rotta diritta è già la migliore'),3500);
@@ -2084,7 +2138,7 @@ function rdWxHtml(R){
 window.IA517_routeEditor=rdOpen;
 // per il collaudo automatico (emulatore): accesso dall'app dello strumento
 window.IA517_rd={get RD(){ return RD; }, close:rdClose, open:rdOpen,
-  plan(from,dest,ft){ PLAN.from=from; PLAN.wps=[]; PLAN.dest=dest; if(ft){ PLAN.cruiseFt=ft; $('pAlt').value=ft; } renderRoute(); update(); }};
+  plan(from,dest,ft){ PLAN.from=from; PLAN.wps=[]; PLAN.dest=dest; if(ft){ PLAN.cruiseFt=ft; $('pAlt').value=ft; } PV.autoDone=PV.sig(); renderRoute(); update(); }};
 
 // riquadro nel Briefing: ultimo controllo meteo della rotta alle quote
 (()=>{ const host=$('bSummary')&&$('bSummary').closest('section'); if(!host) return; const sec=document.createElement('section'); sec.className='card'; sec.id='wxRouteCard';
@@ -2093,6 +2147,71 @@ window.IA517_rd={get RD(){ return RD; }, close:rdClose, open:rdOpen,
 function renderWxRoute(){ const b=$('wxRoute'); if(!b) return; const R=PLAN.wxRep;
   b.innerHTML=R?`<div style="margin-bottom:6px">${wxStamp(PLAN.wxRepT,'Controllo meteo')}</div>`+rdWxHtml(R):'<div class="sub">Non ancora fatto per questa rotta: apri la rotta e tocca «Controllo meteo alle quote».</div>'; }
 { const _u2=update; update=function(){ _u2(); try{ renderWxRoute(); }catch(e){} }; }
+
+
+// ---------- piano: profilo verticale della rotta e rotta migliore automatica ----------
+// Il riquadro «Salite, discese e giri» mostra per ogni tratta la quota, se la salita o la discesa ci sta col velivolo
+// (peso e quota) e i giri di 360° che servono; il tempo dei giri entra nel tempo e nel carburante del piano.
+// Se la rotta è dritta (solo partenza e arrivo) e passa su zone da evitare, o il terreno obbliga a salire molto sopra la
+// crociera, o la salita non ci sta, la rotta migliore si calcola da sola (una volta per coppia partenza-arrivo).
+window.IA517_PV=null;
+const PV={res:null,key:'',busy:false,autoDone:'',msg:'',straight:null,
+  sig(){ return [PLAN.from,PLAN.dest,PLAN.cruiseFt,RD.margin].join('|'); }};
+window.IA517_PV=PV;
+function pvCompute(force){
+  const pts=[PLAN.from,...PLAN.wps,PLAN.dest].map(byId).filter(Boolean).map(f=>({lat:f.lat,lon:f.lon,f}));
+  if(pts.length<2){ PV.res=null; return null; }
+  const a=ACP(), key=JSON.stringify([pts.map(p=>p.f.id),PLAN.cruiseFt,PLAN.tas,PLAN.fuel,PLAN.wb,RD.margin,a.roc,a.rod,a.ceil,a.mtow,a.empty,!!rdAspAll().length]);
+  if(!force && PV.key===key && PV.res && !PV.res.pending) return PV.res;
+  const st={asp:rdAspAll(),pending:false}, info=[];
+  for(let i=0;i<pts.length-1;i++) info.push(rdLegAnalyze(pts[i],pts[i+1],st));
+  const V=rdVert(pts,info); PV.res={pts,info,V,pending:st.pending}; PV.key=key;
+  if(st.pending){ clearTimeout(PV.t); PV.t=setTimeout(()=>{ try{ pvCompute(true); renderPV(); pvAutoCheck(); update(); }catch(e){} },1500); }
+  return PV.res;
+}
+(()=>{ const sec=document.createElement('section'); sec.className='card'; sec.id='pvCard';
+  sec.innerHTML=`<h2>↗ Salite, discese e giri <span class="sub" id="pvSub"></span></h2><div id="pvBox" class="fuel"></div>`;
+  const legs=$('legs'); (legs&&legs.closest('section')||$('fuel').closest('section')).after(sec); })();
+function renderPV(){
+  const box=$('pvBox'); if(!box) return; const R=PV.res;
+  if(!R){ box.innerHTML='<span class="sub">Imposta partenza e arrivo.</span>'; return; }
+  const V=R.V, rows=R.info.map((L,i)=>{ const v=V&&V.legs.find(x=>x.i===i&&!x.arrive);
+    return `<div class="row"><span>T${i+1} ${esc(R.pts[i].f.short)} → ${esc(R.pts[i+1].f.short)}</span><span><b>${L.altFt} ft</b>${(L.safeFt&&L.safeFt>=L.altFt-100)?' · per il terreno':(L.why==='sotto'?' · sotto una zona':(L.why==='vento'?' · vento migliore':''))}</span></div>`+
+      (v&&v.note?`<div class="sub" style="color:${v.ok?'var(--warn)':'var(--bad)'}">${v.dir==='su'?'Salita':'Discesa'} ${v.from}→${v.to} ft: ${esc(v.note)}${v.ok&&v.sec?` · +${fmtMin(v.sec/60)}`:''}</div>`:''); }).join('');
+  const arr=V&&V.legs.find(x=>x.arrive);
+  const avoid=R.info.some(l=>l.hits.some(h=>h.avoid));
+  box.innerHTML=(PV.busy?`<div class="pill warn">${esc(PV.busy)}</div>`:'')+(PV.msg?`<div class="sub">${esc(PV.msg)}</div>`:'')+rows+
+    (arr?`<div class="sub" style="color:${arr.ok?'var(--warn)':'var(--bad)'}">Arrivo ${arr.from}→${arr.to} ft: ${esc(arr.note)}${arr.ok?` · +${fmtMin(arr.sec/60)}`:''}</div>`:'')+
+    (R.pending?'<div class="sub">Scarico le quote del terreno…</div>':'')+
+    (V?`<div class="row sum"><span>Giri di 360° in tutto</span><span>${V.extraMin>0?'+'+fmtMin(V.extraMin)+' (già nel tempo e nel carburante)':'nessuno'}</span></div>`:'')+
+    (V&&!V.ok?'<span class="pill bad">Una salita o una discesa non si può fare così: rivedi la rotta</span>':'')+
+    (avoid?'<span class="pill bad">La rotta passa in zone da evitare</span>':'')+
+    `<div class="btnrow" style="margin-top:6px">${PLAN.wps.length?'':'<button class="btn" type="button" id="pvBest">Calcola la rotta migliore</button>'}${PV.straight?'<button class="btn" type="button" id="pvStraight">Torna alla rotta dritta</button>':''}</div>`;
+  $('pvSub').textContent=V?`· peso stimato ${V.W} kg`:'';
+  const b=$('pvBest'); if(b) b.onclick=()=>pvBest(true);
+  const s2=$('pvStraight'); if(s2) s2.onclick=()=>{ PLAN.wps=[]; PV.straight=null; PV.autoDone=PV.sig(); PV.msg='Rotta dritta ripristinata.'; renderRoute(); update(); store.set('ia517_plan',PLAN); };
+}
+// rotta migliore senza aprire l'editor (stesso calcolo di «Calcola rotta»)
+async function pvBest(manual){
+  if(PV.busy||RD.on) return; const pts=[PLAN.from,...PLAN.wps,PLAN.dest].map(byId).filter(Boolean); if(pts.length!==2) return;
+  PV.busy='Calcolo la rotta migliore (valli, zone, vento, salite)…'; PV.msg=''; renderPV();
+  try{ rdBuild(); RD.pts=pts.map(f=>({lat:f.lat,lon:f.lon,f})); RD.hist=[]; RD.on=true; RD.msg='';
+    await rdAvoidAll();
+    if(RD.pts.length>2){ PV.straight={from:PLAN.from,dest:PLAN.dest}; rdSave(); PV.msg=`Rotta migliore: ${RD.pts.length-2} ${RD.pts.length-2===1?"punto aggiunto (R1)":"punti aggiunti (R1, R2…)"} dalle valli, col vento previsto${RD.msgNoAsp?'. Spazi aerei non caricati: zone non considerate (Briefing › Scarica gli spazi aerei)':''}.`; }
+    else PV.msg=manual?'La rotta dritta è già la migliore.':''; }
+  catch(e){ PV.msg='Calcolo non riuscito: '+e.message; }
+  finally{ RD.on=false; PV.busy=false; PV.autoDone=PV.sig(); renderPV(); }
+}
+function pvAutoCheck(){
+  const R=PV.res; if(!R||R.pending||PLAN.wps.length||PV.busy||RD.on||PV.autoDone===PV.sig()||!R.info.length) return;
+  const L=R.info[0], bad=L.hits.some(h=>h.avoid) || ((L.safeFt||0)>PLAN.cruiseFt+1000) || (R.V&&!R.V.ok);
+  PV.autoDone=PV.sig();
+  if(bad){ clearTimeout(PV.at); PV.at=setTimeout(()=>pvBest(false),800); }
+}
+{ const _u=update; update=function(){ try{ pvCompute(false); }catch(e){ console.error(e); } _u(); try{ renderPV(); pvAutoCheck(); }catch(e){ console.error(e); } }; }
+// tempo e carburante: i giri di 360° si aggiungono al viaggio
+{ const c0=compute; compute=function(){ const c=c0(); try{ const V=PV.res&&PV.res.V; if(V&&V.extraMin>0){ const add=V.extraMin, L=add/60*PLAN.burn;
+      c.min+=add; c.trip+=L; c.need+=L; c.margin-=L; c.orbitMin=add; } }catch(e){} return c; }; }
 
 mergeUserFields(); addRwRow();
 renderRoute(); renderStatus(); renderSaved(); renderUser(); update(); showTab(location.hash.slice(1)||'piano'); setLink();

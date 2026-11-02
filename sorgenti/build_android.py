@@ -43,6 +43,7 @@ HEAD = """<!doctype html>
 <script src="version.js"></script>
 <script src="regole.js"></script>
 <script src="carburante.js"></script>
+<script src="prestazioni.js"></script>
 <script src="licenza.js"></script>
 </head><body>
 """
@@ -180,7 +181,7 @@ def build_app():
 SW = r"""// Service worker: l'app funziona anche senza internet.
 // Pagine: dalla cache e aggiornate in sottofondo. Terreno e mappa: dalla cache appena scaricati.
 const V='ia517-app-__VERSION__';
-const CORE=['./','index.html','app.html','version.js','regole.js','carburante.js','licenza.js','LICENZE.txt','manifest.webmanifest','icon-192.png','icon-512.png'];
+const CORE=['./','index.html','app.html','version.js','regole.js','carburante.js','prestazioni.js','licenza.js','LICENZE.txt','manifest.webmanifest','icon-192.png','icon-512.png'];
 // nell'app installata (APK) le pagine sono già sul telefono: si mettono in cache solo terreno, mappe e meteo
 const NATIVE=self.location.hostname==='localhost' && self.location.port==='';
 self.addEventListener('install',e=>{ e.waitUntil((NATIVE?Promise.resolve():caches.open(V).then(c=>c.addAll(CORE))).then(()=>self.skipWaiting())); });
@@ -269,6 +270,7 @@ def main():
     (OUT / "index.html").write_text(brand(build_pfd()), encoding="utf-8")
     (OUT / "app.html").write_text(brand(build_app()), encoding="utf-8")
     (OUT / "regole.js").write_text((SRC / "regole.js").read_text(encoding="utf-8"), encoding="utf-8")
+    (OUT / "prestazioni.js").write_text((SRC / "prestazioni.js").read_text(encoding="utf-8"), encoding="utf-8")
     (OUT / "carburante.js").write_text((SRC / "carburante.js").read_text(encoding="utf-8").replace("__FUEL__", (SRC / "carburante_oa.json").read_text(encoding="utf-8")), encoding="utf-8")
     cfg = json.loads((SRC / "licenza_cfg.json").read_text(encoding="utf-8"))
     lic = (SRC / "licenza.js").read_text(encoding="utf-8")

@@ -14,6 +14,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.14','Prestazioni vere del velivolo: il rateo di salita cala con la quota e col peso (nuovo nel profilo: rateo di discesa massimo). Nel piano «Salite, discese e giri»: per ogni tratta se la salita o la discesa ci sta, altrimenti giri di 360° dove il terreno lascia spazio (tempo e carburante inclusi); se la rotta dritta passa su zone vietate o costringe a salire troppo, la rotta migliore dalle valli si calcola da sola. In volo: 10 s dopo «salendo diritto non passi» parte la manovra guidata (spirale in salita dal lato libero, o inversione) fino alla quota sicura, poi si riprende la rotta; troppo alto vicino al campo: spirale in discesa fino al circuito.'],
   ['2.0.13','Quota sul terreno con sguardo adattivo: entro 1 km sempre, e fino a 10 km quando una cresta richiede di cominciare a salire prima, secondo velocità e rateo di salita del velivolo.'],
   ['2.0.12','Terreno davanti: se entro 1 km, alla quota obiettivo, il margine sul terreno scende nel giallo, la quota obiettivo sale da sola (anche se si entra in uno spazio aereo: l\'app lo dice per avvisare l\'ente) e torna a quella pianificata quando il terreno è libero. Se salendo col rateo del velivolo non si passa: «SALENDO NON PASSI · VIRA».'],
   ['2.0.11','Terreno 3D più dettagliato: griglia a ventaglio e due livelli più fini (fino a 72×160), scelti da soli se il telefono ce la fa.'],

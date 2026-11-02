@@ -26,7 +26,8 @@ PH.AC_SCHEMA=[
     {k:'vcirc',l:'Circuito (sottovento e base)',n:[20,300]},
     {k:'vcruise',l:'Crociera (velocità vera, per il piano)',n:[30,500]}]},
   {g:'Prestazioni',f:[
-    {k:'roc',l:'Rateo di salita (ft/min)',n:[100,3000]},
+    {k:'roc',l:'Rateo di salita a pieno carico, al livello del mare (ft/min)',n:[100,3000]},
+    {k:'rod',l:'Rateo di discesa massimo (ft/min)',n:[200,3000]},
     {k:'glide',l:'Efficienza in planata (1 : …)',n:[3,60],step:0.5},
     {k:'todist',l:'Decollo fino a 15 m di altezza, a peso massimo (m)',n:[30,3000]},
     {k:'ldist',l:'Atterraggio da 15 m di altezza, a peso massimo (m)',n:[30,3000]},
@@ -61,12 +62,12 @@ PH.AC_SCHEMA=[
 // profilo di partenza: l'Avid Flyer di Enry (I-A517), con i valori che l'app usava finora
 PH.AC_DEF={id:'ac-ia517',reg:'I-A517',model:'Avid Flyer',cat:'vds_basico',notes:'',
   vs0:42,vs1:55,vfe:100,va:110,vno:130,vne:145,vx:70,vy:80,vglide:80,vapp:95,vcirc:105,vcruise:110,
-  roc:600,glide:8,todist:250,ldist:250,xwind:20,hcFt:800,ceil:10000,
+  roc:600,rod:700,glide:8,todist:250,ldist:250,xwind:20,hcFt:800,ceil:10000,
   fuelType:'mogas',fuelCap:73,fuelUnus:1,burn:14,res:30,taxi:1.5,
   empty:280,emptyArm:'',mtow:450,seats:'2',pilotArm:'',paxArm:'',fuelArm:'',bagMax:10,bagArm:'',cgFwd:'',cgAft:'',
   xpdr:'no',radio:'1',elt:'0',chute:'0'};
 PH.AC_NEW={reg:'',model:'',cat:'vds_avanzato',notes:'',vs0:55,vs1:65,vfe:110,va:130,vno:180,vne:220,vx:85,vy:95,vglide:95,vapp:100,vcirc:115,vcruise:160,
-  roc:800,glide:10,todist:300,ldist:300,xwind:25,hcFt:1000,ceil:12000,fuelType:'mogas',fuelCap:80,fuelUnus:2,burn:16,res:30,taxi:2,
+  roc:800,rod:800,glide:10,todist:300,ldist:300,xwind:25,hcFt:1000,ceil:12000,fuelType:'mogas',fuelCap:80,fuelUnus:2,burn:16,res:30,taxi:2,
   empty:300,emptyArm:'',mtow:600,seats:'2',pilotArm:'',paxArm:'',fuelArm:'',bagMax:20,bagArm:'',cgFwd:'',cgAft:'',xpdr:'s',radio:'1',elt:'1',chute:'0'};
 PH.acs=lsGet('ia517p_aircraft',null)||[Object.assign({},PH.AC_DEF)];
 PH.acId=lsGet('ia517p_acid',PH.acs[0].id);
