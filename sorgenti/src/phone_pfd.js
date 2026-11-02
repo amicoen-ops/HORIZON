@@ -1835,20 +1835,24 @@ PH.ringTop=function(c,R){ let mx=-1e9; for(const r of [0,R*0.6,R+200]) for(let k
 PH.manPlan=function(needFt){
   const P=window.IA517_PERF, a=PH.ac||{}; if(!P) return;
   const pl=lsGet('ia517_plan',{})||{}, wb=pl.wb||{}; let fuelL=null; try{ fuelL=PH.fuelNow().L; }catch(e){}
-  const kmh=Math.max(50,S.ias||S.gs||0)||null, W=P.weight(a,{pil:wb.pil,pax:wb.pax,bag:wb.bag,fuelL}), orb=P.orbit(a,S.alt||0,{W,kmh}), trk=S.trk!=null?S.trk:S.hdg, here={lat:S.lat,lon:S.lon};
+  const kmh=Math.max(50,S.ias||S.gs||0)||null, W=P.weight(a,{pil:wb.pil,pax:wb.pax,bag:wb.bag,fuelL}), trk=S.trk!=null?S.trk:S.hdg, here={lat:S.lat,lon:S.lon}, MAXT=P.MAXTURNS||4;
+  // spirale: la più larga che ci sta (10°, poi 15°, poi 20°), al massimo 4 giri; se non basta si torna indietro dove il terreno è basso e si sale piano
   let best=null;
-  for(const dir of [-1,1]){ const c=PH.geoOff(here,trk+dir*90,orb.R), top=PH.ringTop(c,orb.R);
-    if(top>-1e8 && top<(S.alt||0)*FT2M-CREST_M && (!best||top<best.top)) best={dir,c,top}; }
-  if(best){ const turns=Math.max(1,Math.ceil((needFt-(S.alt||0))/Math.max(30,orb.up)));
-    PH.MAN={type:'su',dir:best.dir,c:best.c,R:orb.R,need:needFt,turns,acc:0,lastTrk:trk,t0:performance.now()};
-    PH.say(`spirale in salita a ${best.dir<0?'sinistra':'destra'}, ${turns===1?'un giro':turns+' giri'}, fino a ${needFt} piedi`,true); }
-  else { // niente spazio per girare in salita qui: inversione dalla parte del terreno più basso, salendo; poi si riprende
+  for(const bank of [10,15,20]){ const orb=P.orbit(a,S.alt||0,{W,kmh,bank}), turns=Math.max(1,Math.ceil((needFt-(S.alt||0))/Math.max(30,orb.up)));
+    if(turns>MAXT) continue;
+    for(const dir of [-1,1]){ const c=PH.geoOff(here,trk+dir*90,orb.R), top=PH.ringTop(c,orb.R);
+      if(top>-1e8 && top<(S.alt||0)*FT2M-CREST_M && (!best||top<best.top)) best={dir,c,top,orb,turns,bank}; }
+    if(best) break; }
+  if(best){ const turns=best.turns, orb=best.orb;
+    PH.MAN={type:'su',dir:best.dir,c:best.c,R:orb.R,bank:best.bank,need:needFt,turns,acc:0,lastTrk:trk,t0:performance.now()};
+    PH.say(`spirale larga in salita a ${best.dir<0?'sinistra':'destra'}, ${turns===1?'un giro':turns+' giri'}, fino a ${needFt} piedi`,true); }
+  else { // niente spazio per girare o servirebbero più di 4 giri: inversione dalla parte del terreno più basso, si sale piano tornando indietro; poi si riprende
     const V=Math.max(15,(S.ias||S.gs||100)/3.6), Rt=V*V/(9.80665*Math.tan(30*D2R));        // inversione stretta: 30°
     const zl=PH.ringTop(PH.geoOff(here,trk-90,Rt),Rt), zr=PH.ringTop(PH.geoOff(here,trk+90,Rt),Rt), dir=(zl<=zr)?-1:1;
     PH.MAN={type:'inv',dir,tgt:wrap360(trk+180),need:needFt,phase:'vira',t0:performance.now()};
     PH.say(`inversione a ${dir<0?'sinistra':'destra'} e sali a ${needFt} piedi`,true); }
   try{ el('toast').classList.remove('show'); const ad=el('phAlert'); if(ad && /^terr/.test(ad.dataset.key||'')) ad.hidden=true; }catch(e){}
-  PH.act&&PH.act(`manovra: ${PH.MAN.type==='su'?'spirale in salita '+(PH.MAN.dir<0?'SX':'DX')+' '+PH.MAN.turns+' giri':'inversione '+(PH.MAN.dir<0?'SX':'DX')} fino a ${needFt} ft`);
+  PH.act&&PH.act(`manovra: ${PH.MAN.type==='su'?'spirale in salita '+(PH.MAN.dir<0?'SX':'DX')+' '+PH.MAN.turns+' giri a '+PH.MAN.bank+'°':'inversione '+(PH.MAN.dir<0?'SX':'DX')} fino a ${needFt} ft`);
 };
 // discesa: troppo alto vicino al campo d'arrivo per scendere al circuito col rateo del velivolo → spirale in discesa
 PH.manDescCheck=function(){
@@ -1858,13 +1862,16 @@ PH.manDescCheck=function(){
   const d=distBrg({lat:S.lat,lon:S.lon},f).d; if(d>8000) return;
   const circ=Math.round((f.elev/FT2M+(+a.hcFt||1000))/50)*50, gs=Math.max(15,(S.gs!=null?S.gs:S.ias||100)/3.6), canLose=P.rod(a)*(Math.max(0,d-1500)/gs)/60;
   if((S.alt||0)-circ <= canLose+300) return;
-  const orb=P.orbit(a,S.alt||0,{kmh:Math.max(50,S.ias||S.gs||0)}), trk=S.trk!=null?S.trk:S.hdg, here={lat:S.lat,lon:S.lon}; let best=null;
-  for(const dir of [-1,1]){ const c=PH.geoOff(here,trk+dir*90,orb.R), top=PH.ringTop(c,orb.R); if(top>-1e8 && top<circ*FT2M-TAWS_YEL && (!best||top<best.top)) best={dir,c,top}; }
-  PH.descFor=f.id; if(!best) return;
-  const turns=Math.max(1,Math.ceil(((S.alt||0)-circ-canLose)/Math.max(30,orb.down)));
-  PH.MAN={type:'giu',dir:best.dir,c:best.c,R:orb.R,need:circ,turns,acc:0,lastTrk:trk,t0:performance.now()};
-  PH.say(`troppo alto. spirale in discesa a ${best.dir<0?'sinistra':'destra'} fino a ${circ} piedi`,true);
-  PH.act&&PH.act(`manovra: spirale in discesa ${best.dir<0?'SX':'DX'} ${turns} giri fino a ${circ} ft`);
+  const trk=S.trk!=null?S.trk:S.hdg, here={lat:S.lat,lon:S.lon}, MAXT=P.MAXTURNS||4; let best=null;
+  for(const bank of [10,15,20]){ const orb=P.orbit(a,S.alt||0,{kmh:Math.max(50,S.ias||S.gs||0),bank,soft:true}), turns=Math.max(1,Math.ceil(((S.alt||0)-circ-canLose)/Math.max(30,orb.down)));
+    if(turns>MAXT) continue;
+    for(const dir of [-1,1]){ const c=PH.geoOff(here,trk+dir*90,orb.R), top=PH.ringTop(c,orb.R); if(top>-1e8 && top<circ*FT2M-TAWS_YEL && (!best||top<best.top)) best={dir,c,top,orb,turns,bank}; }
+    if(best) break; }
+  PH.descFor=f.id;
+  if(!best){ PH.say('troppo alto per il circuito. allunga il percorso e scendi piano',true); toast('TROPPO ALTO · ALLUNGA E SCENDI PIANO'); return; }
+  PH.MAN={type:'giu',dir:best.dir,c:best.c,R:best.orb.R,bank:best.bank,need:circ,turns:best.turns,acc:0,lastTrk:trk,t0:performance.now()};
+  PH.say(`troppo alto. spirale larga in discesa a ${best.dir<0?'sinistra':'destra'} fino a ${circ} piedi`,true);
+  PH.act&&PH.act(`manovra: spirale in discesa ${best.dir<0?'SX':'DX'} ${best.turns} giri a ${best.bank}° fino a ${circ} ft`);
 };
 PH.manStep=function(){
   const M=PH.MAN; if(!M) return null;
@@ -1880,10 +1887,10 @@ PH.manStep=function(){
     return {cmdRoll,cmdPitch,line:M.phase==='vira'?`INVERSIONE A ${M.dir<0?'SINISTRA':'DESTRA'} 30° · SALI`:`PRUA ${String(Math.round(M.tgt)).padStart(3,'0')}° · SALI A ${M.need} FT`,sub:`mancano ${Math.max(0,Math.round(M.need-alt))} ft · motore pieno, velocità di salita`};
   }
   // spirale: si tiene il cerchio (raggio R intorno al centro), si contano i giri dalla traccia
-  const d=distBrg(M.c,{lat:S.lat,lon:S.lon}).d, cmdRoll=M.dir*clamp(20+(d-M.R)/M.R*15,8,30);
+  const d=distBrg(M.c,{lat:S.lat,lon:S.lon}).d, bk=M.bank||20, cmdRoll=M.dir*clamp(bk+(d-M.R)/M.R*15,Math.max(5,bk-12),30);
   M.acc+=Math.abs(angDiff(trk,M.lastTrk)); M.lastTrk=trk; const done1=Math.floor(M.acc/360)+1;
   const up=M.type==='su', cmdPitch=up?S.pitch+clamp((M.need-alt)/300,0,4):S.pitch-clamp((alt-M.need)/300,0,4);
-  return {cmdRoll,cmdPitch,line:`SPIRALE IN ${up?'SALITA':'DISCESA'} A ${M.dir<0?'SINISTRA':'DESTRA'} · GIRO ${done1}${done1<=M.turns?"/"+M.turns:""}`,
+  return {cmdRoll,cmdPitch,line:`SPIRALE IN ${up?'SALITA':'DISCESA'} A ${M.dir<0?'SINISTRA':'DESTRA'} ${bk}° · GIRO ${done1}${done1<=M.turns?"/"+M.turns:""}`,
     sub:`${up?'sali':'scendi'} a ${M.need} ft · mancano ${Math.max(0,Math.round(Math.abs(M.need-alt)))} ft · ${up?'motore pieno, velocità di salita':'motore ridotto, velocità sotto la VNO'}`};
 };
 // la manovra entra nella guida: barre del flight director, quota obiettivo e (in simulazione) il pilota automatico
