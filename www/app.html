@@ -1724,39 +1724,86 @@ function rdOrbitRoom(p,R,belowFt){ // giri possibili intorno al punto se il terr
   for(const r of [0,R*0.6,R+200]) for(let k=0;k<(r?12:1);k++){ const an=k*Math.PI/6, z=rdDem(p.lat+r*Math.cos(an)/110540,p.lon+r*Math.sin(an)/(111320*cl),11); if(z===z&&z>mx) mx=z; }
   return {ok:mx<=-1e8?true:mx/0.3048<belowFt, topFt:mx>-1e8?Math.round(mx/0.3048):null}; }
 function rdVertHtml(V){ if(!V) return ''; const ls=V.legs.filter(v=>v.note);
-  if(!ls.length) return `<div class="ok">Salite e discese stanno nelle tratte (peso stimato ${V.W} kg).</div>`;
-  return ls.map(v=>`<div class="${v.ok?'warn':'bad'}">${v.arrive?'Arrivo':'T'+(v.i+1)}: ${v.dir==='su'?'salita':'discesa'} ${v.from}→${v.to} ft · ${esc(v.note)}${v.ok&&v.sec?` (+${fmtMin(v.sec/60)})`:''}</div>`).join('')+`<div class="sub">Peso stimato ${V.W} kg: rateo di salita calcolato con quota e peso.</div>`; }
+  if(!ls.length) return `<div class="ok">Salite e discese graduali lungo la rotta, senza giri (peso stimato ${V.W} kg).</div>`;
+  return ls.map(v=>`<div class="${v.lvl||(v.ok?'warn':'bad')}">${v.arrive?'Arrivo':'T'+(v.i+1)}: ${esc(v.note)}${v.ok&&v.sec?` (+${fmtMin(v.sec/60)})`:''}</div>`).join('')+`<div class="sub">Peso stimato ${V.W} kg: salite al 60% del rateo (max 500 ft/min), discese max 500 ft/min.</div>`; }
+// profilo verticale continuo lungo tutta la rotta: si sale e si scende in modo graduale (motore più fresco, meno stress),
+// cominciando prima quando una cresta lo chiede; i giri di 360° (larghi se c'è spazio, al massimo 4 per parte) solo se la strada non basta
 function rdVert(pts,info){
   const P=window.IA517_PERF||(parent&&parent.IA517_PERF); if(!P||!info.length) return null;
-  const a=ACP(), wb=PLAN.wb||{}, W=P.weight(a,{pil:wb.pil,pax:wb.pax,bag:wb.bag,fuelL:PLAN.fuel}), o={W,isa:0};
-  const marg=600, dep=rdFieldFt(pts[0]), arr=rdFieldFt(pts[pts.length-1]), hc=+a.hcFt||1000;
-  let h=dep!=null?dep:info[0].altFt; const out=[]; let extra=0;
-  for(let i=0;i<info.length;i++){ const L=info[i], A=pts[i], gs=Math.max(15,(L.gs||PLAN.tas)/3.6), tgt=L.altFt, v={i,from:Math.round(h),to:tgt,turns:0,dir:'',note:'',ok:true};
-    if(tgt>h+50){ // salita
-      const need=P.climbDist(a,h,tgt,gs,o), terr=L.why==='terreno'||(L.safeFt&&L.safeFt>=tgt-100);
-      const avail=terr&&L.maxAt?Math.max(0,dist(A,L.maxAt).d-300):L.d;
-      v.need=need; v.avail=avail; v.dir='su';
-      if(need>avail){ const hReach=P.climbIn(a,h,avail,gs,o), orb=P.orbit(a,(h+tgt)/2,o);
-        if(!isFinite(need)||P.roc(a,tgt,o)<50){ v.ok=false; v.note=`il velivolo non arriva a ${tgt} ft (quota massima del profilo ${a.ceil||'?'} ft)`; }
-        else { v.turns=Math.ceil((tgt-hReach)/Math.max(30,orb.up)); v.sec=v.turns*orb.sec; v.R=orb.R;
-          const room=rdOrbitRoom(A,orb.R,i===0?h+500:h-marg);   // sul campo di partenza la spirale comincia a ~500 ft dal suolo
-          if(!room.ok){ v.ok=false; v.note=`servirebbero ${v.turns} giri di 360° su ${A.f?A.f.short:('punto '+(i+1))}, ma il terreno intorno (${room.topFt} ft) non lascia spazio: cambia percorso o parti più in alto`; }
-          else { extra+=v.sec; v.note=`${v.turns} ${v.turns===1?'giro':'giri'} di 360° in salita su ${A.f?A.f.short:('punto '+(i+1))} (raggio ${Math.round(orb.R)} m, ${Math.round(orb.up)} ft a giro)`; } } }
-      h=tgt; }
-    else if(tgt<h-50){ // discesa
-      const need=P.descDist(a,h,tgt,gs), avail=L.d; v.dir='giù'; v.need=need; v.avail=avail;
-      if(need>avail){ const orb=P.orbit(a,(h+tgt)/2,o), lost=avail/gs*P.rod(a)/60; v.turns=Math.ceil((h-tgt-lost)/Math.max(30,orb.down)); v.sec=v.turns*orb.sec; extra+=v.sec;
-        const room=rdOrbitRoom(A,orb.R,tgt-marg); if(!room.ok){ v.ok=false; v.note=`discesa troppo ripida e il terreno non lascia girare: allunga la tratta`; }
-        else v.note=`${v.turns} ${v.turns===1?'giro':'giri'} di 360° in discesa su ${A.f?A.f.short:('punto '+(i+1))}`; }
-      h=tgt; }
-    out.push(v); }
-  // arrivo: dalla quota dell'ultima tratta al circuito del campo
-  if(arr!=null){ const L=info[info.length-1], B=pts[pts.length-1], gs=Math.max(15,(L.gs||PLAN.tas)/3.6), circ=Math.round((arr+hc)/50)*50;
-    if(h>circ+100){ const need=P.descDist(a,h,circ,gs);
-      if(need>L.d){ const orb=P.orbit(a,(h+circ)/2,o), lost=L.d/gs*P.rod(a)/60, turns=Math.ceil((h-circ-lost)/Math.max(30,orb.down));
-        const room=rdOrbitRoom(B,orb.R,circ-200); extra+=turns*orb.sec;
-        out.push({i:info.length,arrive:true,from:Math.round(h),to:circ,turns,dir:'giù',sec:turns*orb.sec,ok:room.ok,note:room.ok?`${turns} ${turns===1?'giro':'giri'} di 360° in discesa sopra ${B.f?B.f.short:'l\'arrivo'} fino al circuito (${circ} ft)`:`arrivi troppo alto e il terreno intorno al campo non lascia girare: comincia a scendere prima`}); } } }
-  return {legs:out,extraMin:extra/60,W:Math.round(W),ok:out.every(v=>v.ok)};
+  const a=ACP(), wb=PLAN.wb||{}, W=P.weight(a,{pil:wb.pil,pax:wb.pax,bag:wb.bag,fuelL:PLAN.fuel}), o={W,isa:0}, MAXT=P.MAXTURNS||4;
+  const marg=600, dep=rdFieldFt(pts[0]), arr=rdFieldFt(pts[pts.length-1]), hc=+a.hcFt||1000, M=RD.margin;
+  const circ=arr!=null?Math.round((arr+hc)/50)*50:null, vC=P.vgentle(a);
+  // campioni ogni 400 m: terreno più alto sotto la rotta (±300 m), quota desiderata e tetto delle zone
+  const DX=400, S=[]; let X=0;
+  info.forEach((L,i)=>{ const A=pts[i], B=pts[i+1], n=Math.max(1,Math.round(L.d/DX)), cl=Math.cos(A.lat*D2R);
+    const ux=(B.lon-A.lon)*111320*cl/L.d||0, uy=(B.lat-A.lat)*110540/L.d||0;
+    for(let k=(i?1:0);k<=n;k++){ const t=k/n, la=A.lat+(B.lat-A.lat)*t, lo=A.lon+(B.lon-A.lon)*t; let z=-1e9;
+      for(const off of [-300,0,300]){ const zz=rdDem(la+(ux*off)/110540, lo-(uy*off)/(111320*cl),10); if(zz===zz&&zz>z) z=zz; }
+      const tf=z>-1e8?z/0.3048:0;
+      S.push({x:X+L.d*t,leg:i,tf,U:L.why==='sotto'?L.altFt:Infinity,des:L.why==='sotto'||L.why==='vento'?L.altFt:PLAN.cruiseFt}); }
+    X+=L.d; });
+  // vicino ai campi (decollo e avvicinamento) il margine sul terreno cresce piano: pieno a 5 km dal campo
+  for(const q of S){ const dd=Math.min(q.x,X-q.x), me=M*clamp((dd-500)/4500,0,1); q.req=q.tf+me; }
+  const n=S.length, gUp=h=>P.gentle(a,h,o)/60/vC, gDn=(steep)=>(steep?P.rod(a):P.gentleDn(a))/60/vC;
+  // simulazione: bump[i] = quota guadagnata con i giri prima del campione i; steepDn = discesa al rateo massimo
+  function sim(bump,steepUp,steepDn){
+    const toTop=(dep!=null?dep:-1e9)+1000, full=h=>P.roc(a,h,o)/60/Math.max(15,P.vclimb(a)), gu=h=>(steepUp||h<toTop)?full(h):gUp(h), gd=gDn(steepDn);
+    const E=new Float64Array(n), Ue=new Float64Array(n);
+    E[n-1]=S[n-1].req; for(let k=n-2;k>=0;k--) E[k]=Math.max(S[k].req,E[k+1]-gu(E[k+1])*(S[k+1].x-S[k].x));
+    Ue[n-1]=circ!=null?Math.min(S[n-1].U,circ):S[n-1].U; for(let k=n-2;k>=0;k--) Ue[k]=Math.min(S[k].U,Ue[k+1]+gd*(S[k+1].x-S[k].x));
+    const H=new Float64Array(n); let h=dep!=null?dep:S[0].des, worst=0, wAt=-1, high=0;
+    for(let k=0;k<n;k++){ if(k){ const dx=S[k].x-S[k-1].x; h+=bump[k]||0;
+        const T=Math.max(E[k],Math.min(Math.max(S[k].des,Math.min(h,Ue[k])),Ue[k]));          // si sale fino alla quota voluta (o al terreno), si scende solo se serve
+        h=h<T?Math.min(T,h+gu(h)*dx):Math.max(T,h-gd*dx); } else h+=bump[0]||0;
+      H[k]=h; if(S[k].req-h>worst){ worst=S[k].req-h; wAt=k; } if(h-Ue[k]>high) high=h-Ue[k]; }
+    return {H,worst,wAt,high,hEnd:h}; }
+  const ev=[]; let steepUp=false, steepDn=false, extra=0, okAll=true, bump=new Float64Array(n);
+  // i punti dove si può girare: partenza (sopra il campo) e i punti di rotta
+  const vtx=[0]; { let c=0; info.forEach((L,i)=>{ c+=L.d; if(i<info.length-1) vtx.push(S.findIndex(q=>q.x>=c-1)); }); }
+  const vPt=k=>k===0?pts[0]:pts[S[k].leg+1]||pts[0];
+  // il giro più largo che ci sta (10°, 15°, 20°) e il numero minimo di giri, al massimo 4
+  function tryOrb(k,stU,H){ const p=vPt(k), hAt=H[k], below=k===0?(dep||0)+500:hAt-marg;
+    for(const bank of [10,15,20]){ const orb=P.orbit(a,hAt,{W,isa:0,bank,soft:!stU}); if(orb.up<20) continue;
+      if(!rdOrbitRoom(p,orb.R,below).ok) continue;
+      for(let t=1;t<=MAXT;t++){ const b=new Float64Array(n); b[k]=t*orb.up; const rr=sim(b,stU,false); if(rr.worst<=50) return {k,t,orb,bank,rr,b,p}; } }
+    return null; }
+  const pickOrb=(p,hAt,gain,up,steep,below)=>{ for(const bank of [10,15,20]){ const orb=P.orbit(a,hAt,{W,isa:0,bank,soft:!steep}), per=up?orb.up:orb.down;
+      if(per<20) continue; const turns=Math.ceil(gain/per); if(turns>MAXT) continue; if(rdOrbitRoom(p,orb.R,below).ok) return {orb,turns,bank}; } return null; };
+  let r=sim(bump,false,false);
+  if(r.worst>50){
+    let got=null;
+    for(const stU of [false,true]){
+      if(stU){ const r1=sim(bump,true,false); if(r1.worst<=50){ steepUp=true; r=r1; got='steep'; break; } }
+      const cands=vtx.filter(k=>k<=r.wAt).sort((x,y)=>(x===0?-1:0)-(y===0?-1:0)||y-x);   // prima sopra la partenza, poi il punto più vicino alla cresta
+      for(const k of cands){ const g=tryOrb(k,stU,stU?sim(bump,true,false).H:r.H); if(!g) continue;
+        bump=g.b; r=g.rr; steepUp=stU; extra+=g.t*g.orb.sec; got=g;
+        ev.push({i:S[k].leg,dir:'su',turns:g.t,sec:g.t*g.orb.sec,R:g.orb.R,bank:g.bank,from:Math.round(g.rr.H[k]-g.b[k]),to:Math.round(g.rr.H[k]),ok:true,
+          note:`${g.t} ${g.t===1?'giro largo':'giri larghi'} di 360° in salita ${k===0?'sopra il campo di partenza':'su '+(g.p.f?g.p.f.short:'il punto '+(S[k].leg+2))} (raggio ${Math.round(g.orb.R)} m, ${g.bank}°, ${Math.round(g.orb.up)} ft a giro)${stU?', al rateo massimo: tieni d\'occhio le temperature':''}`});
+        break; }
+      if(got) break; }
+    if(got==='steep') ev.push({i:S[r.wAt>=0?r.wAt:0].leg,dir:'su',ok:true,lvl:'warn',note:'la salita graduale non basta: serve il rateo di salita massimo, tieni d\'occhio le temperature'});
+    if(!got){ okAll=false; const q=S[r.wAt]; ev.push({i:q.leg,dir:'su',ok:false,from:Math.round(r.H[r.wAt]),to:Math.round(q.req),
+      note:`a ${Math.round(q.x/1000)} km la cresta chiede ${Math.round(q.req/100)*100} ft: salendo piano e con al massimo ${MAXT} giri larghi non ci si arriva. «Calcola la rotta migliore» cerca valli più basse; se non basta parti da un campo più vicino alle montagne`}); } }
+  // arrivo: troppo alto per il circuito → discesa più ripida, poi giri larghi in discesa (al massimo 4)
+  if(circ!=null && r.hEnd>circ+100 && r.hEnd<=circ+300){ ev.push({i:info.length,arrive:true,dir:'giù',ok:true,lvl:'warn',from:Math.round(r.hEnd),to:circ,note:`arrivi ${Math.round((r.hEnd-circ)/10)*10} ft sopra il circuito: allunga il sottovento o fai una S larga`}); }
+  else if(circ!=null && r.hEnd>circ+300){
+    const r2=sim(bump,steepUp,true); if(r2.hEnd<=circ+100){ steepDn=true; r=r2; ev.push({i:info.length,arrive:true,dir:'giù',ok:true,lvl:'warn',from:Math.round(r.H[0]),to:circ,note:`discesa al circuito al rateo massimo (${P.rod(a)} ft/min) perché il terreno ti tiene alto fino all'ultimo: motore non troppo ridotto, attento al raffreddamento`}); }
+    else { const B=pts[pts.length-1], ex=r2.hEnd-circ, g=pickOrb(B,(r2.hEnd+circ)/2,ex,false,false,circ-200)||pickOrb(B,(r2.hEnd+circ)/2,ex,false,true,circ-200);
+      steepDn=true; r=r2;
+      if(g){ extra+=g.turns*g.orb.sec; ev.push({i:info.length,arrive:true,dir:'giù',ok:true,turns:g.turns,sec:g.turns*g.orb.sec,R:g.orb.R,bank:g.bank,from:Math.round(r2.hEnd),to:circ,
+          note:`${g.turns} ${g.turns===1?'giro':'giri'} di 360° in discesa sopra ${B.f?B.f.short:'l\'arrivo'} fino al circuito (${circ} ft, raggio ${Math.round(g.orb.R)} m, ${g.bank}°)`}); }
+      else { okAll=false; ev.push({i:info.length,arrive:true,dir:'giù',ok:false,from:Math.round(r2.hEnd),to:circ,note:`arrivi ${Math.round(ex)} ft sopra il circuito e intorno al campo non c'è spazio per ${MAXT} giri: scegli un altro arrivo o un avvicinamento da una valle`}); } } }
+  else if(r.high>200){ const k=r.H.findIndex((h,i)=>h-S[i].U>200); if(k>=0) ev.push({i:S[k].leg,dir:'giù',ok:true,lvl:'warn',from:Math.round(r.H[k]),to:Math.round(S[k].U),note:`il terreno non lascia scendere in tempo sotto la zona sopra la tratta: controlla la quota`}); }
+  // riepilogo per tratta: quota all'inizio e alla fine, salite e discese graduali
+  const legs=[]; info.forEach((L,i)=>{ const ks=S.map((q,k)=>q.leg===i?k:-1).filter(k=>k>=0), h0=r.H[ks[0]]-(bump[ks[0]]||0), h1=r.H[ks[ks.length-1]], top=Math.max(...ks.map(k=>r.H[k]));
+    const e=ev.filter(v=>v.i===i&&!v.arrive), dl=L.d/1000;
+    let note=e.map(v=>v.note).join(' · ');
+    if(!note && top-h0>150) note=`salita graduale ${Math.round(h0/100)*100}→${Math.round(top/100)*100} ft lungo la tratta (${Math.round((steepUp?P.roc(a,(h0+top)/2,o):P.gentle(a,(h0+top)/2,o))/10)*10} ft/min, ${Math.round(P.vgentle(a)*3.6)} km/h)`;
+    else if(!note && h0-h1>150) note=`discesa graduale ${Math.round(h0/100)*100}→${Math.round(h1/100)*100} ft (${P.gentleDn(a)} ft/min)`;
+    legs.push({i,from:Math.round(h0),to:Math.round(h1),top:Math.round(top),dir:h1>h0+50?'su':(h1<h0-50?'giù':''),note,ok:e.every(v=>v.ok),lvl:e.length?(e.every(v=>v.ok)?'warn':'bad'):'ok',
+      turns:e.reduce((t,v)=>t+(v.turns||0),0),sec:e.reduce((t,v)=>t+(v.sec||0),0),km:dl}); });
+  for(const v of ev.filter(v=>v.arrive)) legs.push(v);
+  return {legs,extraMin:extra/60,W:Math.round(W),ok:okAll,prof:{x:S.map(q=>q.x),h:Array.from(r.H),req:S.map(q=>q.req),tf:S.map(q=>q.tf)},steepUp,steepDn};
 }
 function rdInfo(){
   const box=$('rdInfo'); if(!box) return;
@@ -1982,10 +2029,18 @@ async function rdAround(A,B){
     const [i0,j0]=IJ({lat:bb[0],lon:bb[2]}), [i1,j1]=IJ({lat:bb[1],lon:bb[3]});
     for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){ const k=j*nx+i; if(blk[k]) continue; const p=LL(i,j); if(!rdPip(p,a.pts)) continue; const f=rdLim(a.lo,terr[k])-100; if(f<floorG[k]) floorG[k]=f; } }
   const blk2=blk.slice(); for(let j=0;j<ny;j++) for(let i=0;i<nx;i++) if(blk[j*nx+i]) for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=i+di, jj=j+dj; if(ii>=0&&jj>=0&&ii<nx&&jj<ny) blk2[jj*nx+ii]=1; }
-  const [si,sj]=IJ(A), [ei,ej]=IJ(B);
+  const [si,sj]=IJ(A), [ei,ej]=IJ(B), si0=si, sj0=sj, ei0=ei, ej0=ej;
   for(const [ci,cj] of [[si,sj],[ei,ej]]) for(let dj=-2;dj<=2;dj++) for(let di=-2;di<=2;di++){ const ii=ci+di, jj=cj+dj; if(ii>=0&&jj>=0&&ii<nx&&jj<ny) blk2[jj*nx+ii]=0; }
   // costo: distanza, tanto più cara quanto il terreno obbliga a salire sopra la crociera (ogni 500 ft in più vale come un'altra cella): si passa dalle valli
-  const w=k=>1+Math.max(0,terr[k]+margin-cruise)/500;
+  // salite graduali: una cella costa di più se, salendo piano dalla partenza (o scendendo piano verso l'arrivo), lì non si è ancora abbastanza alti;
+  // così la rotta prende quota dove il terreno è basso e si avvicina alle creste solo quando ci si arriva sopra, senza giri di 360°
+  const PF=window.IA517_PERF||(parent&&parent.IA517_PERF), ac=ACP(), vC=PF?PF.vgentle(ac):30;
+  const baseA=A.f?(rdFieldFt(A)||0)+500:cruise, circB=B.f?(rdFieldFt(B)||0)+(+ac.hcFt||1000):null;
+  const gU=PF?PF.gentle(ac,(baseA+cruise)/2,{W:PF.weight(ac,{})})/60/vC:0.1, gD=PF?PF.gentleDn(ac)/60/vC:0.1;
+  const climbPen=new Float32Array(N);
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ const k=j*nx+i, need=terr[k]+margin, dA=Math.hypot(i-si0,j-sj0)*cell, dB=Math.hypot(i-ei0,j-ej0)*cell;
+    let pen=Math.max(0,need-(baseA+gU*dA))/300; if(circB!=null) pen+=Math.max(0,need-(circB+gD*dB))/300; climbPen[k]=pen; }
+  const w=k=>1+Math.max(0,terr[k]+margin-cruise)/500+climbPen[k];
   // vento: ogni passo costa il tempo che ci vuole in quella direzione (con vento contrario la strada «costa» di più)
   const tas=Math.max(40,PLAN.tas), wnd=rdWindAt((A.lat+B.lat)/2,(A.lon+B.lon)/2,cruise), wf={};
   for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++) if(di||dj) wf[di+','+dj]=tas/rdGs(wrap360(Math.atan2(di,dj)*R2D),wnd,tas).gs;
@@ -2000,10 +2055,10 @@ async function rdAround(A,B){
   if(from[e]<0 && s!==e) return null;
   const path=[]; for(let k=e;k>=0;k=from[k]){ path.push(k); if(k===s) break; } path.reverse();
   // semplifica: dal punto corrente al più lontano raggiungibile in linea retta senza celle vietate e senza terreno più alto di quello del percorso trovato
-  const clear=(a,b)=>{ let pm=-1e9; for(let t=a;t<=b;t++) if(terr[path[t]]>pm) pm=terr[path[t]];
+  const clear=(a,b)=>{ let pm=-1e9, pp=0; for(let t=a;t<=b;t++){ if(terr[path[t]]>pm) pm=terr[path[t]]; if(climbPen[path[t]]>pp) pp=climbPen[path[t]]; }
     const ia=path[a]%nx, ja=(path[a]/nx)|0, ib=path[b]%nx, jb=(path[b]/nx)|0, n=Math.max(2,Math.ceil(Math.hypot(ib-ia,jb-ja)*3));
     let mxT=-1e9, mnF=Infinity;
-    for(let t=0;t<=n;t++){ const ii=Math.round(ia+(ib-ia)*t/n), jj=Math.round(ja+(jb-ja)*t/n), q=jj*nx+ii; if(blk2[q]) return false; if(terr[q]>pm+200) return false; if(terr[q]>mxT) mxT=terr[q]; if(floorG[q]<mnF) mnF=floorG[q]; }
+    for(let t=0;t<=n;t++){ const ii=Math.round(ia+(ib-ia)*t/n), jj=Math.round(ja+(jb-ja)*t/n), q=jj*nx+ii; if(blk2[q]) return false; if(terr[q]>pm+200) return false; if(climbPen[q]>pp+0.5) return false; if(terr[q]>mxT) mxT=terr[q]; if(floorG[q]<mnF) mnF=floorG[q]; }
     return !(mnF<mxT+margin); };   // con una quota sola sulla tratta: sopra il terreno più alto e sotto la base più bassa
   const keep=[]; let a=0;
   while(a<path.length-1){ let b=path.length-1; while(b>a+1 && !clear(a,b)) b--; keep.push(b); a=b; }
@@ -2029,7 +2084,8 @@ async function rdAvoidAll(){
       const A=RD.pts[i-1], B=RD.pts[i+1], d1=dist(A,p).d, d2=dist(p,B).d; if(d1>4000 && d2>4000 && pass<2) continue;
       await new Promise(r=>setTimeout(r,0)); rdChk(); RD.busy='Rifinisco la rotta…'; rdDraw();
       const c1=rdLegCheck(A,p), c2=rdLegCheck(p,B), c=rdLegCheck(A,B);
-      if([...c.zones].some(z=>!c1.zones.has(z)&&!c2.zones.has(z))) continue;          // senza il punto si entrerebbe in una zona nuova if(c.safe>Math.max(c1.safe,c2.safe)+300) continue;
+      if([...c.zones].some(z=>!c1.zones.has(z)&&!c2.zones.has(z))) continue;          // senza il punto si entrerebbe in una zona nuova
+      if(c.safe>Math.max(c1.safe,c2.safe)+300) continue;                                 // o il terreno chiederebbe di salire di più
       RD.pts.splice(i,1); i--; removed++; }
     if(!removed) break; }
   let kk=1; for(const p of RD.pts) if(p.name&&/^R\d+$/.test(p.name)) p.name='R'+(kk++);
@@ -2177,16 +2233,18 @@ function pvCompute(force){
 (()=>{ const sec=document.createElement('section'); sec.className='card'; sec.id='pvCard';
   sec.innerHTML=`<h2>↗ Salite, discese e giri <span class="sub" id="pvSub"></span></h2><div id="pvBox" class="fuel"></div>`;
   const legs=$('legs'); (legs&&legs.closest('section')||$('fuel').closest('section')).after(sec); })();
+const pvR=h=>Math.round(h/100)*100;
+function pvAlts(v){ const a=pvR(v.from), b=pvR(v.to), t=pvR(v.top); if(t>Math.max(a,b)+150) return `${a}→${t}→${b}`; return Math.abs(b-a)>=100?`${a}→${b}`:`${a}`; }
 function renderPV(){
   const box=$('pvBox'); if(!box) return; const R=PV.res;
   if(!R){ box.innerHTML='<span class="sub">Imposta partenza e arrivo.</span>'; return; }
   const V=R.V, rows=R.info.map((L,i)=>{ const v=V&&V.legs.find(x=>x.i===i&&!x.arrive);
-    return `<div class="row"><span>T${i+1} ${esc(R.pts[i].f.short)} → ${esc(R.pts[i+1].f.short)}</span><span><b>${L.altFt} ft</b>${(L.safeFt&&L.safeFt>=L.altFt-100)?' · per il terreno':(L.why==='sotto'?' · sotto una zona':(L.why==='vento'?' · vento migliore':''))}</span></div>`+
-      (v&&v.note?`<div class="sub" style="color:${v.ok?'var(--warn)':'var(--bad)'}">${v.dir==='su'?'Salita':'Discesa'} ${v.from}→${v.to} ft: ${esc(v.note)}${v.ok&&v.sec?` · +${fmtMin(v.sec/60)}`:''}</div>`:''); }).join('');
+    return `<div class="row"><span>T${i+1} ${esc(R.pts[i].f.short)} → ${esc(R.pts[i+1].f.short)}</span><span><b>${v?pvAlts(v):L.altFt} ft</b>${(L.safeFt&&L.safeFt>=L.altFt-100)?' · per il terreno':(L.why==='sotto'?' · sotto una zona':(L.why==='vento'?' · vento migliore':''))}</span></div>`+
+      (v&&v.note?`<div class="sub" style="color:${v.lvl==='ok'?'inherit':(v.ok?'var(--warn)':'var(--bad)')}">${esc(v.note)}${v.ok&&v.sec?` · +${fmtMin(v.sec/60)}`:''}</div>`:''); }).join('');
   const arr=V&&V.legs.find(x=>x.arrive);
   const avoid=R.info.some(l=>l.hits.some(h=>h.avoid));
   box.innerHTML=(PV.busy?`<div class="pill warn">${esc(PV.busy)}</div>`:'')+(PV.msg?`<div class="sub">${esc(PV.msg)}</div>`:'')+rows+
-    (arr?`<div class="sub" style="color:${arr.ok?'var(--warn)':'var(--bad)'}">Arrivo ${arr.from}→${arr.to} ft: ${esc(arr.note)}${arr.ok?` · +${fmtMin(arr.sec/60)}`:''}</div>`:'')+
+    (arr?`<div class="sub" style="color:${arr.ok?'var(--warn)':'var(--bad)'}">Arrivo: ${esc(arr.note)}${arr.ok&&arr.sec?` · +${fmtMin(arr.sec/60)}`:''}</div>`:'')+
     (R.pending?'<div class="sub">Scarico le quote del terreno…</div>':'')+
     (V?`<div class="row sum"><span>Giri di 360° in tutto</span><span>${V.extraMin>0?'+'+fmtMin(V.extraMin)+' (già nel tempo e nel carburante)':'nessuno'}</span></div>`:'')+
     (V&&!V.ok?'<span class="pill bad">Una salita o una discesa non si può fare così: rivedi la rotta</span>':'')+
@@ -2212,7 +2270,7 @@ function pvAutoCheck(){
   if(PV.first===undefined){ PV.first=PV.sig(); PV.autoDone=PV.first; return; }                // all'avvio: il piano salvato resta com'è
   let vis=true; try{ const sh=parent.document.getElementById('phPiano'); vis=!sh||!sh.hidden; }catch(e){}
   const R=PV.res; if(!vis||!R||R.pending||PLAN.wps.length||PV.busy||RD.on||PV.autoDone===PV.sig()||!R.info.length) return;
-  const L=R.info[0], bad=L.hits.some(h=>h.avoid) || ((L.safeFt||0)>PLAN.cruiseFt+1000) || (R.V&&!R.V.ok);
+  const L=R.info[0], bad=L.hits.some(h=>h.avoid) || ((L.safeFt||0)>PLAN.cruiseFt+1000) || (R.V&&(!R.V.ok||R.V.extraMin>0||R.V.steepUp));
   PV.autoDone=PV.sig();
   if(bad){ clearTimeout(PV.at); PV.at=setTimeout(()=>pvBest(false),800); }
 }
