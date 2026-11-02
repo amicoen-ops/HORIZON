@@ -135,3 +135,14 @@
   .ph-nav .ph-nav-fuel{font-size:18px;padding:0}
   .ph-fuelnow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;border-radius:12px;background:#151c24;margin-bottom:6px}
   .ph-fuelnow .ph-btn{padding:6px 10px}
+
+  /* v2 · modalità NUBE */
+  .ph-imcbtn{border-color:#5ab4ff!important;color:#bfe2ff!important;background:#0f2234!important}
+  body.ph-imc .ph-imcbtn{background:#5ab4ff!important;color:#06121e!important}
+  body.ph-imc #phAsp, body.ph-imc .ph-cards, body.ph-imc .ph-ctl, body.ph-imc .ph-nav, body.ph-imc #phZoom, body.ph-imc #unit2{display:none!important}
+  .ph-imcbar{position:fixed;left:8px;right:8px;bottom:max(10px,env(safe-area-inset-bottom,0px));z-index:15;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:8px}
+  .ph-imcbar[hidden]{display:none}
+  .ph-imcbar button{min-height:64px;border-radius:14px;border:2px solid #3a4250;background:linear-gradient(#262a31,#16191e);color:#e8eef5;font:800 15px "Oxanium",system-ui,sans-serif;letter-spacing:.03em}
+  .ph-imcbar button[data-a=rev]{border-color:#ff5ae6;color:#ff9cf0}
+  .ph-imcbar button[data-a=rev].on{background:#3a0634}
+  .ph-imcbar button[data-a=exit]{color:#93a1b2}

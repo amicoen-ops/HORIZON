@@ -132,6 +132,12 @@ if ws:
         log("riserva durante il blocco", ev("""(async()=>{ const s=await PH.native.ahrs.status(); return JSON.stringify({riserva_ora:s.reserve,battito:s.beatAge}); })()"""))
         time.sleep(1)
         log("riserva dopo il blocco", ev("""(async()=>{ const s=await PH.native.ahrs.status(); return JSON.stringify({riserva_ora:s.reserve,battito:s.beatAge,blocchi:PH.perf.stalls}); })()"""))
+    if os.environ.get("PKG", "").endswith(".v2"):
+        log("NUBE e inversione", ev("""(async()=>{ document.getElementById('phImcBtn').click(); await new Promise(r=>setTimeout(r,500));
+            const bar=!document.getElementById('phImcBar').hidden; S.trk=90; S.hdg=90; PH.revStart(); await new Promise(r=>setTimeout(r,800));
+            const st=PH.revStep(); return JSON.stringify({nube:PH.imc,barra:bar,istruzione:st&&st.line,quota:st&&st.altTxt}); })()"""))
+        shot("10_nube_inversione")
+        log("NUBE uscita", ev("(()=>{ document.querySelector('#phImcBar [data-a=exit]').click(); return JSON.stringify({nube:PH.imc}); })()"))
     time.sleep(2); log("spazio qui", ev("document.getElementById('phAsp').textContent"))
     # rotta disegnata: Carolina › Aosta con terreno vero (DEM) e spazi aerei veri, poi «Evita zone»
     log("rotta disegnata", ev("""(async()=>{ PH.show('piano'); await new Promise(r=>setTimeout(r,1500));

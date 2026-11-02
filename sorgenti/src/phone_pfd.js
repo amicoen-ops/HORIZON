@@ -1639,3 +1639,103 @@ PH.integCheck=function(now,ro,pi,wb,fb){
     const I=PH&&PH.INTEG; if(!I||!I.msg) return;
     if(lost('att')) return;
     ctx.save(); roundClip(); failBox(CX,CY-R*0.42,R*0.92,R*0.17,I.msg[0],I.msg[1],I.lvl>=2?'#ff3b3b':'#ffb020'); ctx.restore(); }; }
+
+// ---------------- v2 · modalità NUBE, inversione a 180°, recupero da assetti inusuali ----------------
+// NUBE: solo l'essenziale (assetto, velocità, quota, prua, virosbandometro), niente mappe né avvisi minori,
+// voce solo per le cose gravi. In basso tre tasti grandi: INVERSIONE 180°, CAMPO VICINO, ESCI.
+PH.imc=false;
+PH.geoAt=(p,brg,km)=>{ const d=km/6371, b=brg*D2R, la=p.lat*D2R, lo=p.lon*D2R, la2=Math.asin(Math.sin(la)*Math.cos(d)+Math.cos(la)*Math.sin(d)*Math.cos(b));
+  return {lat:la2*R2D,lon:(lo+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(la),Math.cos(d)-Math.sin(la)*Math.sin(la2)))*R2D}; };
+PH.terrMaxAround=function(p,km){ let mx=NaN; for(let r=0;r<=km;r+=km/3) for(let a=0;a<360;a+=r?30:360){ const q=r?PH.geoAt(p,a,r):p, z=phDemAt(q.lat,q.lon); if(z===z) mx=mx===mx?Math.max(mx,z):z; } return mx; };
+PH.imcSet=function(on){
+  if(on===PH.imc) return; PH.imc=on; PH.act('NUBE '+(on?'attiva':'spenta'));
+  document.body.classList.toggle('ph-imc',on);
+  if(on){ PH.imcPrev={ui:PH.ui,terr:S.terr,obst:S.obst,fd:S.fd,page:PAGE}; if(PAGE!=='pfd') togglePage(); S.obst=false; S.fd=true;
+    PH.imcT0=Date.now(); PH.imcPos=S.gpsReal?{lat:S.lat,lon:S.lon,trk:S.trk!=null?S.trk:S.hdg,alt:S.alt}:null;
+    // ultimo punto «a vista»: dove eri un minuto prima di entrare in nube (dal diario del volo), se c'è
+    const pts=PH.flight&&PH.flight.pts; if(pts&&pts.length){ const t=Date.now()-60e3; let best=null; for(const q of pts){ if(q[3]<=t) best=q; } if(best) PH.imcVmc={lat:best[0],lon:best[1]}; }
+    PH.say('modalità nube',true); }
+  else { const P=PH.imcPrev||{}; S.terr=P.terr!=null?P.terr:S.terr; S.obst=P.obst!=null?P.obst:S.obst; S.fd=P.fd!=null?P.fd:S.fd; PH.rev=null; }
+  PH.layout&&PH.layout(); PH.imcBar(); };
+// inversione: virata dalla parte del terreno più basso, inclinazione da virata standard (10–20°), quota mantenuta
+// o portata sopra il terreno più alto nei dintorni + 500 ft; poi prua reciproca
+PH.revStart=function(){
+  const trk=S.trk!=null?S.trk:S.hdg, p={lat:S.lat,lon:S.lon};
+  const zl=phDemAt(...Object.values(PH.geoAt(p,trk-90,2.5))), zr=phDemAt(...Object.values(PH.geoAt(p,trk+90,2.5)));
+  const dir=(zl===zl&&zr===zr)?(zl<=zr?-1:1):-1;
+  const V=Math.max(20,(S.gpsReal?S.gs:S.ias||100)/3.6), bank=clamp(Math.atan(V*3*D2R/9.80665)*R2D,10,20);
+  const tz=PH.terrMaxAround(p,5), msaFt=tz===tz?Math.ceil((tz/FT2M+500)/100)*100:null;
+  try{ el('toast').classList.remove('show'); }catch(e){}
+  PH.rev={t0:Date.now(),tgt:wrap360(trk+180),dir,bank,alt:Math.max(S.alt||0,msaFt||0),msa:msaFt,phase:'vira',said:''};
+  PH.act(`inversione 180 a ${dir<0?'sinistra':'destra'} ${Math.round(bank)}° verso ${Math.round(PH.rev.tgt)}`);
+  PH.say(`inversione: vira a ${dir<0?'sinistra':'destra'}, ${Math.round(bank)} gradi`,true);
+  PH.imcBar(); };
+PH.revStep=function(){
+  const r=PH.rev; if(!r) return null;
+  const h=S.trk!=null&&S.gpsReal&&S.gs>30?S.trk:S.hdg, rem=angDiff(r.tgt,h);          // + = a destra
+  const togo=r.dir<0?((-rem+360)%360):((rem+360)%360);                               // gradi da girare nel verso scelto
+  if(r.phase==='vira' && (togo<12||togo>345)) r.phase='esci';
+  if(r.phase==='esci' && Math.abs(rem)<4 && Math.abs(S.roll)<6){ r.phase='tieni'; }
+  let cmdRoll=r.phase==='vira'?r.dir*r.bank:clamp(rem*1.5,-10,10);
+  const dAlt=(r.alt-(S.alt||0)), cmdPitch=clamp(dAlt/150,-3,6);
+  let line;
+  if(r.phase==='vira') line=`VIRA A ${r.dir<0?'SINISTRA':'DESTRA'} ${Math.round(r.bank)}° · mancano ${Math.round(togo)}° (${Math.round(togo/3)} s)`;
+  else if(r.phase==='esci') line=`LIVELLA LE ALI · prua ${String(Math.round(r.tgt)).padStart(3,'0')}°`;
+  else line=`MANTIENI PRUA ${String(Math.round(r.tgt)).padStart(3,'0')}°`;
+  const altTxt=Math.abs(dAlt)<120?`mantieni ${Math.round(r.alt/50)*50} ft`:(dAlt>0?`SALI a ${Math.round(r.alt/50)*50} ft`:`scendi dolce a ${Math.round(r.alt/50)*50} ft`);
+  if(r.said!==r.phase){ r.said=r.phase; if(r.phase==='esci') PH.say('livella le ali',true); else if(r.phase==='tieni') PH.say('mantieni la prua',true); }
+  return {cmdRoll,cmdPitch,line,altTxt,msa:r.msa};
+};
+PH.nearestRwyField=function(){ const p={lat:S.lat,lon:S.lon}; let best=null,bd=1e9;
+  for(const f of FIELDS){ if(!f.ends||!f.ends.length||f.kind==='glac') continue; const d=distBrg(p,f).d; if(d<bd){ bd=d; best=f; } } return best; };
+// barra in basso con i tasti grandi
+PH.imcBar=function(){
+  let b=el('phImcBar');
+  if(!b){ b=document.createElement('div'); b.id='phImcBar'; b.className='ph-imcbar'; document.body.appendChild(b);
+    b.addEventListener('click',e=>{ const t=e.target.closest('button'); if(!t) return; const a=t.dataset.a;
+      if(a==='rev'){ if(PH.rev) { PH.rev=null; PH.act('inversione annullata'); PH.imcBar(); } else PH.revStart(); }
+      else if(a==='near'){ const f=PH.nearestRwyField(); if(!f){ toast('NESSUN CAMPO CON PISTA NOTA'); return; }
+        const tz=PH.terrMaxAround({lat:S.lat,lon:S.lon},5), alt=Math.max(S.alt||0,tz===tz?Math.ceil((tz/FT2M+500)/100)*100:0);
+        directTo(f,alt); PH.rev=null; toast('DIRETTO · '+f.short); PH.say('diretto per '+f.name,true); PH.imcBar(); }
+      else if(a==='vmc'){ const q=PH.imcVmc; if(!q){ toast('PUNTO A VISTA NON REGISTRATO'); return; }
+        directTo({id:'VMC',short:'A VISTA',name:'Ultimo punto a vista',lat:q.lat,lon:q.lon,ends:[],elft:null,kind:'wp',...enu(q.lat,q.lon)},S.alt); PH.rev=null; toast('DIRETTO · ULTIMO PUNTO A VISTA'); PH.imcBar(); }
+      else if(a==='exit') PH.imcSet(false); }); }
+  b.hidden=!PH.imc;
+  b.innerHTML=`<button type="button" data-a="rev" class="${PH.rev?'on':''}">${PH.rev?'ANNULLA 180°':'INVERSIONE 180°'}</button>
+    <button type="button" data-a="near">CAMPO VICINO</button>${PH.imcVmc?'<button type="button" data-a="vmc">PUNTO A VISTA</button>':''}<button type="button" data-a="exit">ESCI</button>`;
+};
+// tasto NUBE accanto a LIVELLA
+setTimeout(()=>{ const row=document.querySelector('.ph-statrow'); if(!row||el('phImcBtn')) return;
+  const b=document.createElement('button'); b.type='button'; b.className='ph-lvl ph-imcbtn'; b.id='phImcBtn'; b.textContent='☁ NUBE'; b.setAttribute('aria-label','Modalità nube');
+  b.addEventListener('click',ev=>{ ev.stopPropagation(); PH.imcSet(!PH.imc); }); row.insertBefore(b,el('phLvl')); },0);
+// voce: in NUBE solo i messaggi urgenti
+{ const sy=PH.say; PH.say=function(t,urgent){ if(PH.imc && !urgent) return; return sy.call(this,t,urgent); }; }
+// disegno: in NUBE niente terreno 3D, campi, ostacoli e percorso; guida dell'inversione; recupero da assetti inusuali sempre
+{ const dp=drawPFD; drawPFD=function(g){
+    const unusual=!PH.demo && (PH.flight||PH.sim||(S.gpsReal&&S.gs>40)) && !lost('att') && (Math.abs(S.roll)>60||S.pitch>25||S.pitch<-20);
+    const decl=PH.imc||unusual, sv={terr:S.terr,obst:S.obst};
+    if(decl){ S.terr=false; S.obst=false; }
+    let rv=null; if(PH.imc && PH.rev) rv=PH.revStep();
+    const sd=S.fd; if(rv) S.fd=false;                                     // le barre le disegna l'inversione
+    const nv={d:NAV.dest,a:NAV.app,r:NAV.route}; if(rv||unusual){ NAV.dest=null; NAV.app=null; NAV.route=null; }   // durante l'inversione e il recupero solo l'essenziale
+    try{ dp(g); } finally{ S.terr=sv.terr; S.obst=sv.obst; S.fd=sd; NAV.dest=nv.d; NAV.app=nv.a; NAV.route=nv.r; }
+    if(rv && !lost('att')){ fdBars({cmdRoll:rv.cmdRoll,cmdPitch:S.pitch+rv.cmdPitch});
+      ctx.save(); roundClip(); failBox(CX,CY-R*0.44,R*1.1,R*0.19,rv.line,rv.altTxt+(rv.msa?` · minima ${rv.msa} ft`:''),'#ff5ae6'); ctx.restore(); }
+    if(unusual) PH.drawUnusual();
+    else PH.uaSaid=0;
+  }; }
+PH.drawUnusual=function(){
+  const nh=S.pitch>25, nl=S.pitch<-20, bk=Math.abs(S.roll)>60, pitch=S.pitch*D2R, roll=S.roll*D2R, ph=F*Math.tan(pitch);
+  ctx.save(); roundClip(); ctx.translate(CX,CY); ctx.rotate(-roll);
+  // frecce rosse verso l'orizzonte
+  const dirY=ph>0?1:-1, n=(nh||nl)?3:0;                                   // frecce solo per cabrata o picchiata
+  for(let i=0;i<n;i++){ const y=dirY*(R*0.12+i*R*0.11); if(Math.abs(y)>Math.abs(ph)-R*0.04) break;
+    ctx.beginPath(); ctx.moveTo(-R*0.16,y-dirY*R*0.05); ctx.lineTo(0,y+dirY*R*0.05); ctx.lineTo(R*0.16,y-dirY*R*0.05); ctx.lineWidth=7*k; ctx.strokeStyle='#ff2d2d'; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.stroke(); }
+  ctx.restore();
+  const lv=S.roll>0?'◀ LIVELLA LE ALI':'LIVELLA LE ALI ▶';                   // da che parte girare la cloche
+  const t=nl?['PICCHIATA','RIDUCI MOTORE · LIVELLA LE ALI · RICHIAMA DOLCE']:nh?['CABRATA','MOTORE · PICCHIA · LIVELLA LE ALI']:[lv,'inclinazione '+Math.round(Math.abs(S.roll))+'°'];
+  ctx.save(); roundClip(); failBox(CX,CY+R*0.52,R*1.12,R*0.2,t[0],t[1]); ctx.restore();
+  const now=Date.now(); if(!PH.uaSaid||now-PH.uaSaid>6000){ if(!PH.uaSaid){ try{ el('toast').classList.remove('show'); }catch(e){} } PH.uaSaid=now; PH.say(nl?'picchiata. riduci motore, livella le ali, richiama':nh?'cabrata. motore, picchia, livella le ali':'livella le ali',true); PH.act('assetto inusuale '+t[0]); }
+};
+// durante l'inversione e il recupero da assetto inusuale niente scritte a comparsa sopra lo strumento
+{ const tt=toast; toast=function(m){ if((PH.imc&&PH.rev)||(PH.uaSaid&&Date.now()-PH.uaSaid<6000)){ PH.act&&PH.act('(zitto) '+String(m).slice(0,40)); return; } return tt(m); }; }
