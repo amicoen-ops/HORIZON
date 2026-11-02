@@ -127,7 +127,6 @@ if ws:
     if os.environ.get("PKG", "").endswith(".v2"):
         log("assetto nativo", ev("""(async()=>{ const A=PH.native&&PH.native.ahrs; if(!A) return 'modulo assente'; const s=await A.status();
             return JSON.stringify({hz:s.hz,att:s.attAge,battito:s.beatAge,riserva:s.reserve,fonte:PH.attSrc,roll:Math.round(s.roll),pitch:Math.round(s.pitch)}); })()"""))
-        global mid
         mid += 1; ws.send(json.dumps({"id": mid, "method": "Runtime.evaluate", "params": {"expression": "(()=>{ const t=Date.now(); while(Date.now()-t<2500){} return 1; })()"}}))   # pagina bloccata 2,5 s, senza aspettare
         time.sleep(1.2); shot("09_riserva_pagina_bloccata"); time.sleep(2.5)
         log("riserva durante il blocco", ev("""(async()=>{ const s=await PH.native.ahrs.status(); return JSON.stringify({riserva_ora:s.reserve,battito:s.beatAge}); })()"""))
