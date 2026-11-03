@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.54"
+VER = "1.0.56"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -206,7 +206,7 @@ s += [side("10_volo_crociera.png", [
               "In simulazione al loro posto c'è la scritta <b>SIMULAZIONE</b>: toccandola si apre la scheda per fermarla.",
               "<b>I comandi</b> ◀ OK ▶ PAGINA, gli stessi della manopola dello strumento (capitolo 8).",
               "<b>Otto riquadri</b>: GS (velocità al suolo), QUOTA, VARIO, TRK o PRUA, VENTO, DESTINAZIONE (distanza e tempo), VOLO (durata) e TRAMONTO.",
-              "<b>La barra in basso</b>: VOLO, PIANO, IMPOSTAZIONI, SIMULA, PROFILO, ✈ (traffico), ⛽ (carburante), INFO."]),
+              "<b>La barra in basso</b>: quattro tasti grandi, VOLO, PIANO, ✈ TRAFFICO e ☰ ALTRO. ALTRO apre una griglia di tasti grandi con IMPOSTAZIONI, SIMULA, PROFILO, ⛽ CARBURANTE e INFO, che resta aperta finché non scegli una voce o tocchi ✕ CHIUDI. In orizzontale la barra resta sempre visibile in fondo alla colonna."]),
     P("Il riquadro TRK mostra la traccia GPS quando ti muovi. Da fermo la traccia è solo rumore, quindi il riquadro diventa <b>PRUA</b> e mostra la bussola."),
 ], 62 * mm, "La schermata VOLO in crociera")]
 
