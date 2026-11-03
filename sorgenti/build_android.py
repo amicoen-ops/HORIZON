@@ -130,7 +130,7 @@ def build_pfd():
     s = rep(s, '  <div class="prompt" id="prompt" hidden>', unit_extra + '  <div class="prompt" id="prompt" hidden>')
     html = (SRC / "phone_pfd.html").read_text(encoding="utf-8")
     s = rep(s, '\n<div class="panel">', "\n" + html + '\n<div class="panel">')
-    js = (SRC / "phone_pfd.js").read_text(encoding="utf-8") + "\n" + (SRC / "phone_info.js").read_text(encoding="utf-8") + "\n" + (SRC / "phone_aereo.js").read_text(encoding="utf-8")
+    js = (SRC / "phone_pfd.js").read_text(encoding="utf-8") + "\n" + (SRC / "phone_info.js").read_text(encoding="utf-8") + "\n" + (SRC / "phone_aereo.js").read_text(encoding="utf-8") + "\n" + (SRC / "phone_traffico.js").read_text(encoding="utf-8")
     s = rep(s, "// ---------------- avvio ----------------", js + "\n// ---------------- avvio ----------------")
     return HEAD + s + "\n</body></html>\n"
 

@@ -25,6 +25,7 @@
     <button type="button" data-v="imp">IMPOSTAZIONI</button>
     <button type="button" data-v="sim">SIMULA</button>
     <button type="button" data-v="prof">PROFILO</button>
+    <button type="button" data-v="trf" class="ph-nav-fuel" aria-label="Traffico in tempo reale">✈</button>
     <button type="button" data-v="fuel" class="ph-nav-fuel" aria-label="Carburante e alternati">⛽</button>
     <button type="button" data-v="info">INFO</button>
   </nav>
@@ -38,6 +39,12 @@
   <div class="ph-prof-bar" id="phProfBar"></div>
   <canvas id="phProfCv" aria-label="Profilo verticale: terreno, spazi aerei e quota davanti all'aereo"></canvas>
   <div class="ph-prof-info" id="phProfInfo"></div>
+</div>
+<div class="ph-sheet" id="phTrf" hidden>
+  <div class="ph-sheet-h"><button type="button" data-close>◀ Strumento</button><b>Traffico in tempo reale</b></div>
+  <div class="ph-prof-bar" id="phTrfBar"></div>
+  <canvas id="phTrfCv" aria-label="Traffico attorno all'aereo, traccia in alto"></canvas>
+  <div class="ph-prof-info ph-trf-info" id="phTrfInfo"></div>
 </div>
 <div class="ph-sheet" id="phFuel" hidden>
   <div class="ph-sheet-h"><button type="button" data-close>◀ Strumento</button><b>⛽ Carburante e alternati</b></div>

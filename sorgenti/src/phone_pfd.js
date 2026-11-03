@@ -974,7 +974,7 @@ PH.info=function(g){
   const st=el('phStat'); if(st){
     const gpsOk=S.gpsReal&&!lost('gps'), attOk=!lost('att');
     st.innerHTML=PH.sim?`<i class="w">SIMULAZIONE</i> ${String(PH.sim.name).replace(/</g,'')} · ×${PH.sim.warp} · tocca per fermare`:PH.demo?'<i class="w">DEMO</i> volo dimostrativo':
-      `<i class="${gpsOk?'o':'b'}">${PH.src==='glo'?'GLO 2':'GPS'}</i><i class="${attOk?'o':'b'}">ASSETTO</i><i class="${PH.dem.size?'o':'w'}">TERRENO</i><i class="${navigator.onLine?'o':'w'}">NET</i>`;
+      `<i class="${gpsOk?'o':'b'}">${PH.src==='glo'?'GLO 2':'GPS'}</i><i class="${attOk?'o':'b'}">ASSETTO</i><i class="${PH.dem.size?'o':'w'}">TERRENO</i>${PH.statoHtml?PH.statoHtml():`<i class="${navigator.onLine?'o':'w'}">NET</i>`}`;
   }
   if(S.gpsReal && !lost('att')) PH.seenAll=true;             // dopo il primo fix le perdite le segnalano le bandierine rosse
   const wait=el('phWait'); if(wait) wait.hidden=PH.demo || PH.seenAll || PH.waitClosed || !menuEl.hidden || PH.sim;
