@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.48"
+VER = "1.0.49"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -437,6 +437,13 @@ s += [table(["Sullo strumento", "Quando"], [
 s += [P("Sullo strumento non compare nient'altro: niente traffici lontani, niente voce, niente vibrazione. I traffici a terra o più lenti di 25 km/h non danno il triangolo, e nemmeno quelli con un dato più vecchio di 30 secondi. "
         "Il tuo aereo, se ha FLARM, un tracker o l'app SafeSky accesa, non conta come traffico: sono escluse le marche del velivolo attivo e il codice che scrivi in Impostazioni › Traffico, "
         "e in volo l'app riconosce da sola un traffico che ha sempre la tua posizione e la tua velocità. Nel volo dimostrativo c'è traffico finto, uno di fronte in rotta di collisione.")]
+s += [Paragraph("SafeSky sullo stesso telefono", H3)]
+s += [P("Con <b>SafeSky Premium</b> sullo stesso telefono, HORIZON riceve il traffico di SafeSky (FLARM/OGN, ADS-B e utenti SafeSky) senza tenere SafeSky aperto. "
+        "In SafeSky › Impostazioni attiva la condivisione del traffico e scegli come software di navigazione <b>altro software GDL90</b>; premi DECOLLO, poi torna a HORIZON. "
+        "SafeSky resta in sottofondo senza schermo: trasmette la tua posizione agli altri e manda il suo traffico a HORIZON sulla porta UDP 4000. "
+        "Finché arriva, HORIZON non scarica il traffico da internet e la pagina Traffico mostra «SafeSky (GDL90)». "
+        "Perché Android non chiuda SafeSky: Impostazioni di Android › App › SafeSky › Batteria › <b>Senza restrizioni</b>. Lo stesso vale per SkyEcho, PilotAware e Stratux sul WiFi. "
+        "Si spegne in Impostazioni › Traffico.")]
 s += [box("<b>Il traffico via internet è solo un aiuto.</b> Arriva con 5–20 secondi di ritardo; manca dove non ci sono ricevitori (valli, bassa quota), senza copertura del telefono e per chi non ha FLARM, OGN o ADS-B. "
           "Non è un sistema anticollisione: guarda sempre fuori.", "#fdecea", "#a32020")]
 
