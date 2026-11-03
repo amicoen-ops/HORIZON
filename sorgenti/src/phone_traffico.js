@@ -50,7 +50,7 @@ PH.trfIsMe=function(t){
 PH.trfOgn=async function(lat,lon){
   const dLat=0.45, dLon=dLat/Math.max(0.2,Math.cos(lat*D2R));
   const q=`a=0&b=${(lat+dLat).toFixed(4)}&c=${(lat-dLat).toFixed(4)}&d=${(lon+dLon).toFixed(4)}&e=${(lon-dLon).toFixed(4)}`;
-  let r; try{ r=await PH.http('https://live.glidernet.org/lxml.php?'+q); }catch(e){ r=await PH.http('http://live.glidernet.org/lxml.php?'+q); }
+  let r; try{ r=await IA517.http('https://live.glidernet.org/lxml.php?'+q); }catch(e){ r=await IA517.http('http://live.glidernet.org/lxml.php?'+q); }
   if(r.status!==200) throw new Error('risposta '+r.status);
   const out=[], now=Date.now(), re=/<m a="([^"]*)"/g; let m;
   while((m=re.exec(r.text))){ const f=m[1].split(','); if(f.length<13) continue;
@@ -60,7 +60,7 @@ PH.trfOgn=async function(lat,lon){
   return out;
 };
 PH.trfAdsb=async function(lat,lon){
-  const r=await PH.http(`https://api.adsb.lol/v2/point/${lat.toFixed(4)}/${lon.toFixed(4)}/16`);
+  const r=await IA517.http(`https://api.adsb.lol/v2/point/${lat.toFixed(4)}/${lon.toFixed(4)}/16`);
   if(r.status!==200) throw new Error('risposta '+r.status);
   const j=JSON.parse(r.text), out=[], now=Date.now();
   for(const a of (j.ac||j.aircraft||[])){
