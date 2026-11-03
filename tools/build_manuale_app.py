@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.47"
+VER = "1.0.48"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -112,7 +112,7 @@ s += [Spacer(1, 8 * mm), Paragraph("HORIZON · strumento di volo", H1),
 CH_ = ["Che cos'è", "Installazione e aggiornamenti", "Primo avvio", "Montaggio del telefono e sensori",
        "La schermata VOLO", "L'orizzonte", "La mappa", "Comandi e gesti", "Il menu: direct to, rotte, QNH, pista",
        "Avvicinamento, circuito e atterraggio", "Piano, campi e meteo", "Spazi aerei, NOTAM e Desk Aeronautico",
-       "Simula", "Avvisi: terreno, spazi aerei, tramonto", "GPS del telefono e Garmin GLO 2", "Quota",
+       "Simula", "Avvisi: terreno, spazi aerei, tramonto, traffico", "GPS del telefono e Garmin GLO 2", "Quota",
        "Bussola e prua", "Vento e velocità vera", "Diario di volo", "Volare senza internet", "Mappe di base",
        "Impostazioni in sintesi", "Info, segnalazioni e scatola nera", "Tablet e telefono in orizzontale",
        "Problemi e soluzioni", "Limiti, responsabilità, licenza e privacy", "Fonti dei dati"]
@@ -200,15 +200,17 @@ s += chap(5, CH_[4])
 s += [side("10_volo_crociera.png", [
     P("Dall'alto in basso:"),
     *bullets(["<b>Lo strumento</b>, rotondo come quello da 80 mm, con due pagine: orizzonte e mappa.",
-              "<b>Le spie di stato</b>: GPS (o GLO 2), ASSETTO, TERRENO, NET. Verde va bene, giallo è incompleto, rosso manca. "
+              "<b>Le spie di stato</b>: GPS (o GLO 2), ASSETTO, TERRENO, la rete e la batteria. Verde va bene, giallo è incompleto, rosso manca. "
+              "La rete mostra la generazione e il segnale in percentuale (per esempio <b>4G 70%</b> o <b>5G 45%</b>; giallo sotto il 25%), oppure <b>WIFI</b>, o <b>NO NET</b> in rosso. "
+              "<b>BATT</b> è la carica del telefono: ⚡ quando è in carica, giallo sotto il 40%, rosso sotto il 20% e anche quando il telefono supera i 45 °C. "
               "In simulazione al loro posto c'è la scritta <b>SIMULAZIONE</b>: toccandola si apre la scheda per fermarla.",
               "<b>I comandi</b> ◀ OK ▶ PAGINA, gli stessi della manopola dello strumento (capitolo 8).",
               "<b>Otto riquadri</b>: GS (velocità al suolo), QUOTA, VARIO, TRK o PRUA, VENTO, DESTINAZIONE (distanza e tempo), VOLO (durata) e TRAMONTO.",
-              "<b>La barra in basso</b>: VOLO, PIANO, IMPOSTAZIONI, SIMULA, INFO."]),
+              "<b>La barra in basso</b>: VOLO, PIANO, IMPOSTAZIONI, SIMULA, PROFILO, ✈ (traffico), ⛽ (carburante), INFO."]),
     P("Il riquadro TRK mostra la traccia GPS quando ti muovi. Da fermo la traccia è solo rumore, quindi il riquadro diventa <b>PRUA</b> e mostra la bussola."),
 ], 62 * mm, "La schermata VOLO in crociera")]
 
-s += [tip("Tastino <b>LIVELLA</b> (bordo giallo e nero) accanto a GPS · ASSETTO · TERRENO · NET: livella l'assetto senza aprire le impostazioni. In volo usa ali livellate e volo rettilineo; a terra usa l'assetto a terra impostato. Chiede sempre conferma con OK.")]
+s += [tip("Tastino <b>LIVELLA</b> (bordo giallo e nero) accanto alle spie di stato: livella l'assetto senza aprire le impostazioni. In volo usa ali livellate e volo rettilineo; a terra usa l'assetto a terra impostato. Chiede sempre conferma con OK.")]
 
 # 6 ---------------------------------------------------------------
 s += chap(6, CH_[5])
@@ -422,6 +424,21 @@ s += [table(["Avviso", "Quando"], [
 s += [P("Vicino al campo di destinazione, in avvicinamento e in corsa, l'avviso di terreno si spegne entro 3,5 km dal campo, per non suonare in finale.")]
 
 s += [tip("Un tocco sull'avviso lo toglie dal video. Uno spazio aereo non avvisa più finché non ne sei uscito da 2 minuti; gli altri avvisi tornano dopo 1 minuto. Le zone R danno sempre l'avviso, perché l'app non sa se sono attive: verifica NOTAM e AUP.")]
+s += [Paragraph("Traffico in tempo reale", H3)]
+s += [P("Il tasto <b>✈</b> della barra in basso apre la pagina <b>Traffico</b>: un radar con la tua traccia in alto (anelli a metà e a fine portata, 5, 10 o 25 km, e il cerchio tratteggiato dei 1000 ft), "
+        "e sotto l'elenco con distanza, posizione a ore, differenza di quota (+ sopra, − sotto, frecce se sale o scende), velocità, fonte ed età del dato. "
+        "Il tasto <b>SafeSky ↗</b> apre la mappa di SafeSky centrata su di te, nel browser.")]
+s += [P("I dati arrivano da internet: <b>OGN</b> (Open Glider Network: FLARM e tracker OGN, cioè alianti e molti ultraleggeri) e <b>adsb.lol</b> (ADS-B e MLAT: aerei con transponder). "
+        "Si scaricano ogni 6 secondi solo in volo o con la pagina aperta, circa 5–15 MB l'ora. Si spengono in Impostazioni › Traffico.")]
+s += [table(["Sullo strumento", "Quando"], [
+    ["Triangolo di pericolo rosso", "Un traffico è entro 1000 ft di lato e entro 1000 ft in quota, oppure ci arriverà entro 30 secondi se nessuno cambia rotta. Sotto il triangolo: posizione a ore e differenza di quota (per esempio «ORE 2 · +300 ft»)."],
+    ["Triangolo di pericolo giallo (lampeggia)", "Lo stesso, ma l'incontro è fra 30 e 60 secondi."],
+], [52 * mm, 122 * mm])]
+s += [P("Sullo strumento non compare nient'altro: niente traffici lontani, niente voce, niente vibrazione. I traffici a terra o più lenti di 25 km/h non danno il triangolo, e nemmeno quelli con un dato più vecchio di 30 secondi. "
+        "Il tuo aereo, se ha FLARM, un tracker o l'app SafeSky accesa, non conta come traffico: sono escluse le marche del velivolo attivo e il codice che scrivi in Impostazioni › Traffico, "
+        "e in volo l'app riconosce da sola un traffico che ha sempre la tua posizione e la tua velocità. Nel volo dimostrativo c'è traffico finto, uno di fronte in rotta di collisione.")]
+s += [box("<b>Il traffico via internet è solo un aiuto.</b> Arriva con 5–20 secondi di ritardo; manca dove non ci sono ricevitori (valli, bassa quota), senza copertura del telefono e per chi non ha FLARM, OGN o ADS-B. "
+          "Non è un sistema anticollisione: guarda sempre fuori.", "#fdecea", "#a32020")]
 
 # 15 --------------------------------------------------------------
 s += chap(15, CH_[14])
@@ -599,6 +616,7 @@ s += [table(["Che cosa", "Fonte"], [
     ["Meteo", "Open-Meteo (CC BY 4.0); METAR e TAF da aviationweather.gov (NOAA)"],
     ["Spazi aerei", "openAIP (CC BY-NC 4.0, www.openaip.net), Italia, riscaricati a ogni AIRAC; oppure un file OpenAir del pilota"],
     ["NOTAM e briefing", "Briefing ufficiale; collegamenti a Desk Aeronautico (non ufficiale)"],
+    ["Traffico", "Open Glider Network (OGN, ODbL) e adsb.lol (ODbL), via internet; SafeSky solo come collegamento alla sua mappa"],
     ["Segnalazioni", "Web3Forms, inoltro per posta all'autore; in alternativa l'app che scegli tu"],
 ], [34 * mm, 140 * mm])]
 s += [Spacer(1, 4 * mm), HRFlowable(width="100%", thickness=0.6, color=GREY),

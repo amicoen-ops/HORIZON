@@ -154,6 +154,12 @@ if ws:
         return JSON.stringify({info:{dev:!!i.deviceId,firma:i.signatureOk,inst:i.installer,cert:(i.cert||'').slice(0,16)},billing:b,stato:IA517_LIC.status(),imposta:IA517_LIC.enforced()}); })()"""))
     log("bussola", ev("JSON.stringify({prua:PH.mag.hdg!=null?Math.round(PH.mag.hdg):null,fonte:PH.mag.src||null,errore:PH.mag.err||null,in_uso:PH.magInUse()})"))
     log("prestazioni", ev("JSON.stringify({ms:PH.perf.avg.toFixed(1),blocchi:PH.perf.stalls,fps:PH.fps,vicini:PH.nearF&&PH.nearF.length,terreno:PH.dem.size,tessere:PH.tiles.size})"))
+    # batteria e segnale dal modulo nativo, poi traffico vero da OGN e adsb.lol attorno a Ivrea
+    log("stato telefono", ev("""(async()=>{ const P=Capacitor.Plugins.StatoTelefono; if(!P) return 'manca il modulo'; const r=await P.get(); await PH.statoPoll(); return JSON.stringify({nativo:r, riga:document.getElementById('phStat').innerText.replace(/\\n/g,' ')}); })()"""))
+    log("traffico vero", ev("""(async()=>{ Object.assign(S,{lat:45.47,lon:7.88,alt:3000,gpsReal:true}); PH.show('trf'); PH.TRF.last=0; PH.trfFetch(); await new Promise(r=>setTimeout(r,20000));
+        const T=PH.TRF; return JSON.stringify({fonti:T.src, n:T.tg.size, primi:[...T.tg.values()].slice(0,6).map(t=>[t.src,t.reg||t.cn||t.addr,Math.round(t.altM/0.3048),Math.round((Date.now()-t.t0)/1000)+'s'])}); })()"""))
+    shot("07t_traffico")
+    ev("PH.show('volo'),1")
     step("08_demo", "(typeof PH.setDemo==='function'?(PH.setDemo(true),'demo'):'manca setDemo')", pause=25)
     log("errori JS", ev("JSON.stringify(__err)"))
     log("errori app", ev("JSON.stringify(PH.errLog||[])"))
