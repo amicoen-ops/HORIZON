@@ -22,7 +22,7 @@ for n, f in [("DV", "DejaVuSans.ttf"), ("DVB", "DejaVuSans-Bold.ttf"), ("DVI", "
 registerFontFamily("DV", normal="DV", bold="DVB", italic="DVI", boldItalic="DVB")
 registerFontFamily("DVC", normal="DVC", bold="DVCB", italic="DVC", boldItalic="DVCB")
 
-VER = "1.0.53"
+VER = "1.0.54"
 OUT = "/mnt/user-data/outputs/Manuale_HORIZON.pdf"
 M = "/home/claude/android/man/"
 NAVY = colors.HexColor("#0c447c"); MAG = colors.HexColor("#b0168f"); GREY = colors.HexColor("#5f5e5a")
@@ -430,6 +430,8 @@ s += [P("Il tasto <b>✈</b> della barra in basso apre la pagina <b>Traffico</b>
         "Il tasto <b>SafeSky ↗</b> apre la mappa di SafeSky centrata su di te, nel browser.")]
 s += [P("Il traffico compare anche sulla <b>mappa mobile</b> (e sulla mappa del tablet accanto all'orizzonte): una freccia nella sua direzione, con la differenza di quota in centinaia di piedi (<b>+03</b> = 300 ft sopra, <b>−12</b> = 1200 ft sotto), ↑ o ↓ se sale o scende e, fino a 15 km di zoom, le marche. "
         "Stessi colori della pagina Traffico: azzurro lontano, giallo chiaro vicino (entro 3 km e 1000 ft), arancio e rosso in rotta di collisione, grigio a terra o dato vecchio. Sull'orizzonte resta solo il triangolo.")]
+s += [P("<b>Tocca un traffico</b> (sul radar, nell'elenco o sulla mappa mobile) e si apre la sua scheda: tipo di aereo, distanza, posizione a ore e rilevamento, quota in piedi e metri e differenza con la tua, velocità e traccia, vario, "
+        "quando e di quanto vi avvicinerete se nessuno cambia rotta, fonte, codice ed età del dato, e il tasto «Vedi su SafeSky». Sulla mappa, un tocco lontano dai traffici apre il menu come sempre.")]
 s += [P("I dati arrivano da internet: <b>OGN</b> (Open Glider Network: FLARM e tracker OGN, cioè alianti e molti ultraleggeri) e <b>adsb.lol</b> (ADS-B e MLAT: aerei con transponder). "
         "Si scaricano ogni 6 secondi solo in volo o con la pagina aperta, circa 5–15 MB l'ora. Si spengono in Impostazioni › Traffico.")]
 s += [table(["Sullo strumento", "Quando"], [
