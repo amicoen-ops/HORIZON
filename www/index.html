@@ -661,7 +661,7 @@ function replan(){
   const pick=pickRunway(NAV.app.f); if(!pick) return;
   NAV.app=buildApproach(NAV.app.f,pick,enu(S.lat,S.lon)); announce();
 }
-const DEMO_SEQ=['IT-0074','IT-0001','LIVV','IT-0035'];
+const DEMO_SEQ=['IT-0001','LIVV','IT-0035'];
 function nextDemo(){
   const cur=NAV.dest?NAV.dest.id:(NAV.lastDest||null), i=DEMO_SEQ.indexOf(cur);
   const f=FIELDS.find(x=>x.id===DEMO_SEQ[(i+1)%DEMO_SEQ.length]);
@@ -3159,7 +3159,7 @@ function demoTakeoff(){
   S.alt+=400; S.ias=110; S.pitch=6; NAV.airborne=true; toast('DECOLLO (demo)'); nextDemo(); }
 
 // ---- simulazione di una rotta salvata o di un direct to ----
-PH.simCfg=function(){ return Object.assign({kind:'route',route:null,dest:'IT-0001',from:'IT-0074',start:'first',kmh:115,ft:2500,wdir:270,wkmh:10,warp:2},lsGet('ia517p_simcfg',{})); };
+PH.simCfg=function(){ return Object.assign({kind:'route',route:null,dest:'',from:'here',start:'first',kmh:115,ft:2500,wdir:270,wkmh:10,warp:2},lsGet('ia517p_simcfg',{})); };
 PH.simStart=function(cfg){
   lsSet('ia517p_simcfg',cfg);
   let r=null, f=null, start=null, first=1;
@@ -3990,7 +3990,7 @@ PH.donateNag=function(){
 // =====================================================================================
 PH.AC_SCHEMA=[
   {g:'Identità',f:[
-    {k:'reg',l:'Marche',t:'text',ph:'I-A517',req:1},
+    {k:'reg',l:'Marche',t:'text',ph:'I-XXXX',req:1},
     {k:'model',l:'Modello',t:'text',ph:'Avid Flyer'},
     {k:'cat',l:'Categoria (decide le regole degli spazi aerei)',t:'sel',o:[['vds_basico','VDS basico'],['vds_avanzato','VDS avanzato'],['vfr','Aviazione generale VFR']]},
     {k:'notes',l:'Note (hangar, frequenze, promemoria)',t:'area'}]},
@@ -4041,17 +4041,26 @@ PH.AC_SCHEMA=[
     {k:'elt',l:'ELT',t:'sel',o:[['0','No'],['1','Sì']]},
     {k:'chute',l:'Paracadute balistico',t:'sel',o:[['0','No'],['1','Sì']]}]}
 ];
-// profilo di partenza: l'Avid Flyer di Enry (I-A517), con i valori che l'app usava finora
-PH.AC_DEF={id:'ac-ia517',reg:'I-A517',model:'Avid Flyer',cat:'vds_basico',notes:'',
+// profilo storico (Avid Flyer I-A517): resta solo per chi usava già l'app senza aver mai salvato un profilo
+PH.AC_LEGACY={id:'ac-ia517',reg:'I-A517',model:'Avid Flyer',cat:'vds_basico',notes:'',
   vs0:42,vs1:55,vfe:100,va:110,vno:130,vne:145,vx:70,vy:80,vglide:80,vapp:95,vcirc:105,vcruise:110,
   roc:600,rod:700,glide:8,todist:250,ldist:250,xwind:20,hcFt:800,ceil:10000,
   fuelType:'mogas',fuelCap:73,fuelUnus:1,burn:14,res:30,taxi:1.5,
   empty:280,emptyArm:'',mtow:450,seats:'2',pilotArm:'',paxArm:'',fuelArm:'',bagMax:10,bagArm:'',cgFwd:'',cgAft:'',
   xpdr:'no',radio:'1',elt:'0',chute:'0'};
+// profilo di partenza per chi installa adesso: ULM generico senza marche, da completare in PROFILO
+PH.AC_DEF={id:'ac-default',reg:'I-XXXX',model:'ULM',cat:'vds_basico',notes:'',
+  vs0:55,vs1:65,vfe:110,va:130,vno:160,vne:190,vx:80,vy:90,vglide:90,vapp:95,vcirc:110,vcruise:140,
+  roc:700,rod:700,glide:9,todist:250,ldist:250,xwind:20,hcFt:800,ceil:10000,
+  fuelType:'mogas',fuelCap:70,fuelUnus:2,burn:15,res:30,taxi:2,
+  empty:300,emptyArm:'',mtow:600,seats:'2',pilotArm:'',paxArm:'',fuelArm:'',bagMax:15,bagArm:'',cgFwd:'',cgAft:'',
+  xpdr:'no',radio:'1',elt:'0',chute:'0'};
+// chi aveva già accettato le avvertenze (installazione precedente) e non ha mai salvato un profilo tiene i valori di prima
+{ let lg=lsGet('ia517p_legacy',null); if(lg===null){ lg=lsGet('ia517p_terms',null)?1:0; lsSet('ia517p_legacy',lg); } PH.wasInstalled=lg===1; }   // deciso una volta sola, al primo avvio di questa versione
 PH.AC_NEW={reg:'',model:'',cat:'vds_avanzato',notes:'',vs0:55,vs1:65,vfe:110,va:130,vno:180,vne:220,vx:85,vy:95,vglide:95,vapp:100,vcirc:115,vcruise:160,
   roc:800,rod:800,glide:10,todist:300,ldist:300,xwind:25,hcFt:1000,ceil:12000,fuelType:'mogas',fuelCap:80,fuelUnus:2,burn:16,res:30,taxi:2,
   empty:300,emptyArm:'',mtow:600,seats:'2',pilotArm:'',paxArm:'',fuelArm:'',bagMax:20,bagArm:'',cgFwd:'',cgAft:'',xpdr:'s',radio:'1',elt:'1',chute:'0'};
-PH.acs=lsGet('ia517p_aircraft',null)||[Object.assign({},PH.AC_DEF)];
+PH.acs=lsGet('ia517p_aircraft',null)||[Object.assign({},PH.wasInstalled?PH.AC_LEGACY:PH.AC_DEF)];
 PH.acId=lsGet('ia517p_acid',PH.acs[0].id);
 PH.ac=PH.acs.find(a=>a.id===PH.acId)||PH.acs[0];
 PH.acSave=function(){ lsSet('ia517p_aircraft',PH.acs); lsSet('ia517p_acid',PH.ac.id); };
@@ -4207,7 +4216,7 @@ PH.trfIsMe=function(t){
 PH.trfOgn=async function(lat,lon){
   const dLat=0.5, dLon=dLat/Math.max(0.2,Math.cos(lat*D2R));
   const q=`a=0&b=${(lat+dLat).toFixed(2)}&c=${(lat-dLat).toFixed(2)}&d=${(lon+dLon).toFixed(2)}&e=${(lon-dLon).toFixed(2)}`;
-  let r; try{ r=await IA517.http('https://live.glidernet.org/lxml.php?'+q); }catch(e){ r=await IA517.http('http://live.glidernet.org/lxml.php?'+q); }
+  const r=await IA517.http('https://live.glidernet.org/lxml.php?'+q);   // solo HTTPS: la zona non viaggia mai in chiaro
   if(r.status!==200) throw new Error('risposta '+r.status);
   const out=[], now=Date.now(), re=/<m a="([^"]*)"/g; let m;
   while((m=re.exec(r.text))){ const f=m[1].split(','); if(f.length<13) continue;
@@ -4546,7 +4555,7 @@ if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){ S.auto=false;
 setUserFields(lsGet('ia517_userfields',[]));
 setNotes(lsGet('ia517_notes',null));
 { const q=lsGet('ia517_qnh',null); if(q>=950&&q<=1060) QNH=q; }
-if(!restoreNav(lsGet('ia517_nav',null),true)){ NAV_HOLD=true; directTo(FIELDS.find(f=>f.id==='IT-0074'),2500); NAV_HOLD=false; }
+if(!restoreNav(lsGet('ia517_nav',null),true) && PH.wasInstalled){ NAV_HOLD=true; directTo(FIELDS.find(f=>f.id==='IT-0074'),2500); NAV_HOLD=false; }   // installazione nuova: nessuna destinazione finché non la scegli
 linkStart();
 requestAnimationFrame(frame);
 

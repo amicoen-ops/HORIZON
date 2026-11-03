@@ -381,7 +381,7 @@ if(NOTES['IT-0074'] && NOTES['IT-0074'].elevFt==null){ NOTES['IT-0074'].elevFt=7
 const noteOf=f=>NOTES[f.id]||null;
 
 // ---------------- piano ----------------
-let PLAN=store.get('ia517_plan',null)||{from:'IT-0074',wps:[],dest:'LILE',alt:'IT-0074',cruiseFt:2500,tas:110,burn:14,fuel:60,res:30,taxi:1.5};
+let PLAN=store.get('ia517_plan',null)||{from:'LILE',wps:[],dest:'LILN',alt:'LILE',cruiseFt:2500,tas:110,burn:14,fuel:60,res:30,taxi:1.5};
 function fieldOptions(sel,withNone){
   return (withNone?'<option value="">Nessuno</option>':'')+sortedFields().map(f=>`<option value="${f.id}"${f.id===sel?' selected':''}>${esc(f.short)} · ${esc(f.name)}${f.kind==='alti'||f.kind==='glac'?' ('+KIND_TXT[f.kind]+')':''}</option>`).join('');
 }

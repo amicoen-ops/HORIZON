@@ -15,7 +15,7 @@ const CFG={
   polarApi:'https://api.polar.sh',                      // https://api.polar.sh oppure https://sandbox-api.polar.sh
   checkout:'__POLAR_CHECKOUT__',                 // link di pagamento del prodotto su Polar
   portal:'__POLAR_PORTAL__',                     // spazio del cliente su Polar (chiave, dispositivi, ricevute)
-  playProduct:'licenza_annuale', playBasePlan:'annuale', price:'20 €', trialDays:30, offlineDays:30, playOfflineDays:7, recheckDays:3
+  playProduct:'licenza_annuale', playBasePlan:'annuale', price:'20 €', playPriceDef:'30 €', trialDays:30, offlineDays:30, playOfflineDays:7, recheckDays:3
 };
 const set=v=>v && !/^__/.test(v);
 const DAY=86400000, K='ia517p_lic', KT='ia517p_t0', KS='ia517p_seen';
@@ -149,8 +149,8 @@ L.panel=function(st){
     (st.code==='revoked'?(play?'L\'abbonamento non risulta attivo su questo account Google (disdetto, scaduto o pagamento non riuscito). Rinnovalo per continuare.':'La chiave è stata annullata (rimborso, chiave sostituita o dispositivo tolto). Attiva una chiave valida.'):
     (st.code==='expired'?`I ${CFG.trialDays} giorni di prova sono finiti. Grazie per averla provata!`:''));
   return `<h2>${title}</h2><p>${why}</p>`+(st.code==='tampered'?'':
-    (play?`<p><b>Abbonamento annuale: ${esc(L.playPrice||CFG.price)} all'anno</b>, su tutti i telefoni del tuo account Google. Si rinnova da solo ogni anno finché non lo disdici; puoi disdire quando vuoi dal Play Store (Abbonamenti) e l'app resta attiva fino alla fine dell'anno già pagato.</p>
-      <button class="pri" type="button" data-l="buy">Abbonati · ${esc(L.playPrice||CFG.price)}/anno</button><button type="button" data-l="restore">Ho già l'abbonamento: ripristina</button>
+    (play?`<p><b>Abbonamento annuale: ${esc(L.playPrice||CFG.playPriceDef)} all'anno</b>, su tutti i telefoni del tuo account Google. Si rinnova da solo ogni anno finché non lo disdici; puoi disdire quando vuoi dal Play Store (Abbonamenti) e l'app resta attiva fino alla fine dell'anno già pagato.</p>
+      <button class="pri" type="button" data-l="buy">Abbonati · ${esc(L.playPrice||CFG.playPriceDef)}/anno</button><button type="button" data-l="restore">Ho già l'abbonamento: ripristina</button>
       <a class="lic-a" href="${L.manageUrl()}" target="_blank" rel="noopener">Gestisci o disdici l'abbonamento</a>`:
      `<p>Con la licenza da <b>${CFG.price}</b>, una volta sola, l'app resta completa per sempre su <b>2 dispositivi</b> (telefono, tablet o browser). La chiave arriva alla mail con cui paghi.</p>
       ${set(CFG.checkout)?`<a class="lic-a pri" href="${esc(CFG.checkout)}" target="_blank" rel="noopener" data-l="checkout">Acquista la licenza · ${CFG.price}</a>`:''}
