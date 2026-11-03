@@ -158,3 +158,11 @@
   .ph-trf-r b{font:700 13px 'Oxanium',system-ui,sans-serif;color:#4fd2ff} .ph-trf-r small{grid-column:2;color:#8a96a3;font-size:11px}
   .ph-trf-r.b b,.ph-trf-r.b span{color:#ff6b6b} .ph-trf-r.w b,.ph-trf-r.w span{color:#ffb020}
   .ph-src{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;margin:8px 0 2px}
+
+  .ph-trf-r{cursor:pointer} .ph-trf-r.sel{background:#16222e;border-radius:8px}
+  .ph-trf-det{border:1px solid #4fd2ff;border-radius:12px;padding:8px 10px;margin:4px 0 10px;background:#101b26}
+  .ph-trf-det.b{border-color:#ff3b3b} .ph-trf-det.w{border-color:#ffb020}
+  .ph-trf-det .h{display:flex;align-items:center;gap:8px;margin-bottom:4px} .ph-trf-det .h b{font:700 17px 'Oxanium',system-ui,sans-serif;color:#fff}
+  .ph-trf-det .h small{color:#8a96a3} .ph-trf-det .h button{margin-left:auto;min-width:40px;min-height:36px;border-radius:8px;border:1px solid #3a4250;background:#1b2530;color:#fff;font-size:16px}
+  .ph-trf-det .r{display:grid;grid-template-columns:78px 1fr;gap:6px;padding:3px 0;border-top:1px solid #1d2731;font-size:13px}
+  .ph-trf-det .r span{color:#8a96a3} .ph-trf-det .r em{font-style:normal;color:#e6edf3} .ph-trf-det .b{color:#ff6b6b} .ph-trf-det .w{color:#ffb020}

@@ -260,6 +260,14 @@
   .ph-trf-r b{font:700 13px 'Oxanium',system-ui,sans-serif;color:#4fd2ff} .ph-trf-r small{grid-column:2;color:#8a96a3;font-size:11px}
   .ph-trf-r.b b,.ph-trf-r.b span{color:#ff6b6b} .ph-trf-r.w b,.ph-trf-r.w span{color:#ffb020}
   .ph-src{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;margin:8px 0 2px}
+
+  .ph-trf-r{cursor:pointer} .ph-trf-r.sel{background:#16222e;border-radius:8px}
+  .ph-trf-det{border:1px solid #4fd2ff;border-radius:12px;padding:8px 10px;margin:4px 0 10px;background:#101b26}
+  .ph-trf-det.b{border-color:#ff3b3b} .ph-trf-det.w{border-color:#ffb020}
+  .ph-trf-det .h{display:flex;align-items:center;gap:8px;margin-bottom:4px} .ph-trf-det .h b{font:700 17px 'Oxanium',system-ui,sans-serif;color:#fff}
+  .ph-trf-det .h small{color:#8a96a3} .ph-trf-det .h button{margin-left:auto;min-width:40px;min-height:36px;border-radius:8px;border:1px solid #3a4250;background:#1b2530;color:#fff;font-size:16px}
+  .ph-trf-det .r{display:grid;grid-template-columns:78px 1fr;gap:6px;padding:3px 0;border-top:1px solid #1d2731;font-size:13px}
+  .ph-trf-det .r span{color:#8a96a3} .ph-trf-det .r em{font-style:normal;color:#e6edf3} .ph-trf-det .b{color:#ff6b6b} .ph-trf-det .w{color:#ffb020}
 </style>
 
 <h1>Orizzonte Sintetico</h1>
@@ -3353,7 +3361,7 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
     if(Math.abs(dx)>12||Math.abs(e.clientY-g0.y)>12) g0.moved=true;
     if(PAGE==='map'){ if(g0.moved){ clearTimeout(g0.lt); PH.panBy(cvm,e.clientX-(g0.px??g0.x),e.clientY-(g0.py??g0.y)); g0.px=e.clientX; g0.py=e.clientY; } return; }
     const steps=Math.trunc((dx-g0.acc)/42); if(steps){ for(let i=0;i<Math.abs(steps);i++) rotate(Math.sign(steps)); g0.acc+=steps*42; } });
-  cvm.addEventListener('pointerup',()=>{ if(!g0) return; clearTimeout(g0.lt); if(!g0.moved&&!g0.long) push(); g0=null; });
+  cvm.addEventListener('pointerup',ev=>{ if(!g0) return; clearTimeout(g0.lt); if(!g0.moved&&!g0.long){ if(!(PH.trfTap&&PH.trfTap(cvm,ev))) push(); } g0=null; });
   cvm.addEventListener('pointercancel',()=>{ if(g0) clearTimeout(g0.lt); g0=null; });
   // mappa libera: trascinando col dito si sposta la vista (nord in alto); lo zoom resta sul punto guardato
   PH.pan=null;
@@ -3805,6 +3813,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.27',"Scheda del traffico: tocca un traffico sul radar, nell'elenco o sulla mappa mobile per vedere tipo, distanza e rilevamento, quota, velocità e traccia, vario, quando e quanto vi avvicinerete, fonte ed età del dato, e aprirlo su SafeSky. Nomi puliti: HB-KNL invece di syHBKNL. Sulla mappa spostata col dito i traffici restano al loro posto."],
   ['2.0.26',"Traffico sulla mappa mobile (e sulla mappa del tablet accanto all'orizzonte): freccia nella sua direzione, differenza di quota in centinaia di piedi (+03 = 300 ft sopra), sale o scende, e le marche fino a 15 km di zoom. SafeSky: il tuo aereo rimandato come traffico non compare più e non dà il triangolo; le quote di SafeSky sono riportate alla tua quota GPS."],
   ['2.0.24',"Traffico da internet (OGN e adsb.lol): corretto lo scaricamento, che nelle due versioni precedenti non partiva."],
   ['2.0.23',"SafeSky sullo stesso telefono: HORIZON riceve il traffico che SafeSky Premium condivide con le app di navigazione (GDL90, porta UDP 4000), con SafeSky in sottofondo che trasmette la tua posizione. Finché arriva, il traffico da internet non si scarica. Funziona anche con SkyEcho, PilotAware e Stratux sul WiFi."],
@@ -4358,6 +4367,15 @@ PH.TRF={on:lsGet('ia517p_trf',true), me:String(lsGet('ia517p_trf_me','')||''), r
 PH.TRF_LIM=1000*FT2M;                                    // 1000 ft = 305 m, di lato e in quota
 PH.TRF_LOOK=60;                                          // secondi di previsione per la rotta di collisione
 PH.trfNorm=s=>String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
+PH.TRF_PFX2=['HB','OE','OK','OM','OO','OY','OH','SE','LN','PH','EI','EC','CS','SP','SX','YR','LZ','HA','S5','9A','9H','5B','TC','LX','ES','YL','LY','UR','4X','VH','ZS','EW','ER','TF','A6','A7','HZ','RA','ZK','OD','SU'];
+PH.trfFmtReg=function(raw){
+  const s=String(raw||'').replace(/^sy/,'').trim().toUpperCase();
+  if(!s || s.includes('-') || !/^[A-Z0-9]{4,7}$/.test(s) || /^[A-Z]{3}\d/.test(s)) return s;   // già con il trattino, o volo di linea (RYR123)
+  const p2=PH.TRF_PFX2.find(p=>s.startsWith(p)&&s.length>=5); if(p2) return p2+'-'+s.slice(2);
+  if(/^[IDFGCMB][A-Z0-9]{3,5}$/.test(s)) return s[0]+'-'+s.slice(1);
+  return s;
+};
+PH.trfName=t=>String(t.reg||PH.trfFmtReg(t.cn)||t.addr||'?').replace(/</g,'');
 PH.trfIsMe=function(t){
   const me=PH.trfNorm(PH.TRF.me), reg=PH.trfNorm(PH.ac&&PH.ac.reg);
   if(me && (PH.trfNorm(t.addr)===me || PH.trfNorm(t.reg)===me)) return true;
@@ -4386,7 +4404,7 @@ PH.trfAdsb=async function(lat,lon){
     if(age>180) continue;
     out.push({id:'A'+String(a.hex||'').replace(/^~/,''), addr:String(a.hex||'').replace(/^~/,''), reg:a.r||'', cn:String(a.flight||'').trim(), lat:+a.lat, lon:+a.lon,
       altM:alt!=null?alt*FT2M:NaN, trk:+(a.track!=null?a.track:(a.true_heading||0)), kmh:(+a.gs||0)*1.852, vz:(+(a.geom_rate!=null?a.geom_rate:(a.baro_rate||0)))*0.00508,
-      t0:now-age*1000, ground, src:'ADS-B', type:a.category||'', baro:a.alt_geom==null}); }
+      t0:now-age*1000, ground, src:'ADS-B', type:a.category||'', model:a.t||'', baro:a.alt_geom==null}); }
   return out;
 };
 PH.trfFetch=async function(){
@@ -4422,7 +4440,8 @@ PH.gdlIn=function(o){
   const addr=String(o.addr||'').toUpperCase(), id='G'+addr, own=T.gdlOwn;
   if(own && own.addr && own.addr===addr) return;          // il tuo aereo rimandato come traffico
   T.tg.delete('A'+addr); T.tg.delete('O'+addr);          // lo stesso aereo arrivato prima da internet
-  T.tg.set(id,{id,addr,reg:'',cn:String(o.cs||''),lat:+o.lat,lon:+o.lon,altM:o.altFt!=null?o.altFt*FT2M:NaN,trk:+o.trk||0,
+  const cs=String(o.cs||'').replace(/^sy/,'').trim(), rg=PH.trfFmtReg(cs);
+  T.tg.set(id,{id,addr,reg:rg.includes('-')?rg:'',cn:cs,lat:+o.lat,lon:+o.lon,altM:o.altFt!=null?o.altFt*FT2M:NaN,trk:+o.trk||0,
     kmh:o.kt!=null?o.kt*1.852:0,vz:o.fpm!=null?o.fpm*0.00508:0,t0:now,ground:!o.inVolo&&(o.kt||0)<30,src:'SafeSky',type:o.cat});
   T.src.gdl.t=now;
 };
@@ -4466,6 +4485,8 @@ PH.trfEval=function(){
       if(g0<3) T.ghost.set(id,same?g0+1:0); else if(d>1000) T.ghost.set(id,0); }   // se si allontana non sei tu
     if(PH.trfIsMe(t)){ e.me=true; out.push(e); continue; }
     const grounded=t.ground || t.kmh<25;
+    { const rx=vx-ovx, ry=vy-ovy, rz=(t.vz||0)-ovz, vv=rx*rx+ry*ry;
+      if(vv>0.01){ const tc=-(x*rx+y*ry)/vv; if(tc>0 && tc<1800) e.cpa={tc, dm:Math.hypot(x+rx*tc,y+ry*tc), dzm:dz===dz?dz+rz*tc:NaN}; } }
     if(air && !grounded && dz===dz && age<=30){
       const rx=vx-ovx, ry=vy-ovy, rz=(t.vz||0)-ovz, vv=rx*rx+ry*ry;
       let tc=vv>0.01?-(x*rx+y*ry)/vv:0; tc=Math.max(0,Math.min(PH.TRF_LOOK,tc));
@@ -4513,12 +4534,14 @@ PH.trfDraw=function(){
 // traffico sulla mappa mobile: stessa scala e stessa rotazione (traccia in alto) di drawMap
 PH.trfMap=function(){
   const T=PH.TRF, ev=T.view; if(!T.on || !ev || !ev.length || !ctx) return;
-  const t0=((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000, sc=1.3*R/rng, ax=CX, ay=CY+0.3*R, ct=Math.cos(t0), st=Math.sin(t0);
+  const pan=PH.pan, t0=pan?0:((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000, sc=1.3*R/rng, ax=CX, ay=CY+(pan?0:0.3*R), ct=Math.cos(t0), st=Math.sin(t0);
+  const pE=pan?pan.E:0, pN=pan?pan.N:0, main=ctx===PH.ctxMain; if(main) T.mapHits=[];
   ctx.save(); ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2); ctx.clip();
   const s=Math.max(8,R*0.05);
   for(const e of ev.slice().reverse()){
     if(e.me || (e.dz===e.dz && Math.abs(e.dz)>6000*FT2M)) continue;
-    const x=ax+(e.x*ct-e.y*st)*sc, y=ay-(e.x*st+e.y*ct)*sc; if(Math.hypot(x-CX,y-CY)>R*1.02) continue;
+    const qx=e.x-pE, qy=e.y-pN, x=ax+(qx*ct-qy*st)*sc, y=ay-(qx*st+qy*ct)*sc; if(Math.hypot(x-CX,y-CY)>R*1.02) continue;
+    if(main) T.mapHits.push({id:e.t.id,x,y});
     const near=e.dz===e.dz && Math.abs(e.dz)<PH.TRF_LIM && e.d<3000;
     const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(e.age>30||e.t.ground||e.t.kmh<25?'#9aa4af':(near?'#ffe08a':'#4fd2ff')));
     ctx.save(); ctx.translate(x,y); ctx.rotate(e.t.trk*D2R-t0); ctx.fillStyle=col; ctx.strokeStyle='#000'; ctx.lineWidth=Math.max(1.5,s*0.18);
@@ -4527,11 +4550,18 @@ PH.trfMap=function(){
     const v=e.t.vz>1?'↑':(e.t.vz<-1?'↓':'');
     ctx.font=`700 ${Math.round(s*1.15)}px "Oxanium",system-ui,sans-serif`; ctx.textAlign='left'; ctx.textBaseline='middle';
     ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.fillStyle=col;
-    const l2=zi<=3?(e.t.reg||e.t.cn||'').slice(0,8):'', yy=y-(l2?s*0.55:0);
+    const l2=zi<=3?PH.trfName(e.t).slice(0,8):'', yy=y-(l2?s*0.55:0);
     ctx.strokeText(dz+v,x+s*1.1,yy); ctx.fillText(dz+v,x+s*1.1,yy);
     if(l2){ ctx.font=`600 ${Math.round(s*0.95)}px "Oxanium",system-ui,sans-serif`; ctx.strokeText(l2,x+s*1.1,y+s*0.75); ctx.fillText(l2,x+s*1.1,y+s*0.75); }
   }
   ctx.restore();
+};
+PH.trfTap=function(cv,ev){
+  if(PAGE==='pfd' || !ev || !PH.TRF.mapHits || !PH.TRF.mapHits.length) return false;
+  const r=cv.getBoundingClientRect(), f=cv.width/(r.width||1), x=(ev.clientX-r.left)*f, y=(ev.clientY-r.top)*f;
+  let best=null, bd=30*f; for(const h of PH.TRF.mapHits){ const d=Math.hypot(h.x-x,h.y-y); if(d<bd){ bd=d; best=h.id; } }
+  if(!best) return false;
+  PH.TRF.sel=best; PH.TRF.selLost=0; PH.show('trf'); return true;
 };
 // ---- pagina TRAFFICO ----
 PH.trfOpen=function(){
@@ -4541,6 +4571,13 @@ PH.trfOpen=function(){
   bar.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{ PH.TRF.rng=+b.dataset.r; lsSet('ia517p_trf_rng',PH.TRF.rng); bar.querySelectorAll('[data-r]').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.trfPage(); });
   el('phTrfSafe').onclick=()=>{ const z=PH.TRF.rng<=5?12:(PH.TRF.rng<=10?11:10);
     window.open(`https://live.safesky.app/map?lat=${S.lat.toFixed(5)}&lng=${S.lon.toFixed(5)}&zoom=${z}&metric=feet`,'_blank'); };
+  const cv=el('phTrfCv'), info=el('phTrfInfo');
+  cv.onclick=ev=>{ const r=cv.getBoundingClientRect(), x=ev.clientX-r.left, y=ev.clientY-r.top; let best=null, bd=34;
+    for(const h of (PH.TRF.hits||[])){ const d=Math.hypot(h.x-x,h.y-y); if(d<bd){ bd=d; best=h.id; } }
+    PH.TRF.sel=best; PH.TRF.selLost=0; PH.trfPage(); if(best) info.scrollTop=0; };
+  info.onclick=ev=>{ const x=ev.target.closest('[data-x]'); if(x){ PH.TRF.sel=null; PH.trfPage(); return; }
+    const sf=ev.target.closest('[data-safe]'); if(sf){ const [la,lo]=sf.dataset.safe.split(','); window.open(`https://live.safesky.app/map?lat=${la}&lng=${lo}&zoom=13&metric=feet`,'_blank'); return; }
+    const r=ev.target.closest('[data-id]'); if(r){ PH.TRF.sel=r.dataset.id; PH.TRF.selLost=0; PH.trfPage(); info.scrollTop=0; } };
   clearInterval(PH.trfT); PH.trfT=setInterval(PH.trfPage,1000); PH.trfTick(); requestAnimationFrame(PH.trfPage); PH.act&&PH.act('traffico');
 };
 PH.trfClose=function(){ clearInterval(PH.trfT); PH.trfT=null; };
@@ -4561,24 +4598,27 @@ PH.trfPage=function(){
   // il mio aereo
   c.fillStyle='#ffd23d'; c.beginPath(); c.moveTo(cx,cy-10); c.lineTo(cx+7,cy+7); c.lineTo(cx,cy+3); c.lineTo(cx-7,cy+7); c.closePath(); c.fill();
   const shown=ev.filter(e=>!e.me && e.d<=T.rng*1000*1.05 && !(e.dz===e.dz && Math.abs(e.dz)>6000*FT2M));
+  T.hits=[];
   for(const e of shown.slice().reverse()){
     const rel=Math.atan2(e.x,e.y)-up, px=cx+Math.sin(rel)*e.d*sc, py=cy-Math.cos(rel)*e.d*sc;
+    T.hits.push({id:e.t.id,x:px,y:py});
+    if(T.sel===e.t.id){ c.strokeStyle='#fff'; c.lineWidth=2; c.beginPath(); c.arc(px,py,16,0,Math.PI*2); c.stroke(); }
     const near=e.dz===e.dz && Math.abs(e.dz)<PH.TRF_LIM && e.d<3000;
     const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(e.age>30||e.t.ground||e.t.kmh<25?'#6b7684':(near?'#ffe08a':'#4fd2ff')));
     c.save(); c.translate(px,py); c.rotate(e.t.trk*D2R-up); c.fillStyle=col; c.strokeStyle='#000'; c.lineWidth=1.5;
     c.beginPath(); c.moveTo(0,-9); c.lineTo(6,7); c.lineTo(0,3); c.lineTo(-6,7); c.closePath(); c.fill(); c.stroke(); c.restore();
     c.fillStyle=col; c.font='700 11px "Oxanium",system-ui'; c.textAlign='left'; c.textBaseline='middle';
     const v=e.t.vz>1?' ↑':(e.t.vz<-1?' ↓':'');
-    c.fillText((e.t.reg||e.t.cn||e.t.addr||'?').slice(0,9),px+10,py-6); c.fillText(PH.trfDz(e)+v,px+10,py+7);
+    c.fillText(PH.trfName(e.t).slice(0,9),px+10,py-6); c.fillText(PH.trfDz(e)+v,px+10,py+7);
   }
   // elenco e fonti
   const ago=t=>t?Math.round((Date.now()-t)/1000)+' s fa':'mai';
   const sl=(k,name)=>{ const s=T.src[k]; return s.err&&(!s.t||s.te>s.t)?`<span class="b">${name}: non risponde (${s.err.replace(/</g,'')})</span>`:`<span class="${s.t&&Date.now()-s.t<30000?'o':'w'}">${name}: ${s.n} · ${ago(s.t)}</span>`; };
-  const row=e=>`<div class="ph-trf-r ${e.lvl>=2?'b':(e.lvl===1?'w':'')}"><b>${(e.t.reg||e.t.cn||e.t.addr||'?').replace(/</g,'')}</b>`+
+  const row=e=>`<div class="ph-trf-r ${e.lvl>=2?'b':(e.lvl===1?'w':'')}${T.sel===e.t.id?' sel':''}" data-id="${e.t.id}"><b>${PH.trfName(e.t)}</b>`+
     `<span>${(e.d/1000).toFixed(1).replace('.',',')} km · ore ${PH.trfClock(e)} · ${PH.trfDz(e)}${e.t.vz>1?' ↑':(e.t.vz<-1?' ↓':'')} · ${Math.round(e.t.kmh)} km/h</span>`+
     `<small>${e.t.src}${e.t.baro?' (quota baro)':''} · ${Math.round(e.age)} s${e.lvl?(e.tc?` · incontro tra ${Math.round(e.tc)} s`:' · troppo vicino'):''}</small></div>`;
   const list=shown.slice(0,12), hid=ev.filter(e=>!e.me && e.d<=T.rng*1000*1.05).length-shown.length, me=ev.find(e=>e.me);
-  el('phTrfInfo').innerHTML=
+  el('phTrfInfo').innerHTML=PH.trfDetHtml(ev)+
     (!T.on?'<p class="w">Traffico spento: si accende in Impostazioni › Traffico.</p>':'')+
     (T.on && !S.gpsReal && !PH.demo?'<p class="w">Aspetto la posizione GPS.</p>':'')+
     (T.on && !navigator.onLine && !PH.demo?'<p class="b">Senza internet il traffico non arriva.</p>':'')+
@@ -4589,6 +4629,40 @@ PH.trfPage=function(){
     `<p class="ph-sub">Il triangolo di pericolo sullo strumento compare se un traffico è entro 1000 ft di lato e in quota, adesso o entro ${PH.TRF_LOOK} s se nessuno cambia rotta. `+
     `I dati via internet arrivano con 5–20 s di ritardo e mancano dove non ci sono ricevitori (valli, bassa quota) e per chi non ha FLARM, OGN o ADS-B: guarda sempre fuori. `+
     `Dati: SafeSky sul telefono, Open Glider Network e adsb.lol (licenza ODbL).</p>`;
+  if(cv.clientWidth!==W || cv.clientHeight!==H) requestAnimationFrame(PH.trfPage);   // la scheda ha cambiato l'altezza del radar: ridisegna subito
+};
+// scheda di un traffico toccato
+PH.TRF_OGN=['sconosciuto','aliante o motoaliante','rimorchiatore','elicottero','paracadutista','aereo dei paracadutisti','deltaplano','parapendio','aereo a motore','jet','sconosciuto','pallone','dirigibile','drone','fisso a terra','ostacolo'];
+PH.TRF_GDL={1:'aereo leggero',2:'aereo piccolo',3:'aereo grande',4:'aereo grande (scia forte)',5:'aereo pesante',6:'alte prestazioni',7:'elicottero',9:'aliante',10:'pallone o dirigibile',11:'paracadutista',12:'ultraleggero, deltaplano o parapendio',14:'drone',17:'veicolo di soccorso',18:'veicolo di servizio',19:'ostacolo'};
+PH.TRF_ADSB={A1:1,A2:2,A3:3,A4:4,A5:5,A6:6,A7:7,B1:9,B2:10,B3:11,B4:12,B6:14,C1:17,C2:18,C3:19};
+PH.trfType=function(t){
+  if(t.src==='OGN') return PH.TRF_OGN[t.type]||'';
+  if(t.src==='SafeSky') return PH.TRF_GDL[t.type]||'';
+  if(t.src==='ADS-B') return PH.TRF_GDL[PH.TRF_ADSB[t.type]]||'';
+  return t.src==='DEMO'?'aereo a motore (finto)':'';
+};
+PH.trfDetHtml=function(ev){
+  const T=PH.TRF; if(!T.sel) return '';
+  const e=ev.find(x=>x.t.id===T.sel);
+  if(!e){ T.selLost=(T.selLost||0)+1; if(T.selLost>20){ T.sel=null; return ''; }
+    return `<div class="ph-trf-det"><div class="h"><b>Traffico non più ricevuto</b><button type="button" data-x>✕</button></div></div>`; }
+  T.selLost=0;
+  const t=e.t, fm=v=>Math.round(v).toLocaleString('it-IT'), dec=(v,n)=>v.toFixed(n).replace('.',','), alt=e.dz===e.dz?(S.alt||0)+e.dz/FT2M:NaN;
+  const vz=t.vz||0, vzs=Math.abs(vz)<0.3?'livellato':(vz>0?'sale ':'scende ')+(Math.abs(vz)>=0.3?`${dec(Math.abs(vz),1)} m/s (${fm(Math.abs(vz)/0.00508)} ft/min)`:'');
+  const typ=[PH.trfType(t), t.model].filter(Boolean).join(' · ');
+  const nm=PH.trfName(t), cs=t.cn&&PH.trfFmtReg(t.cn)!==nm?t.cn:'';
+  const rows=[
+    ['Tipo', typ||'non indicato'],
+    ['Posizione', `${dec(e.d/1000,e.d<10000?1:0)} km · ore ${PH.trfClock(e)} · rilevamento ${String(Math.round(e.brg)).padStart(3,'0')}°`],
+    ['Quota', alt===alt?`${fm(Math.round(alt/10)*10)} ft (${fm(alt*FT2M)} m) · ${PH.trfDz(e)} rispetto a te${t.baro?' · quota barometrica':''}${t.src==='SafeSky'&&T.gdlOfs!=null?' · riportata alla tua quota GPS':''}`:'non indicata'],
+    ['Velocità', `${fm(t.kmh)} km/h (${fm(t.kmh/1.852)} kt) · traccia ${String(Math.round(wrap360(t.trk))).padStart(3,'0')}°`],
+    ['Vario', vzs],
+    ['Incontro', e.lvl>=2&&!e.tc?'<b class="b">troppo vicino adesso</b>':(e.cpa?`${e.lvl?'<b class="'+(e.lvl>=2?'b':'w')+'">':''}più vicino tra ${e.cpa.tc<120?Math.round(e.cpa.tc)+' s':Math.round(e.cpa.tc/60)+' min'}: ${e.cpa.dm<1000?fm(e.cpa.dm)+' m':dec(e.cpa.dm/1000,1)+' km'} di lato${e.cpa.dzm===e.cpa.dzm?`, ${e.cpa.dzm>=0?'+':'−'}${fm(Math.round(Math.abs(e.cpa.dzm)/FT2M/100)*100)} ft`:''}${e.lvl?'</b>':''}`:'si allontana o è fermo')],
+    ['Dato', `${t.src}${t.addr?' · '+String(t.addr).toUpperCase():''} · ${Math.round(e.age)} s fa${e.age>30?' (vecchio)':''}`],
+  ];
+  return `<div class="ph-trf-det ${e.lvl>=2?'b':(e.lvl===1?'w':'')}"><div class="h"><b>${nm}</b>${cs?`<small>${String(cs).replace(/</g,'')}</small>`:''}<button type="button" data-x aria-label="Chiudi">✕</button></div>`+
+    rows.map(([a,b])=>`<div class="r"><span>${a}</span><em>${b}</em></div>`).join('')+
+    `<div class="ph-btns"><button type="button" class="ph-btn" data-safe="${t.lat.toFixed(5)},${t.lon.toFixed(5)}">Vedi su SafeSky ↗</button></div></div>`;
 };
 // impostazioni: una sezione Traffico prima di Avvisi
 { const orig=PH.renderImp;
@@ -4614,7 +4688,7 @@ PH.trfPage=function(){
 { const origShow=PH.show;
   PH.show=function(v){ const s=el('phTrf'); if(s) s.hidden=v!=='trf'; origShow.apply(this,arguments); if(v==='trf') PH.trfOpen(); else PH.trfClose(); };
   const origAfter=PH.afterFrame;
-  PH.afterFrame=function(g,dt){ origAfter.apply(this,arguments);
+  PH.afterFrame=function(g,dt){ origAfter.apply(this,arguments); PH.ctxMain=ctx;
     try{ if(PAGE!=='pfd') PH.trfMap(); }catch(e){}
     try{ if(PH.split && PH.view2 && PAGE==='pfd'){ const V2=PH.view2, sv={ctx,W,H,CX,CY,R,F,k};   // mappa del tablet accanto all'orizzonte
         ctx=V2.ctx; W=V2.W; H=V2.H; CX=W/2; CY=H/2; R=Math.min(W,H)/2-2; F=R/Math.tan(26*Math.PI/180); k=R/240;

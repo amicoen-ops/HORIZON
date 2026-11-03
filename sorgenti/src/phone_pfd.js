@@ -1474,7 +1474,7 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
     if(Math.abs(dx)>12||Math.abs(e.clientY-g0.y)>12) g0.moved=true;
     if(PAGE==='map'){ if(g0.moved){ clearTimeout(g0.lt); PH.panBy(cvm,e.clientX-(g0.px??g0.x),e.clientY-(g0.py??g0.y)); g0.px=e.clientX; g0.py=e.clientY; } return; }
     const steps=Math.trunc((dx-g0.acc)/42); if(steps){ for(let i=0;i<Math.abs(steps);i++) rotate(Math.sign(steps)); g0.acc+=steps*42; } });
-  cvm.addEventListener('pointerup',()=>{ if(!g0) return; clearTimeout(g0.lt); if(!g0.moved&&!g0.long) push(); g0=null; });
+  cvm.addEventListener('pointerup',ev=>{ if(!g0) return; clearTimeout(g0.lt); if(!g0.moved&&!g0.long){ if(!(PH.trfTap&&PH.trfTap(cvm,ev))) push(); } g0=null; });
   cvm.addEventListener('pointercancel',()=>{ if(g0) clearTimeout(g0.lt); g0=null; });
   // mappa libera: trascinando col dito si sposta la vista (nord in alto); lo zoom resta sul punto guardato
   PH.pan=null;

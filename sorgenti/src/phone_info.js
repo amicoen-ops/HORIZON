@@ -14,6 +14,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.27',"Scheda del traffico: tocca un traffico sul radar, nell'elenco o sulla mappa mobile per vedere tipo, distanza e rilevamento, quota, velocità e traccia, vario, quando e quanto vi avvicinerete, fonte ed età del dato, e aprirlo su SafeSky. Nomi puliti: HB-KNL invece di syHBKNL. Sulla mappa spostata col dito i traffici restano al loro posto."],
   ['2.0.26',"Traffico sulla mappa mobile (e sulla mappa del tablet accanto all'orizzonte): freccia nella sua direzione, differenza di quota in centinaia di piedi (+03 = 300 ft sopra), sale o scende, e le marche fino a 15 km di zoom. SafeSky: il tuo aereo rimandato come traffico non compare più e non dà il triangolo; le quote di SafeSky sono riportate alla tua quota GPS."],
   ['2.0.24',"Traffico da internet (OGN e adsb.lol): corretto lo scaricamento, che nelle due versioni precedenti non partiva."],
   ['2.0.23',"SafeSky sullo stesso telefono: HORIZON riceve il traffico che SafeSky Premium condivide con le app di navigazione (GDL90, porta UDP 4000), con SafeSky in sottofondo che trasmette la tua posizione. Finché arriva, il traffico da internet non si scarica. Funziona anche con SkyEcho, PilotAware e Stratux sul WiFi."],
