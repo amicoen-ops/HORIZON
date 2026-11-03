@@ -174,11 +174,17 @@ if ws:
     log("stato telefono", ev("""(async()=>{ const P=Capacitor.Plugins.StatoTelefono; if(!P) return 'manca il modulo'; const r=await P.get(); await PH.statoPoll(); return JSON.stringify({nativo:r, riga:document.getElementById('phStat').innerText.replace(/\\n/g,' ')}); })()"""))
     log("traffico vero", ev("""(async()=>{ Object.assign(S,{lat:45.47,lon:7.88,alt:3000,gpsReal:true}); PH.show('trf'); PH.TRF.last=0; PH.trfFetch(); await new Promise(r=>setTimeout(r,20000));
         const T=PH.TRF; return JSON.stringify({fonti:T.src, n:T.tg.size, primi:[...T.tg.values()].slice(0,6).map(t=>[t.src,t.reg||t.cn||t.addr,Math.round(t.altM/0.3048),Math.round((Date.now()-t.t0)/1000)+'s'])}); })()""", t=60))
+    log("OGN risposta grezza", ev("""(async()=>{ try{ const r=await IA517.http('https://live.glidernet.org/lxml.php?a=0&b=46.5&c=44.5&d=9&e=6.5'); return r.status+' · '+String(r.text).length+' caratteri · '+String(r.text).slice(0,300); }catch(e){ return 'errore: '+e.message; } })()""", t=40))
     shot("07t_traffico")
     # SafeSky finto: un pacchetto GDL90 (proprio aereo + un traffico) sulla porta UDP 4000 del telefono
     pk = r"\176\000\201\000\000\000\000\000\214\253\176\176\012\000\175\136\175\135\175\136\040\066\235\005\236\047\012\011\251\005\000\000\100\001\111\055\101\065\061\067\040\040\000\270\202\176\176\024\000\074\112\175\135\040\131\064\005\236\047\013\111\251\005\377\370\300\001\104\055\105\106\107\110\040\040\000\264\145\176\176\024\000\021\021\356\040\044\151\005\213\362\007\211\251\003\300\000\000\001\102\101\104\040\040\040\040\040\000\153\136\176"
-    for cmd in (f"printf '{pk}' | nc -u -w 1 127.0.0.1 4000", f"printf '{pk}' | toybox nc -u -w 1 127.0.0.1 4000"):
-        adb("shell", cmd); time.sleep(2)
+    r = None
+    for cmd in (f"printf '{pk}' | timeout 3 nc -u -w 1 127.0.0.1 4000", f"printf '{pk}' | timeout 3 toybox nc -u -q 1 127.0.0.1 4000"):
+        try:
+            adb("shell", cmd)
+        except Exception as e:
+            print("nc:", e)
+        time.sleep(2)
         r = ev("JSON.stringify({gdl:PH.TRF.src.gdl, ok:PH.TRF.gdlOk, t:PH.TRF.tg.has('G3C4A7D')?PH.TRF.tg.get('G3C4A7D').cn:null})")
         if r and '"t":"D-EFGH"' in r: break
     log("safesky gdl90", r)
