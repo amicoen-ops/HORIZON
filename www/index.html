@@ -3597,6 +3597,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['1.0.50',"Traffico da internet (OGN e adsb.lol): corretto lo scaricamento, che nelle due versioni precedenti non partiva."],
   ['1.0.49',"SafeSky sullo stesso telefono: HORIZON riceve il traffico che SafeSky Premium condivide con le app di navigazione (GDL90, porta UDP 4000), con SafeSky in sottofondo che trasmette la tua posizione. Finché arriva, il traffico da internet non si scarica. Funziona anche con SkyEcho, PilotAware e Stratux sul WiFi."],
   ['1.0.48',"Batteria e segnale: nella riga di stato la percentuale della batteria (⚡ in carica, rosso sotto il 20%) e il segnale 4G/5G in percentuale, o WIFI. Nuova pagina TRAFFICO: traffico in tempo reale da OGN (FLARM) e adsb.lol (ADS-B), con radar, elenco e collegamento a SafeSky. Sullo strumento solo un triangolo di pericolo se un traffico è entro 1000 ft di lato e in quota, adesso o entro 60 s."],
   ['1.0.47',"Salite vicino alla rotta: la quota si prende avanzando verso l'arrivo, con al massimo 4 giri larghi vicino alla partenza, e la rotta non si allontana più di 10 km di lato per salire (prima, per Aosta, poteva scendere verso Chivasso a prendere quota)."],
@@ -4150,7 +4151,7 @@ PH.trfIsMe=function(t){
 PH.trfOgn=async function(lat,lon){
   const dLat=0.45, dLon=dLat/Math.max(0.2,Math.cos(lat*D2R));
   const q=`a=0&b=${(lat+dLat).toFixed(4)}&c=${(lat-dLat).toFixed(4)}&d=${(lon+dLon).toFixed(4)}&e=${(lon-dLon).toFixed(4)}`;
-  let r; try{ r=await PH.http('https://live.glidernet.org/lxml.php?'+q); }catch(e){ r=await PH.http('http://live.glidernet.org/lxml.php?'+q); }
+  let r; try{ r=await IA517.http('https://live.glidernet.org/lxml.php?'+q); }catch(e){ r=await IA517.http('http://live.glidernet.org/lxml.php?'+q); }
   if(r.status!==200) throw new Error('risposta '+r.status);
   const out=[], now=Date.now(), re=/<m a="([^"]*)"/g; let m;
   while((m=re.exec(r.text))){ const f=m[1].split(','); if(f.length<13) continue;
@@ -4160,7 +4161,7 @@ PH.trfOgn=async function(lat,lon){
   return out;
 };
 PH.trfAdsb=async function(lat,lon){
-  const r=await PH.http(`https://api.adsb.lol/v2/point/${lat.toFixed(4)}/${lon.toFixed(4)}/16`);
+  const r=await IA517.http(`https://api.adsb.lol/v2/point/${lat.toFixed(4)}/${lon.toFixed(4)}/16`);
   if(r.status!==200) throw new Error('risposta '+r.status);
   const j=JSON.parse(r.text), out=[], now=Date.now();
   for(const a of (j.ac||j.aircraft||[])){
