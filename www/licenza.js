@@ -43,7 +43,7 @@ L.init=async function(){
   // codice del dispositivo: su Android dall'ID del telefono (resta uguale anche reinstallando); nel browser casuale e salvato
   let raw=info&&info.deviceId; if(!raw){ raw=ls.get('ia517p_devraw',null)||await idb.get('devraw'); if(!raw){ raw=(crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2)+Date.now()); } ls.set('ia517p_devraw',raw); idb.set('devraw',raw); }
   L.dev=code(await sha('ia517|'+raw));
-  L.signOk=info?info.signatureOk!==false:true;
+  L.signOk=info?info.signatureOk!==false:true; L.cert=(info&&info.cert)||''; L.installer=(info&&info.installer)||'';
   // inizio della prova: il primo tra installazione, primo avvio e copia di sicurezza
   const now=Date.now(); let t0=Math.min(...[ls.get(KT,null),await idb.get('t0'),info&&info.firstInstall].filter(x=>x>0), now);
   ls.set(KT,t0); idb.set('t0',t0); L.t0=t0;
@@ -145,7 +145,7 @@ L.wall=function(st){
 L.panel=function(st){
   const play=L.channel()==='play'&&L.play, esc=x=>String(x).replace(/[<&>"]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[c]));
   const title=st.code==='tampered'?'App modificata':(st.code==='revoked'?(play?'Abbonamento scaduto':'Licenza non più valida'):(st.code==='expired'?'Prova finita':(play?'Abbonamento':'Licenza')));
-  const why=st.code==='tampered'?'Questa copia dell\'app è stata modificata o firmata da altri: scarica quella ufficiale dal Play Store o da amicoen-ops.github.io/HORIZON.':
+  const why=st.code==='tampered'?'Questa copia dell\'app è stata modificata o firmata da altri: scarica quella ufficiale dal Play Store o da amicoen-ops.github.io/HORIZON. (firma '+esc(String(L.cert).slice(0,12)||'?')+' · '+esc(L.installer||'installazione manuale')+')':
     (st.code==='revoked'?(play?'L\'abbonamento non risulta attivo su questo account Google (disdetto, scaduto o pagamento non riuscito). Rinnovalo per continuare.':'La chiave è stata annullata (rimborso, chiave sostituita o dispositivo tolto). Attiva una chiave valida.'):
     (st.code==='expired'?`I ${CFG.trialDays} giorni di prova sono finiti. Grazie per averla provata!`:''));
   return `<h2>${title}</h2><p>${why}</p>`+(st.code==='tampered'?'':
