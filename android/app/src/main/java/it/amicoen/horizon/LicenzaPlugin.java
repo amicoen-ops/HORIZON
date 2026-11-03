@@ -64,17 +64,20 @@ public class LicenzaPlugin extends Plugin implements PurchasesUpdatedListener {
             r.put("deviceId", id == null ? "" : id);
             PackageInfo pi = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0);
             r.put("firstInstall", pi.firstInstallTime);
-            String cert = certSha256();
-            r.put("cert", cert);
-            boolean ok = CERTS.length == 0;
-            for (String c : CERTS) if (c.equalsIgnoreCase(cert)) ok = true;
-            r.put("signatureOk", ok);
             String inst = null;
             try {
                 if (Build.VERSION.SDK_INT >= 30) inst = getContext().getPackageManager().getInstallSourceInfo(getContext().getPackageName()).getInstallingPackageName();
                 else inst = getContext().getPackageManager().getInstallerPackageName(getContext().getPackageName());
             } catch (Exception ignored) { }
             r.put("installer", inst == null ? "" : inst);
+            String cert = "";
+            try { cert = certSha256(); } catch (Exception ignored) { }
+            r.put("cert", cert);
+            // firma valida se coincide con una delle impronte note, oppure se l'app arriva dal Play Store
+            // (Google la firma con la chiave di Play App Signing; un errore nel leggere la firma non deve bloccare chi l'ha installata da lì)
+            boolean ok = CERTS.length == 0 || cert.isEmpty() || "com.android.vending".equals(inst);
+            for (String c : CERTS) if (c.equalsIgnoreCase(cert)) ok = true;
+            r.put("signatureOk", ok);
         } catch (Exception e) { r.put("error", String.valueOf(e.getMessage())); }
         call.resolve(r);
     }
