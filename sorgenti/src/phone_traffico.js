@@ -99,8 +99,11 @@ PH.gdlStart=async function(){
 };
 PH.gdlIn=function(o){
   const T=PH.TRF, now=Date.now(); if(!T.gdlOn || !o) return;
-  if(o.proprio){ T.gdlOwn={lat:+o.lat,lon:+o.lon,altFt:o.altFt,t:now}; return; }
-  const addr=String(o.addr||'').toUpperCase(), id='G'+addr;
+  if(o.proprio){ T.gdlOwn={lat:+o.lat,lon:+o.lon,altFt:o.altFt,addr:String(o.addr||'').toUpperCase(),t:now};
+    if(o.altFt!=null && S.gpsReal && !PH.demo){ const d=o.altFt-S.alt; if(Math.abs(d)<3000) T.gdlOfs=T.gdlOfs==null?d:T.gdlOfs*0.9+d*0.1; }
+    return; }
+  const addr=String(o.addr||'').toUpperCase(), id='G'+addr, own=T.gdlOwn;
+  if(own && own.addr && own.addr===addr) return;          // il tuo aereo rimandato come traffico
   T.tg.delete('A'+addr); T.tg.delete('O'+addr);          // lo stesso aereo arrivato prima da internet
   T.tg.set(id,{id,addr,reg:'',cn:String(o.cs||''),lat:+o.lat,lon:+o.lon,altM:o.altFt!=null?o.altFt*FT2M:NaN,trk:+o.trk||0,
     kmh:o.kt!=null?o.kt*1.852:0,vz:o.fpm!=null?o.fpm*0.00508:0,t0:now,ground:!o.inVolo&&(o.kt||0)<30,src:'SafeSky',type:o.cat});
@@ -135,12 +138,14 @@ PH.trfEval=function(){
   for(const [id,t] of T.tg){
     const age=(now-t.t0)/1000; if(age>180){ T.tg.delete(id); continue; }
     const pe=Math.min(age,45), v=t.kmh/3.6, b=t.trk*D2R, vx=Math.sin(b)*v, vy=Math.cos(b)*v;
-    const x=(t.lon-S.lon)*111320*cl+vx*pe, y=(t.lat-S.lat)*110540+vy*pe, z=t.altM===t.altM?t.altM+t.vz*pe:NaN;
+    const x=(t.lon-S.lon)*111320*cl+vx*pe, y=(t.lat-S.lat)*110540+vy*pe, z=t.altM===t.altM?t.altM+t.vz*pe-(t.src==='SafeSky'&&T.gdlOfs!=null&&Date.now()-(T.gdlOwn&&T.gdlOwn.t||0)<60000?T.gdlOfs*FT2M:0):NaN;
     const d=Math.hypot(x,y), dz=z===z?z-altO:NaN;
     const e={t,x,y,d,dz,age,brg:wrap360(Math.atan2(x,y)/D2R),lvl:0,tc:null};
     // il proprio aereo (FLARM, SafeSky, transponder) visto come traffico: stessa posizione e stessa velocità per 3 volte di fila
-    if(!PH.demo && air && T.ghostAt.get(id)!==T.last){ T.ghostAt.set(id,T.last); const g0=T.ghost.get(id)||0;
-      const same=d<150 && dz===dz && Math.abs(dz)<60 && Math.abs(((t.trk-(ownB/D2R))%360+540)%360-180)<30 && Math.abs(t.kmh-(S.gs||0))<25;
+    const tick=Math.floor(now/2000);
+    if(!PH.demo && T.ghostAt.get(id)!==tick){ T.ghostAt.set(id,tick); const g0=T.ghost.get(id)||0;
+      const slow=(S.gs||0)<25 && t.kmh<25;
+      const same=d<150 && dz===dz && Math.abs(dz)<120 && (slow || (Math.abs(((t.trk-(ownB/D2R))%360+540)%360-180)<30 && Math.abs(t.kmh-(S.gs||0))<25));
       if(g0<3) T.ghost.set(id,same?g0+1:0); else if(d>1000) T.ghost.set(id,0); }   // se si allontana non sei tu
     if(PH.trfIsMe(t)){ e.me=true; out.push(e); continue; }
     const grounded=t.ground || t.kmh<25;
@@ -188,6 +193,29 @@ PH.trfDraw=function(){
   ctx.restore();
 };
 
+// traffico sulla mappa mobile: stessa scala e stessa rotazione (traccia in alto) di drawMap
+PH.trfMap=function(){
+  const T=PH.TRF, ev=T.view; if(!T.on || !ev || !ev.length || !ctx) return;
+  const t0=((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000, sc=1.3*R/rng, ax=CX, ay=CY+0.3*R, ct=Math.cos(t0), st=Math.sin(t0);
+  ctx.save(); ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2); ctx.clip();
+  const s=Math.max(8,R*0.05);
+  for(const e of ev.slice().reverse()){
+    if(e.me || (e.dz===e.dz && Math.abs(e.dz)>6000*FT2M)) continue;
+    const x=ax+(e.x*ct-e.y*st)*sc, y=ay-(e.x*st+e.y*ct)*sc; if(Math.hypot(x-CX,y-CY)>R*1.02) continue;
+    const near=e.dz===e.dz && Math.abs(e.dz)<PH.TRF_LIM && e.d<3000;
+    const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(e.age>30||e.t.ground||e.t.kmh<25?'#9aa4af':(near?'#ffe08a':'#4fd2ff')));
+    ctx.save(); ctx.translate(x,y); ctx.rotate(e.t.trk*D2R-t0); ctx.fillStyle=col; ctx.strokeStyle='#000'; ctx.lineWidth=Math.max(1.5,s*0.18);
+    ctx.beginPath(); ctx.moveTo(0,-s); ctx.lineTo(s*0.7,s*0.8); ctx.lineTo(0,s*0.35); ctx.lineTo(-s*0.7,s*0.8); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
+    const dz=e.dz===e.dz?(e.dz>=0?'+':'−')+String(Math.round(Math.abs(e.dz)/FT2M/100)).padStart(2,'0'):'';
+    const v=e.t.vz>1?'↑':(e.t.vz<-1?'↓':'');
+    ctx.font=`700 ${Math.round(s*1.15)}px "Oxanium",system-ui,sans-serif`; ctx.textAlign='left'; ctx.textBaseline='middle';
+    ctx.lineWidth=3; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.fillStyle=col;
+    const l2=zi<=3?(e.t.reg||e.t.cn||'').slice(0,8):'', yy=y-(l2?s*0.55:0);
+    ctx.strokeText(dz+v,x+s*1.1,yy); ctx.fillText(dz+v,x+s*1.1,yy);
+    if(l2){ ctx.font=`600 ${Math.round(s*0.95)}px "Oxanium",system-ui,sans-serif`; ctx.strokeText(l2,x+s*1.1,y+s*0.75); ctx.fillText(l2,x+s*1.1,y+s*0.75); }
+  }
+  ctx.restore();
+};
 // ---- pagina TRAFFICO ----
 PH.trfOpen=function(){
   const bar=el('phTrfBar');
@@ -270,6 +298,10 @@ PH.trfPage=function(){
   PH.show=function(v){ const s=el('phTrf'); if(s) s.hidden=v!=='trf'; origShow.apply(this,arguments); if(v==='trf') PH.trfOpen(); else PH.trfClose(); };
   const origAfter=PH.afterFrame;
   PH.afterFrame=function(g,dt){ origAfter.apply(this,arguments);
+    try{ if(PAGE!=='pfd') PH.trfMap(); }catch(e){}
+    try{ if(PH.split && PH.view2 && PAGE==='pfd'){ const V2=PH.view2, sv={ctx,W,H,CX,CY,R,F,k};   // mappa del tablet accanto all'orizzonte
+        ctx=V2.ctx; W=V2.W; H=V2.H; CX=W/2; CY=H/2; R=Math.min(W,H)/2-2; F=R/Math.tan(26*Math.PI/180); k=R/240;
+        try{ PH.trfMap(); } finally{ ctx=sv.ctx; W=sv.W; H=sv.H; CX=sv.CX; CY=sv.CY; R=sv.R; F=sv.F; k=sv.k; } } }catch(e){}
     try{ PH.trfDraw(); }catch(e){}
     const now=performance.now();
     if(now-(PH.trfSec||0)>1000){ PH.trfSec=now; try{ PH.trfTick(); }catch(e){ console.error(e); } }

@@ -14,6 +14,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.26',"Traffico sulla mappa mobile (e sulla mappa del tablet accanto all'orizzonte): freccia nella sua direzione, differenza di quota in centinaia di piedi (+03 = 300 ft sopra), sale o scende, e le marche fino a 15 km di zoom. SafeSky: il tuo aereo rimandato come traffico non compare più e non dà il triangolo; le quote di SafeSky sono riportate alla tua quota GPS."],
   ['2.0.24',"Traffico da internet (OGN e adsb.lol): corretto lo scaricamento, che nelle due versioni precedenti non partiva."],
   ['2.0.23',"SafeSky sullo stesso telefono: HORIZON riceve il traffico che SafeSky Premium condivide con le app di navigazione (GDL90, porta UDP 4000), con SafeSky in sottofondo che trasmette la tua posizione. Finché arriva, il traffico da internet non si scarica. Funziona anche con SkyEcho, PilotAware e Stratux sul WiFi."],
   ['2.0.22',"Batteria e segnale: nella riga di stato la percentuale della batteria (⚡ in carica, rosso sotto il 20%) e il segnale 4G/5G in percentuale, o WIFI. Nuova pagina TRAFFICO (✈): traffico in tempo reale da OGN (FLARM) e adsb.lol (ADS-B), con radar, elenco e collegamento a SafeSky. Sullo strumento solo un triangolo di pericolo se un traffico è entro 1000 ft di lato e in quota, adesso o entro 60 s."],
