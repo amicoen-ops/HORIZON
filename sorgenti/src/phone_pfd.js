@@ -312,8 +312,21 @@ PH.magFromR=function(Rm,src){
 PH.magInUse=function(){ return PH.mag.hdg!=null && performance.now()-PH.mag.t<1500 && !PH.demo &&
   (PH.compassMode==='always' || (PH.compassMode==='ground' && !(S.gpsReal && S.gs>25))); };
 // verso dello schermo: 0 verticale, 90 o 270 orizzontale
+// iPhone e iPad: screen.orientation.angle in orizzontale è al contrario di Android (90 invece di 270); window.orientation invece è uguale
+PH.iosUA=/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints>1);
 PH.scrAng=function(){ if(PH.angTest!=null) return PH.angTest;
-  const o=screen.orientation; const v=o&&typeof o.angle==='number'?o.angle:(typeof window.orientation==='number'?window.orientation:0); return ((v%360)+360)%360; };
+  const o=screen.orientation, wo=typeof window.orientation==='number'?window.orientation:null;
+  const v=(PH.iosUA && wo!=null)?wo:(o&&typeof o.angle==='number'?o.angle:(wo!=null?wo:0)); return ((v%360)+360)%360; };
+// segno dell'accelerometro: Safari su iPhone e iPad lo dà al contrario di Android e delle specifiche (telefono dritto: y −9,8 invece di +9,8).
+// Si parte da quello della piattaforma e si conferma da soli col telefono dritto in verticale.
+PH.accSign=PH.iosUA?-1:1; PH.accVote=0;
+PH.accCheck=function(a){
+  if(PH.scrAng()!==0 || innerHeight<innerWidth*1.1) return;
+  const y=a.y||0, x=a.x||0; if(Math.abs(y)<7 || Math.abs(x)>4) return;
+  const sg=Math.sign(y)*PH.accSign;                       // +1: il segno in uso è giusto
+  PH.accVote=clamp(PH.accVote+sg,-60,60);
+  if(PH.accVote<=-40){ PH.accSign=-PH.accSign; PH.accVote=0; PH.ahrsInit=false; PH.attF=null; PH.aAvg=[0,0,0]; PH.act&&PH.act('segno accelerometro '+(PH.accSign<0?'invertito (iOS)':'standard')); }
+};
 PH.onRotate=function(){ const ang=PH.scrAng(); if(ang===PH.lastAng) return; PH.lastAng=ang;
   PH.ahrsInit=false; PH.attF=null; PH.aAvg=[0,0,0]; PH.act('schermo '+ang+'°'); };
 PH.smoothTxt=function(){ const v=PH.smooth; return v<=0?'immediato':(v/10).toFixed(1).replace('.',',')+' s'; };
@@ -327,8 +340,9 @@ PH.onMotion=function(e){
   PH.mCount++; if(now-PH.mT0>2000){ PH.motionHz=Math.round(PH.mCount*1000/(now-PH.mT0)); PH.mCount=0; PH.mT0=now; }
   // i sensori arrivano sempre negli assi del telefono in verticale: li porto negli assi dello schermo,
   // così l'assetto è giusto anche col telefono girato in orizzontale (da una parte o dall'altra)
-  const scr=PH.scrAng()*D2R, c=Math.cos(scr), sn=Math.sin(scr), ax=a.x||0, ay=a.y||0;
-  const av=[ax*c-ay*sn, ax*sn+ay*c, a.z||0];
+  PH.accCheck(a);
+  const scr=PH.scrAng()*D2R, c=Math.cos(scr), sn=Math.sin(scr), ks=PH.accSign, ax=(a.x||0)*ks, ay=(a.y||0)*ks;
+  const av=[ax*c-ay*sn, ax*sn+ay*c, (a.z||0)*ks];
   for(let i=0;i<3;i++) PH.aAvg[i]+= (av[i]-PH.aAvg[i])*0.05;
   if(PH.demo) return;
   let dt=(e.interval>0?(e.interval>1?e.interval/1000:e.interval):0.016); dt=clamp(dt,0.004,0.06);
@@ -869,7 +883,7 @@ PH.status=function(){
     [PH.glo.port?(PH.glo.fix&&Date.now()-PH.glo.fix.recv<3000?'ok':'warn'):(PH.glo.want?'bad':'warn'),'Garmin GLO 2',
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
     ['ok','Posizione in uso',PH.demo?'simulata':(PH.src==='glo'?'Garmin GLO 2':(PH.src==='phone'?'GPS del telefono':'nessuna'))+' · scelta '+{auto:'automatica',phone:'solo telefono',glo:'solo GLO 2'}[PH.srcPref]],
-    [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz':'nessun dato'],
+    [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz · schermo '+PH.scrAng()+'°'+(PH.accSign<0?' · segno iOS':''):'nessun dato'],
     ...(PH.elevBad&&PH.elevBad.size?[['warn','Campi con quota dubbia',[...PH.elevBad].slice(0,12).join(', ')+' (rilievo usato per il 3D)']]:[]),
     ...(PH.EXT&&PH.EXT.want?[[PH.extAtt()?'ok':'bad','Strumento fisico',PH.extInfo()]]:[]),
     ...(PH.native&&PH.native.ahrs?[[PH.natAtt&&performance.now()-PH.natAtt.t<500?'ok':'bad','Assetto nativo (v2)',PH.natAtt?`${PH.natAtt.hz} Hz · ${PH.attSrc==='nativo'?'in uso':'non in uso'}`:'nessun dato']]:[]),
