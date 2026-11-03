@@ -3805,6 +3805,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.23',"SafeSky sullo stesso telefono: HORIZON riceve il traffico che SafeSky Premium condivide con le app di navigazione (GDL90, porta UDP 4000), con SafeSky in sottofondo che trasmette la tua posizione. Finché arriva, il traffico da internet non si scarica. Funziona anche con SkyEcho, PilotAware e Stratux sul WiFi."],
   ['2.0.22',"Batteria e segnale: nella riga di stato la percentuale della batteria (⚡ in carica, rosso sotto il 20%) e il segnale 4G/5G in percentuale, o WIFI. Nuova pagina TRAFFICO (✈): traffico in tempo reale da OGN (FLARM) e adsb.lol (ADS-B), con radar, elenco e collegamento a SafeSky. Sullo strumento solo un triangolo di pericolo se un traffico è entro 1000 ft di lato e in quota, adesso o entro 60 s."],
   ['2.0.21',"Salite vicino alla rotta: la quota si prende avanzando verso l'arrivo, con al massimo 4 giri larghi vicino alla partenza, e la rotta non si allontana più di 10 km di lato per salire (prima, per Aosta, poteva scendere verso Chivasso a prendere quota)."],
   ['2.0.19',"Salite e discese graduali: il profilo è continuo su tutta la rotta, si sale al 60% del rateo (max 500 ft/min) a velocità fra salita e crociera e si comincia prima quando c'è una cresta; discese max 500 ft/min. La rotta migliore prende quota dove il terreno è basso. Giri di 360° solo se servono: larghi (10°, poi 15° o 20°), al massimo 4 in salita e 4 in discesa; in volo, oltre 4 giri, inversione e salita verso il terreno più basso."],
@@ -4351,7 +4352,7 @@ PH.statoHtml=function(){
 
 // ---- traffico ----
 PH.TRF={on:lsGet('ia517p_trf',true), me:String(lsGet('ia517p_trf_me','')||''), rng:+lsGet('ia517p_trf_rng',10)||10,
-  tg:new Map(), src:{ogn:{t:0,n:0,err:''},adsb:{t:0,n:0,err:''}}, busy:false, last:0, alert:null, ghost:new Map(), ghostAt:new Map(), demo:null};
+  tg:new Map(), src:{ogn:{t:0,n:0,err:''},adsb:{t:0,n:0,err:''},gdl:{t:0,n:0,err:''}}, gdlOn:lsGet('ia517p_gdl',true), gdlOk:false, busy:false, last:0, alert:null, ghost:new Map(), ghostAt:new Map(), demo:null};
 PH.TRF_LIM=1000*FT2M;                                    // 1000 ft = 305 m, di lato e in quota
 PH.TRF_LOOK=60;                                          // secondi di previsione per la rotta di collisione
 PH.trfNorm=s=>String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
@@ -4401,6 +4402,26 @@ PH.trfFetch=async function(){
       T.tg.set(t.id,t); seen.add(t.id); }
   } finally{ T.busy=false; }
 };
+// SafeSky (Premium, «condivisione del traffico» con un'app GDL90) e SkyEcho, PilotAware, Stratux: messaggi GDL90 su UDP 4000.
+// Finché arrivano, il traffico da internet non si scarica: SafeSky lo comprende già (FLARM/OGN, ADS-B, utenti SafeSky).
+PH.gdlStart=async function(){
+  const T=PH.TRF, G=PH.native&&(PH.native.gdl=PH.native.gdl||(()=>{ try{ const C=window.Capacitor; return (C.Plugins&&C.Plugins.Gdl90)||C.registerPlugin('Gdl90'); }catch(e){ return null; } })());
+  if(!G) return;
+  if(!T.gdlL){ T.gdlL=true;
+    try{ const r=G.addListener('traffico',PH.gdlIn); if(r&&r.catch) r.catch(()=>{}); }catch(e){ T.src.gdl.err='ascolto: '+e.message; } }
+  try{ if(T.gdlOn){ await G.start({porta:4000}); T.gdlOk=true; T.src.gdl.err=''; } else { await G.stop(); T.gdlOk=false; } }
+  catch(e){ T.gdlOk=false; T.src.gdl.err=String(e&&e.message||e).slice(0,80); }
+};
+PH.gdlIn=function(o){
+  const T=PH.TRF, now=Date.now(); if(!T.gdlOn || !o) return;
+  if(o.proprio){ T.gdlOwn={lat:+o.lat,lon:+o.lon,altFt:o.altFt,t:now}; return; }
+  const addr=String(o.addr||'').toUpperCase(), id='G'+addr;
+  T.tg.delete('A'+addr); T.tg.delete('O'+addr);          // lo stesso aereo arrivato prima da internet
+  T.tg.set(id,{id,addr,reg:'',cn:String(o.cs||''),lat:+o.lat,lon:+o.lon,altM:o.altFt!=null?o.altFt*FT2M:NaN,trk:+o.trk||0,
+    kmh:o.kt!=null?o.kt*1.852:0,vz:o.fpm!=null?o.fpm*0.00508:0,t0:now,ground:!o.inVolo&&(o.kt||0)<30,src:'SafeSky',type:o.cat});
+  T.src.gdl.t=now;
+};
+PH.gdlLive=()=>PH.TRF.gdlOn && Date.now()-PH.TRF.src.gdl.t<15000;
 // traffico finto nel volo dimostrativo: uno di fronte in rotta di collisione, uno di fianco più alto, uno lontano
 PH.trfDemo=function(){
   const T=PH.TRF, now=Date.now(), cl=Math.cos(S.lat*D2R), tr=((S.trk!=null)?S.trk:S.hdg)||0;
@@ -4454,7 +4475,8 @@ PH.trfTick=function(){
   const T=PH.TRF; if(!T.on){ T.alert=null; return; }
   const want=PH.demo || (S.gpsReal && navigator.onLine && (PH.flight || (S.gs||0)>40 || !el('phTrf').hidden));
   if(PH.demo) PH.trfDemo();
-  else if(want && Date.now()-T.last>6000) PH.trfFetch();
+  else if(want && !PH.gdlLive() && Date.now()-T.last>6000) PH.trfFetch();
+  T.src.gdl.n=[...T.tg.values()].filter(t=>t.src==='SafeSky').length;
   if(!PH.demo && T.demo){ T.demo=null; T.tg.clear(); }
   const ev=PH.trfEval(); T.view=ev;
   const a=ev.find(e=>e.lvl>0&&!e.me)||null;
@@ -4533,10 +4555,10 @@ PH.trfPage=function(){
     (list.length?list.map(row).join(''):(T.on?'<p>Nessun traffico entro '+T.rng+' km e ±6000 ft.</p>':''))+
     (hid>0?`<p class="ph-sub">${hid} traffici più alti o più bassi di 6000 ft non sono mostrati.</p>`:'')+
     (me?`<p class="ph-sub">Il tuo aereo (${(me.t.reg||me.t.addr).replace(/</g,'')}) è riconosciuto e non è contato come traffico.</p>`:'')+
-    `<p class="ph-src">${PH.demo?'<span class="w">Volo dimostrativo: traffico finto</span>':sl('ogn','OGN (FLARM)')+sl('adsb','adsb.lol (ADS-B)')}</p>`+
+    `<p class="ph-src">${PH.demo?'<span class="w">Volo dimostrativo: traffico finto</span>':(T.gdlOn&&PH.native?(PH.gdlLive()?`<span class="o">SafeSky (GDL90): ${T.src.gdl.n} · ${ago(T.src.gdl.t)}</span><span class="o">internet in pausa</span>`:(T.src.gdl.err?`<span class="b">SafeSky: ${T.src.gdl.err.replace(/</g,'')}</span>`:'<span class="w">SafeSky: nessun dato</span>')):'')+(PH.gdlLive()?'':sl('ogn','OGN (FLARM)')+sl('adsb','adsb.lol (ADS-B)'))}</p>`+
     `<p class="ph-sub">Il triangolo di pericolo sullo strumento compare se un traffico è entro 1000 ft di lato e in quota, adesso o entro ${PH.TRF_LOOK} s se nessuno cambia rotta. `+
     `I dati via internet arrivano con 5–20 s di ritardo e mancano dove non ci sono ricevitori (valli, bassa quota) e per chi non ha FLARM, OGN o ADS-B: guarda sempre fuori. `+
-    `Dati: Open Glider Network e adsb.lol, licenza ODbL.</p>`;
+    `Dati: SafeSky sul telefono, Open Glider Network e adsb.lol (licenza ODbL).</p>`;
 };
 // impostazioni: una sezione Traffico prima di Avvisi
 { const orig=PH.renderImp;
@@ -4546,11 +4568,15 @@ PH.trfPage=function(){
     sec.innerHTML=`<h3>Traffico</h3>
       <label class="ph-chk"><input type="checkbox" id="phTrfOn" ${PH.TRF.on?'checked':''}> Traffico in tempo reale da internet (OGN e adsb.lol)</label>
       <p class="ph-sub">Si scarica solo in volo o con la pagina Traffico aperta, ogni 6 s: circa 5–15 MB l'ora. Sullo strumento compare solo il triangolo di pericolo; tutto il resto è nella pagina Traffico.</p>
+      <label class="ph-chk"><input type="checkbox" id="phGdlOn" ${PH.TRF.gdlOn?'checked':''}> Ricevi il traffico di SafeSky sullo stesso telefono (GDL90, porta UDP 4000)</label>
+      <p class="ph-sub">Con SafeSky Premium: in SafeSky › Impostazioni attiva la condivisione del traffico e scegli come software di navigazione <b>altro software GDL90</b>, poi premi DECOLLO e torna a HORIZON. SafeSky resta in sottofondo senza schermo: trasmette la tua posizione e passa a HORIZON il suo traffico; finché arriva, HORIZON non scarica il traffico da internet. Perché Android non lo chiuda: Impostazioni di Android › App › SafeSky › Batteria › <b>Senza restrizioni</b>. Funziona anche con SkyEcho, PilotAware e Stratux sul WiFi.</p>
+      <p class="ph-sub" id="phGdlMsg">${!PH.native?'Solo nell\'app installata (APK).':(PH.gdlLive()?'SafeSky collegato: '+PH.TRF.src.gdl.n+' traffici.':(PH.TRF.src.gdl.err?'Errore: '+PH.TRF.src.gdl.err.replace(/</g,''):(PH.TRF.gdlOn?'In ascolto: nessun dato ancora.':'')))}</p>
       <div class="ph-btns"><label class="ph-fld">Il tuo codice FLARM/OGN o ICAO (esadecimale, es. DD1234), per non vederti come traffico<input id="phTrfMe" type="text" maxlength="8" autocapitalize="characters" value="${PH.TRF.me.replace(/"/g,'')}" placeholder="facoltativo"></label></div>
       <p class="ph-sub">Le marche del velivolo attivo (${(PH.ac&&PH.ac.reg||'—').replace(/</g,'')}) sono già escluse; in volo l'app riconosce da sola un traffico che ha sempre la tua posizione e la tua velocità.</p>`;
     const av=[...box.querySelectorAll('section h3')].find(h=>h.textContent==='Avvisi');
     if(av) av.parentNode.before(sec); else box.appendChild(sec);
     el('phTrfOn').onchange=e=>{ PH.TRF.on=e.target.checked; lsSet('ia517p_trf',PH.TRF.on); if(!PH.TRF.on){ PH.TRF.tg.clear(); PH.TRF.alert=null; } };
+    el('phGdlOn').onchange=e=>{ PH.TRF.gdlOn=e.target.checked; lsSet('ia517p_gdl',PH.TRF.gdlOn); PH.gdlStart(); };
     el('phTrfMe').onchange=e=>{ PH.TRF.me=PH.trfNorm(e.target.value); e.target.value=PH.TRF.me; lsSet('ia517p_trf_me',PH.TRF.me); };
   };
 }
@@ -4565,6 +4591,8 @@ PH.trfPage=function(){
     if(now-(PH.statoSec||0)>5000){ PH.statoSec=now; PH.statoPoll(); }
   };
 }
+
+setTimeout(()=>{ try{ PH.gdlStart(); }catch(e){} },1500);
 
 // ---------------- avvio ----------------
 resize(); syncInputs();

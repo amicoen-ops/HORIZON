@@ -14,6 +14,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.23',"SafeSky sullo stesso telefono: HORIZON riceve il traffico che SafeSky Premium condivide con le app di navigazione (GDL90, porta UDP 4000), con SafeSky in sottofondo che trasmette la tua posizione. Finché arriva, il traffico da internet non si scarica. Funziona anche con SkyEcho, PilotAware e Stratux sul WiFi."],
   ['2.0.22',"Batteria e segnale: nella riga di stato la percentuale della batteria (⚡ in carica, rosso sotto il 20%) e il segnale 4G/5G in percentuale, o WIFI. Nuova pagina TRAFFICO (✈): traffico in tempo reale da OGN (FLARM) e adsb.lol (ADS-B), con radar, elenco e collegamento a SafeSky. Sullo strumento solo un triangolo di pericolo se un traffico è entro 1000 ft di lato e in quota, adesso o entro 60 s."],
   ['2.0.21',"Salite vicino alla rotta: la quota si prende avanzando verso l'arrivo, con al massimo 4 giri larghi vicino alla partenza, e la rotta non si allontana più di 10 km di lato per salire (prima, per Aosta, poteva scendere verso Chivasso a prendere quota)."],
   ['2.0.19',"Salite e discese graduali: il profilo è continuo su tutta la rotta, si sale al 60% del rateo (max 500 ft/min) a velocità fra salita e crociera e si comincia prima quando c'è una cresta; discese max 500 ft/min. La rotta migliore prende quota dove il terreno è basso. Giri di 360° solo se servono: larghi (10°, poi 15° o 20°), al massimo 4 in salita e 4 in discesa; in volo, oltre 4 giri, inversione e salita verso il terreno più basso."],
