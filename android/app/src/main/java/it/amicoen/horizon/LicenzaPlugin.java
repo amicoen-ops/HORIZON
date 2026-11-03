@@ -42,10 +42,13 @@ public class LicenzaPlugin extends Plugin implements PurchasesUpdatedListener {
 
     // Chiave pubblica di licenza della Play Console (Monetizzazione › Configurazione › Licenze), base64.
     // Vuota: gli acquisti si verificano solo con Google Play stesso (senza il controllo della firma qui).
-    private static final String PLAY_KEY = "";
+    private static final String PLAY_KEY = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy+1jgHr5v42nPW4tt2sjt/uSeSgX1yS9r0O9cy9KdiCpQgny7cKWJUcwwHB4TPTFUNYW5/D2yxIV+9F8zb1Jc9ajkyExTxxrqFnNtti08QtaDWt8e0X8CRMr5Oq2YXIcBmoG5e0tooHj+sqipI4eBG12ESt0ObUEn46koq0zkonNtg/DfPVWT5coSsSx1sI5YxIF+o9WwfGfzoJcTZHrUn/eE+t6RcCvsMT84mUeeAwvCKFgHH1wJ25jbbA3/KHa5iEA+d9pUDBfMjSk6nVvhBaLc+UZ3M2C6BYjFw//PE7emL3AG1Cr5n8kWywd+kGRO4qK7IPIQdBk14qORo0hMQIDAQAB";
     // Impronte SHA-256 dei certificati che possono firmare l'app (Play App Signing e chiave degli APK).
     // Vuoto: controllo della firma spento.
-    private static final String[] CERTS = {};
+    private static final String[] CERTS = {
+        "5DA448CEC29E9CD8142342DECC900540D913DC65BAC03D69E25592702A7F7F11",   // firma di Google Play (Play App Signing)
+        "EDB1F20C9034B92D28152BAD34A0832B4C42BDF5F26BECF04F8C0F977DF64ACB"    // chiave di caricamento, anche degli APK di GitHub
+    };
 
     private BillingClient billing;
     private ProductDetails product;
