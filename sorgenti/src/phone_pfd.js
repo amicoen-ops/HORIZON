@@ -85,6 +85,7 @@ const TERR_NAMES=['normale','alto','fine','molto fine','massimo','ultra'].slice(
 const TERR_HALF=46*Math.PI/180;                               // mezza apertura: copre lo schermo anche con l'aereo inclinato
 const TERR_FAR=70*Math.pow(1.205,29);                         // distanza massima come prima (~15 km)
 function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
+  { const gz=phDemAt(S.lat,S.lon,12); if(gz===gz && acAlt<gz+2) acAlt=gz+2; }   // quota GPS sotto il terreno (a terra, in casa): l'occhio resta sul terreno, non sotto
   const lvl=PH?Math.min(TERR_Q.length-1,PH.terrQ==='auto'?PH.terrLvl:(+PH.terrQ||0)):0, FN=TERR_Q[lvl][0], LN=TERR_Q[lvl][1];
   const ratio=Math.pow(TERR_FAR/70,1/(FN-1)), sinH=Math.sin(hdgRad), cosH=Math.cos(hdgRad);
   const n=FN*LN, Z=new Float32Array(n), X=new Float32Array(n), Y=new Float32Array(n), OK=new Uint8Array(n);

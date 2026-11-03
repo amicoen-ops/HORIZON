@@ -14,6 +14,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['2.0.30',"Vista sintetica: se la quota GPS è sotto il terreno (a terra o al chiuso, dove il GPS sbaglia la quota anche di 100 m) la vista parte dal terreno, e il cielo non è più coperto dalle montagne."],
   ['2.0.29',"Barra in basso più leggibile in volo: quattro tasti grandi e ad alto contrasto, VOLO, PIANO, ✈ TRAFFICO e ☰ ALTRO. ALTRO apre una griglia di tasti grandi (Impostazioni, Simula, Profilo, Carburante, Info) che resta aperta finché non scegli o chiudi. In orizzontale la barra resta sempre visibile in fondo."],
   ['2.0.28',"iPhone e iPad (browser): orizzonte corretto. Safari dà l'accelerometro con il segno opposto e il verso dello schermo in orizzontale al contrario di Android; ora l'app li corregge e riconosce da sola il segno con il telefono dritto. In Impostazioni › Stato, alla riga Sensori di movimento, si vedono il verso dello schermo e se è in uso il segno iOS."],
   ['2.0.27',"Scheda del traffico: tocca un traffico sul radar, nell'elenco o sulla mappa mobile per vedere tipo, distanza e rilevamento, quota, velocità e traccia, vario, quando e quanto vi avvicinerete, fonte ed età del dato, e aprirlo su SafeSky. Nomi puliti: HB-KNL invece di syHBKNL. Sulla mappa spostata col dito i traffici restano al loro posto."],
