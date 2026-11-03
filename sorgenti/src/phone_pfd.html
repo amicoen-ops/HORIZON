@@ -22,14 +22,20 @@
   <nav class="ph-nav">
     <button type="button" data-v="volo" aria-current="page">VOLO</button>
     <button type="button" data-v="piano">PIANO</button>
-    <button type="button" data-v="imp">IMPOSTAZIONI</button>
-    <button type="button" data-v="sim">SIMULA</button>
-    <button type="button" data-v="prof">PROFILO</button>
-    <button type="button" data-v="trf" class="ph-nav-fuel" aria-label="Traffico in tempo reale">✈</button>
-    <button type="button" data-v="fuel" class="ph-nav-fuel" aria-label="Carburante e alternati">⛽</button>
-    <button type="button" data-v="info">INFO</button>
+    <button type="button" data-v="trf" aria-label="Traffico in tempo reale"><i>✈</i><small>TRAFFICO</small></button>
+    <button type="button" data-v="more" id="phNavMore" aria-expanded="false" aria-label="Altre pagine"><i>☰</i><small>ALTRO</small></button>
   </nav>
 </aside>
+<div class="ph-more" id="phMore" hidden>
+  <div class="ph-more-g">
+    <button type="button" data-v="imp"><i>⚙</i>IMPOSTAZIONI</button>
+    <button type="button" data-v="sim"><i>▶</i>SIMULA</button>
+    <button type="button" data-v="prof"><i>⛰</i>PROFILO</button>
+    <button type="button" data-v="fuel"><i>⛽</i>CARBURANTE</button>
+    <button type="button" data-v="info"><i>ⓘ</i>INFO</button>
+    <button type="button" data-x class="x"><i>✕</i>CHIUDI</button>
+  </div>
+</div>
 <div class="ph-sheet" id="phPiano" hidden>
   <div class="ph-sheet-h"><button type="button" data-close>◀ Strumento</button><b>Piano, campi e meteo</b></div>
   <iframe id="phAppFrame" src="app.html" title="Piano di volo"></iframe>

@@ -27,9 +27,12 @@
   .ph-card b{font:700 19px "Oxanium",system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
   .ph-card small{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ph-card.warn b{color:var(--accent)}
-  .ph-nav{display:grid;grid-template-columns:0.8fr 0.85fr 1.45fr 0.95fr 1fr 0.55fr 0.55fr 0.75fr;gap:4px}
-  .ph-nav button{min-height:46px;padding:0 2px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--dim);font:700 12px "Oxanium",system-ui,sans-serif;letter-spacing:.03em}
-  .ph-nav button[aria-current="page"]{color:var(--cyan);border-color:var(--cyan)}
+  .ph-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .ph-nav button{min-height:62px;padding:0 2px;border-radius:12px;border:2px solid #3a4a5a;background:#1b2530;color:#eef3f8;font:800 17px "Oxanium",system-ui,sans-serif;letter-spacing:.04em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1}
+  .ph-nav button i{font-style:normal;font-size:22px;line-height:1} .ph-nav button small{font:800 11px "Oxanium",system-ui,sans-serif;letter-spacing:.06em}
+  .ph-nav button:active{background:#2a3846}
+  body.ph-land .ph-nav button{min-height:54px;font-size:14px} body.ph-land .ph-nav button i{font-size:19px} body.ph-land .ph-nav button small{font-size:9px}
+  .ph-nav button[aria-current="page"]{color:#06121e;background:var(--cyan);border-color:var(--cyan)}
   .ph-alert{position:absolute;left:50%;top:15%;transform:translateX(-50%);max-width:86%;padding:8px 14px;border-radius:10px;
     font:700 clamp(13px,3.4vw,20px) "Oxanium",system-ui,sans-serif;letter-spacing:.06em;text-align:center;z-index:5;pointer-events:auto;cursor:pointer}
   .ph-alert small{display:block;font:600 10px system-ui,sans-serif;letter-spacing:.02em;opacity:.8;margin-top:2px}
@@ -104,8 +107,8 @@
   .ph-panhome{width:auto!important;min-width:auto!important;padding:0 10px!important;font:700 12px "Oxanium",system-ui,sans-serif!important;letter-spacing:.04em;color:var(--cyan)!important;border-color:var(--cyan)!important}
 
   /* interfaccia semplice: solo orizzonte */
-  body.ph-simple .ph-nav button[data-v="piano"], body.ph-simple .ph-nav button[data-v="sim"], body.ph-simple .ph-nav button[data-v="prof"], body.ph-simple #phPage, body.ph-simple #phDest, body.ph-simple #phAsp, body.ph-simple #unit2, body.ph-simple #phZoom{display:none!important}
-  body.ph-simple .ph-nav{grid-template-columns:1fr 1.5fr 0.6fr 0.6fr 1fr}
+  body.ph-simple .ph-nav button[data-v="piano"], body.ph-simple #phMore [data-v="sim"], body.ph-simple #phMore [data-v="prof"], body.ph-simple #phPage, body.ph-simple #phDest, body.ph-simple #phAsp, body.ph-simple #unit2, body.ph-simple #phZoom{display:none!important}
+  body.ph-simple .ph-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
   body.ph-simple .ph-ctl{grid-template-columns:1fr 1.4fr 1fr}
   /* rotta disegnata a schermo pieno dentro il piano */
   body.ph-rdfull #phPiano .ph-sheet-h{display:none}
@@ -166,3 +169,13 @@
   .ph-trf-det .h small{color:#8a96a3} .ph-trf-det .h button{margin-left:auto;min-width:40px;min-height:36px;border-radius:8px;border:1px solid #3a4250;background:#1b2530;color:#fff;font-size:16px}
   .ph-trf-det .r{display:grid;grid-template-columns:78px 1fr;gap:6px;padding:3px 0;border-top:1px solid #1d2731;font-size:13px}
   .ph-trf-det .r span{color:#8a96a3} .ph-trf-det .r em{font-style:normal;color:#e6edf3} .ph-trf-det .b{color:#ff6b6b} .ph-trf-det .w{color:#ffb020}
+
+  .ph-more{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center}
+  .ph-more[hidden]{display:none}
+  .ph-more-g{width:min(560px,100%);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 12px;padding-bottom:max(14px,env(safe-area-inset-bottom,0px));background:#121a22;border-top:2px solid var(--cyan);border-radius:16px 16px 0 0}
+  .ph-more-g button{min-height:74px;border-radius:14px;border:2px solid #3a4a5a;background:#1b2530;color:#eef3f8;font:800 17px "Oxanium",system-ui,sans-serif;letter-spacing:.04em;display:flex;align-items:center;justify-content:center;gap:10px}
+  .ph-more-g button i{font-style:normal;font-size:24px} .ph-more-g button:active{background:#2a3846}
+  .ph-more-g button.x{border-color:var(--mag);color:#ffd6f8}
+  body.ph-land .ph-more-g{grid-template-columns:repeat(3,minmax(0,1fr));width:min(760px,100%)} body.ph-land .ph-more-g button{min-height:60px}
+
+  body.phone.ph-land .ph-nav{position:sticky;bottom:0;z-index:3;background:#0d1115;padding:6px 0 2px;margin-top:auto}
