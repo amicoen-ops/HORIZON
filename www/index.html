@@ -1977,6 +1977,7 @@ const TERR_NAMES=['normale','alto','fine','molto fine','massimo','ultra'].slice(
 const TERR_HALF=46*Math.PI/180;                               // mezza apertura: copre lo schermo anche con l'aereo inclinato
 const TERR_FAR=70*Math.pow(1.205,29);                         // distanza massima come prima (~15 km)
 function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
+  { const gz=phDemAt(S.lat,S.lon,12); if(gz===gz && acAlt<gz+2) acAlt=gz+2; }   // quota GPS sotto il terreno (a terra, in casa): l'occhio resta sul terreno, non sotto
   const lvl=PH?Math.min(TERR_Q.length-1,PH.terrQ==='auto'?PH.terrLvl:(+PH.terrQ||0)):0, FN=TERR_Q[lvl][0], LN=TERR_Q[lvl][1];
   const ratio=Math.pow(TERR_FAR/70,1/(FN-1)), sinH=Math.sin(hdgRad), cosH=Math.cos(hdgRad);
   const n=FN*LN, Z=new Float32Array(n), X=new Float32Array(n), Y=new Float32Array(n), OK=new Uint8Array(n);
@@ -3638,6 +3639,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ['1.0.57',"Vista sintetica: se la quota GPS è sotto il terreno (a terra o al chiuso, dove il GPS sbaglia la quota anche di 100 m) la vista parte dal terreno, e il cielo non è più coperto dalle montagne."],
   ['1.0.56',"Barra in basso più leggibile in volo: quattro tasti grandi e ad alto contrasto, VOLO, PIANO, ✈ TRAFFICO e ☰ ALTRO. ALTRO apre una griglia di tasti grandi (Impostazioni, Simula, Profilo, Carburante, Info) che resta aperta finché non scegli o chiudi. In orizzontale la barra resta sempre visibile in fondo."],
   ['1.0.55',"iPhone e iPad (browser): orizzonte corretto. Safari dà l'accelerometro con il segno opposto e il verso dello schermo in orizzontale al contrario di Android; ora l'app li corregge e riconosce da sola il segno con il telefono dritto. In Impostazioni › Stato, alla riga Sensori di movimento, si vedono il verso dello schermo e se è in uso il segno iOS."],
   ['1.0.54',"Scheda del traffico: tocca un traffico sul radar, nell'elenco o sulla mappa mobile per vedere tipo, distanza e rilevamento, quota, velocità e traccia, vario, quando e quanto vi avvicinerete, fonte ed età del dato, e aprirlo su SafeSky. Nomi puliti: HB-KNL invece di syHBKNL. Sulla mappa spostata col dito i traffici restano al loro posto."],
