@@ -1,6 +1,6 @@
 # Informativa sulla privacy — HORIZON · strumento di volo
 
-Ultimo aggiornamento: 29 ottobre 2026
+Ultimo aggiornamento: 3 novembre 2026
 
 Titolare: Enrico D'Amico, amicoen@gmail.com
 
@@ -25,6 +25,7 @@ Per funzionare l'app chiede dati a servizi esterni. Ogni richiesta porta solo qu
 - **Mappe** — OpenStreetMap, OpenTopoMap, Esri (solo con la tua chiave), Geoportale Nazionale. L'app chiede le tessere della zona mostrata, e dalla zona si capisce dove ti trovi più o meno.
 - **Terreno** — AWS Open Data (Terrain Tiles). Anche qui l'app chiede le tessere della zona mostrata.
 - **Meteo** — Open-Meteo e aviationweather.gov (NOAA). Al primo l'app manda le coordinate dei campi del piano di volo, al secondo le sigle ICAO degli aeroporti.
+- **Traffico in tempo reale**, solo se è acceso (Impostazioni › Traffico) — Open Glider Network (live.glidernet.org) e adsb.lol. L'app manda la zona in cui sei arrotondata a 0,1° (circa 10 km), mai la posizione esatta, e riceve gli aerei di quella zona. Se usi SafeSky sullo stesso telefono, il suo traffico arriva dentro il telefono (porta UDP 4000) e non esce niente.
 - **Aggiornamenti**, solo nella versione scaricata da GitHub — GitHub. L'app legge il numero dell'ultima versione pubblicata.
 - **Segnalazioni** — FormSubmit, che le inoltra per posta al titolare. Partono solo quando invii tu una segnalazione dalla pagina Info, e contengono:
   - il testo che scrivi;
@@ -37,6 +38,8 @@ Ognuno di questi servizi tratta le richieste secondo la propria informativa.
 
 - **Posizione precisa**: serve per GPS, mappa, navigazione e avvisi. L'app la usa solo mentre è aperta, mai in background.
 - **Dispositivi nelle vicinanze (Bluetooth)**: serve solo a collegare il GPS esterno che scegli, per esempio un Garmin GLO 2. L'app non cerca e non registra altri dispositivi.
+- **Stato della batteria e del segnale**: l'app legge la carica e la potenza del segnale per mostrarle nella riga di stato. Non escono dal telefono.
+- **WiFi multicast**: serve solo a ricevere il traffico in GDL90 da SafeSky, SkyEcho, PilotAware o Stratux sulla rete locale.
 
 ## Conservazione e cancellazione
 
@@ -52,7 +55,7 @@ L'app è uno strumento per piloti e non è rivolta ai minori.
 
 The app has no accounts, ads or analytics. Position, routes, logbook and settings stay on the device.
 
-Network requests go to map, terrain and weather services, and contain only the area shown or the airfield codes. Reports are sent by e-mail through FormSubmit, and only when you send one. They contain the text you write, your e-mail address if you add it, and, if you allow it, technical data without position.
+Network requests go to map, terrain and weather services, and contain only the area shown or the airfield codes. If live traffic is on, the app sends the area rounded to 0.1° (about 10 km), never the exact position, to Open Glider Network and adsb.lol. Reports are sent by e-mail through FormSubmit, and only when you send one. They contain the text you write, your e-mail address if you add it, and, if you allow it, technical data without position.
 
 Location is used only while the app is open. Bluetooth is used only to connect the external GPS you choose.
 

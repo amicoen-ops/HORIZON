@@ -80,6 +80,8 @@ COSA FA
 • Simula: lo strumento vola da solo una rotta o un direct to, con vento e tempo accelerato, per provare la rotta a terra.
 • Diario di volo automatico, con esportazione in GPX e CSV.
 • GPS esterno Garmin GLO 2 via Bluetooth, oppure il GPS del telefono, con passaggio automatico.
+• Traffico in tempo reale da OGN (FLARM) e adsb.lol (ADS-B), o da SafeSky sullo stesso telefono: radar, scheda di ogni aereo, traffico sulla mappa e triangolo di pericolo sullo strumento.
+• Batteria e segnale 4G/5G sempre visibili nella riga di stato.
 • Avvisi di spazio aereo e di tramonto, voce e vibrazione.
 • Su tablet in orizzontale: orizzonte e mappa insieme.
 • Funziona senza internet: terreno e mappe si scaricano prima del volo.
@@ -112,7 +114,10 @@ Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sost
 
 **Sicurezza dei dati:**
 - *Raccoglie o condivide dati?* Sì, solo per le segnalazioni facoltative.
-- **Posizione**: non raccolta. La posizione resta sul telefono, e le richieste di mappe e terreno contengono solo la zona mostrata.
+- **Posizione approssimativa**: condivisa, solo se il traffico in tempo reale è acceso.
+  - Va a Open Glider Network e adsb.lol arrotondata a 0,1° (circa 10 km), per ricevere gli aerei della zona: funzionalità dell'app.
+  - Non conservata dall'app, facoltativa (si spegne in Impostazioni › Traffico), trasmessa cifrata.
+  - La posizione precisa invece resta sul telefono; le richieste di mappe e terreno contengono solo la zona mostrata.
 - **Informazioni personali › Indirizzo email**: raccolto solo se lo scrivi in una segnalazione.
   - Facoltativo, non condiviso con terzi.
   - Scopo: assistenza.
