@@ -1419,9 +1419,16 @@ function simStep(h){
     const V=tasOf(S.ias,S.alt);
     S.hdg=wrap360(S.hdg+G*Math.tan(S.roll*D2R)/V*R2D*h);
     S.vs=flare?((S.alt*FT2M-A.f.elev)>6?-2.2:-0.6):V*Math.sin((S.pitch-2)*D2R);
+    if(!flare && PH && PH.sim && PH.simRoc){ const rc=PH.simRoc(); if(S.vs>rc) S.vs=rc; }   // in simulazione si sale al rateo vero del velivolo
     S.alt+=S.vs*h/FT2M;
     const gz=terrain(ac0.E,ac0.N);
-    if(S.alt*FT2M<gz+3) S.alt=(gz+3)/FT2M;
+    if(S.alt*FT2M<gz+3){
+      // in simulazione sotto il terreno non si va mai: se succede è un impatto, la simulazione si ferma e lo dice.
+      // Fa eccezione solo l'atterraggio (base e finale, entro 3 km dal campo d'arrivo)
+      const nearF=A && A.idx>=3 && Math.hypot(ac0.E-A.f.E,ac0.N-A.f.N)<3000;
+      S.alt=(gz+3)/FT2M;
+      if(PH && PH.sim && !nearF){ PH.act&&PH.act(`IMPATTO col terreno a ${Math.round(S.alt)} ft`); PH.alert&&PH.alert('impact','W','IMPATTO CON IL TERRENO · SIMULAZIONE FERMATA',8000); PH.simEnd('impatto con il terreno'); return; }
+    }
   }
   simClock+=h;
   if(!S.gpsReal){
@@ -1454,7 +1461,8 @@ function frameBody(now){
   if(LIVE.any && S.auto){ S.auto=false; el('auto').checked=false; }      // con dati veri la simulazione non riparte mai
   const dt=Math.min(0.05,(now-last)/1000); last=now;
   const warp=S.auto?(PH&&PH.sim?(NAV.roll?Math.min(2,PH.sim.warp):PH.sim.warp):(NAV.roll?1.5:(NAV.app&&NAV.app.idx>=1?2:4))):1;
-  let rem=dt*warp; while(rem>1e-6){ const h=Math.min(0.05,rem); simStep(h); rem-=h; }
+  let rem=dt*warp; if(S.auto && PH && PH.sim && PH.simDemWait && PH.simDemWait(now)) rem=0;
+  while(rem>1e-6){ const h=Math.min(0.05,rem); simStep(h); rem-=h; }
   const g=guidance();
   if(S.auto) syncInputs();
   if(!menuEl.hidden && (Math.round(now/500)%2===0)) renderMenuPos();
@@ -1912,7 +1920,7 @@ function terrainRaw(E,N){
   const lat=ORIGIN.lat+N/110540, lon=ORIGIN.lon+E/(111320*Math.cos(ORIGIN.lat*D2R));
   const z=phDemAt(lat,lon,PH.demZ);
   if(z===z) return z;
-  return PH.demo?terrainSynth(E,N):NaN;
+  return (PH.demo && !PH.sim)?terrainSynth(E,N):NaN;          // in simulazione mai colline finte: si aspetta il rilievo vero
 }
 function phDemAt(lat,lon,z){
   z=z||11;
@@ -3614,6 +3622,55 @@ PH.manStep=function(){
     const V=tasOf(Math.max(S.ias,40),S.alt), err=(M.need-(S.alt||0))*FT2M;
     const vs=M.type==='giu'?clamp(err*0.05,-(window.IA517_PERF?IA517_PERF.rod(PH.ac||{}):700)*0.00508,0):clamp(err*0.05,0,PH.rocNow()*0.00508);
     out.cmdRoll=st.cmdRoll; out.cmdPitch=clamp(2+Math.asin(clamp(vs/V,-0.5,0.5))*R2D,-8,10); out.tgtAlt=M.need; out.man=st;
+    return out; }; }
+// ---------------- simulazione: mai dentro o sotto il terreno ----------------
+// Si guarda avanti 90 s lungo la traccia prevista (anche in virata), ±200 m di lato. La quota obiettivo non scende mai sotto
+// il terreno più alto + 150 m (in base e finale 60 m, esclusi i 2,5 km intorno al campo d'arrivo). Se salendo col rateo vero
+// del velivolo non si passa, parte la manovra (spirale in salita o inversione). Vale anche nel circuito d'arrivo.
+PH.simRoc=function(){ const c=PH.rocC; if(c && Math.abs(simClock-c.t)<2) return c.v;
+  let v=3; try{ v=Math.max(0.8,PH.rocNow()*0.00508); }catch(e){} PH.rocC={t:simClock,v}; return v; };
+PH.terrFloor=function(){
+  if(!PH.sim || NAV.roll) return null;
+  const C=PH.floorC; if(C && Math.abs(simClock-C.t)<0.5) return C;
+  const A=NAV.app, fin=!!(A && A.idx>=3), M=fin?TAWS_RED:CREST_M, roc=PH.simRoc(), alt=(S.alt||0)*FT2M;
+  const V=Math.max(15,(S.gs!=null?S.gs:S.ias||100)/3.6), tas=tasOf(Math.max(S.ias||0,40),S.alt||0), w=G*Math.tan((S.roll||0)*D2R)/Math.max(15,tas);
+  const ac=enu(S.lat,S.lon); let x=ac.E, y=ac.N, tr=(S.trk!=null?S.trk:S.hdg)*D2R, turned=0, top=-1e9, cant=false, unk=0;
+  const fE=A?A.f.E:null, fN=A?A.f.N:null;
+  for(let t=0;t<=90;t+=2){
+    if(t){ x+=V*Math.sin(tr)*2; y+=V*Math.cos(tr)*2; if(turned<2*Math.PI){ tr+=w*2; turned+=Math.abs(w*2); } }
+    if(fin && Math.hypot(x-fE,y-fN)<2500) continue;
+    const cx=Math.cos(tr), sx=Math.sin(tr);
+    for(const l of [-200,0,200]){ const z=terrain(x+l*cx,y-l*sx); if(z!==z){ unk++; continue; }
+      if(z+M>top) top=z+M;
+      if(t>=4 && alt+roc*t*0.9 < z+TAWS_RED) cant=true; } }
+  const r={t:simClock, floorFt:top>-1e8?top/FT2M:null, cant, unk};
+  PH.floorC=r; return r; };
+PH.simDemWait=function(now){
+  const P=PH.sim; if(!P || NAV.roll) return false;
+  if(P.demChk && now-P.demChk.t<400) return P.demChk.w;
+  const ac=enu(S.lat,S.lon), tr=(S.trk!=null?S.trk:S.hdg)*D2R; let miss=0, w=false;
+  for(const d of [0,1500,3000]){ const z=terrainRaw(ac.E+d*Math.sin(tr),ac.N+d*Math.cos(tr)); if(z!==z) miss++; }
+  if(miss){ P.demW=P.demW||now;
+    if(now-P.demW<20000){ w=true; PH.alert('demwait','C','ATTENDO IL RILIEVO DEL TERRENO · SIMULAZIONE IN PAUSA',5000); }
+    else { PH.simEnd('rilievo del terreno non disponibile (rete?)'); w=true; } }
+  else P.demW=0;
+  if(PH.sim) P.demChk={t:now,w}; return w; };
+{ const gd3=guidance; guidance=function(){
+    const out=gd3(); if(!PH || !PH.sim || NAV.roll || !S.auto) return out;
+    let F=null; try{ F=PH.terrFloor(); }catch(e){} if(!F || !(F.floorFt>0)) return out;
+    const fl=Math.ceil(F.floorFt/50)*50; out.floorFt=fl;
+    // terreno davanti più alto della tangenza del velivolo: si vira via (inversione) e la simulazione si ferma con l'avviso
+    const ceil=+((PH.ac||{}).ceil)||12000;
+    const needAll=Math.max(fl,PH.MAN&&PH.MAN.type!=='giu'?PH.MAN.need:0,PH.TU?PH.TU.alt:0);
+    if(needAll>ceil){ const P=PH.sim; if(!P.ceilT){ P.ceilT=simClock; PH.act&&PH.act(`terreno: servono ${needAll} ft, oltre la tangenza ${ceil} ft`);
+        PH.alert('terrceil','W',`TERRENO: SERVONO ${Math.ceil(needAll/100)*100} FT, OLTRE LA TANGENZA (${ceil} FT) · VIRA VIA`,8000); }
+      else if(simClock-P.ceilT>40){ PH.simEnd('terreno più alto della tangenza del velivolo: cambia rotta'); return out; } }
+    if(F.cant && !PH.MAN && NAV.dest && PH.manPlan){ PH.act&&PH.act(`pavimento terreno: salendo non passo, manovra fino a ${Math.ceil(fl/100)*100} ft`); PH.manPlan(Math.ceil(fl/100)*100); }
+    if(out.tgtAlt==null || out.tgtAlt<fl){
+      out.tgtAlt=fl; out.gp=false; out.floorOn=true;
+      const V=tasOf(Math.max(S.ias,40),S.alt), vs=clamp((fl-(S.alt||0))*FT2M*0.05,-3.5,PH.simRoc());
+      out.vsDes=vs; out.cmdPitch=clamp(2+Math.asin(clamp(vs/V,-0.5,0.5))*R2D,-8,12);
+      if((S.alt||0)<fl-100 && !PH.MAN) PH.alert('terrfloor','C',`TERRENO · SALI ALMENO A ${Math.ceil(fl/100)*100} FT`,8000); }
     return out; }; }
 { const dpm=drawPFD; drawPFD=function(g){
     const st=g&&g.man; if(!st) return dpm(g);
