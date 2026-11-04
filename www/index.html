@@ -2279,7 +2279,11 @@ PH.onMotion=function(e){
   const av=[ax*c-ay*sn, ax*sn+ay*c, (a.z||0)*ks];
   for(let i=0;i<3;i++) PH.aAvg[i]+= (av[i]-PH.aAvg[i])*0.05;
   if(PH.demo) return;
-  let dt=(e.interval>0?(e.interval>1?e.interval/1000:e.interval):0.016); dt=clamp(dt,0.004,0.06);
+  // passo di tempo VERO tra due eventi (timeStamp): molti Android dichiarano interval=16 ms ma mandano i dati più spesso
+  // (100–200 Hz); con il valore dichiarato il giroscopio veniva contato 2–3 volte e l'orizzonte cabrava e picchiava muovendo la mano
+  const ts=e.timeStamp>0?e.timeStamp:now, dtTs=PH.mTs!=null?(ts-PH.mTs)/1000:NaN; PH.mTs=ts;
+  const dtI=(e.interval>0?(e.interval>1?e.interval/1000:e.interval):0.016);
+  let dt=(dtTs>0.001&&dtTs<0.1)?dtTs:dtI; dt=clamp(dt,0.001,0.06); PH.mDt=PH.mDt==null?dt:PH.mDt*0.98+dt*0.02; PH.mDtI=dtI;
   const fb=PH.toBody(av).map(x=>x/9.80665);               // forza specifica nel corpo, in g (fermo e livellato: 0,0,-1)
   const rx=r?(r.beta||0)*D2R:0, ry=r?(r.gamma||0)*D2R:0, wd=[rx*c-ry*sn, rx*sn+ry*c, r?(r.alpha||0)*D2R:0];
   let wb=PH.toBody(wd);
@@ -2841,7 +2845,7 @@ PH.status=function(){
     [PH.glo.port?(PH.glo.fix&&Date.now()-PH.glo.fix.recv<3000?'ok':'warn'):(PH.glo.want?'bad':'warn'),'Garmin GLO 2',
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
     ['ok','Posizione in uso',PH.demo?'simulata':(PH.src==='glo'?'Garmin GLO 2':(PH.src==='phone'?'GPS del telefono':'nessuna'))+' · scelta '+{auto:'automatica',phone:'solo telefono',glo:'solo GLO 2'}[PH.srcPref]],
-    [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz · schermo '+PH.scrAng()+'°'+(PH.accSign<0?' · segno iOS':''):'nessun dato'],
+    [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz'+(PH.mDtI?` (dichiarati ${Math.round(1/PH.mDtI)})`:'')+' · schermo '+PH.scrAng()+'°'+(PH.accSign<0?' · segno iOS':''):'nessun dato'],
     ...(PH.elevBad&&PH.elevBad.size?[['warn','Campi con quota dubbia',[...PH.elevBad].slice(0,12).join(', ')+' (rilievo usato per il 3D)']]:[]),
     ...(PH.EXT&&PH.EXT.want?[[PH.extAtt()?'ok':'bad','Strumento fisico',PH.extInfo()]]:[]),
     ...(PH.native&&PH.native.ahrs?[[PH.natAtt&&performance.now()-PH.natAtt.t<500?'ok':'bad','Assetto nativo (v2)',PH.natAtt?`${PH.natAtt.hz} Hz · ${PH.attSrc==='nativo'?'in uso':'non in uso'}`:'nessun dato']]:[]),
