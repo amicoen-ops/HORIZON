@@ -3,7 +3,7 @@
 // =====================================================================================
 //  Licenza d'uso: 30 giorni di prova, poi
 //   · Google Play: abbonamento annuale nell'app (Play Billing), su tutti i telefoni dell'account Google
-//   · APK e web: chiave comprata su Polar.sh (pagamento verificato, chiave alla mail di chi paga),
+//   · APK e web: abbonamento annuale su Polar.sh, stesso prezzo del Play Store (chiave alla mail di chi paga),
 //     attivata sul server di Polar, al massimo 2 dispositivi per chiave
 //  In volo l'app non si blocca mai: l'eventuale richiesta arriva a terra.
 // =====================================================================================
@@ -15,7 +15,7 @@ const CFG={
   polarApi:'https://api.polar.sh',                      // https://api.polar.sh oppure https://sandbox-api.polar.sh
   checkout:'__POLAR_CHECKOUT__',                 // link di pagamento del prodotto su Polar
   portal:'__POLAR_PORTAL__',                     // spazio del cliente su Polar (chiave, dispositivi, ricevute)
-  playProduct:'licenza_annuale', playBasePlan:'annuale', price:'20 €', playPriceDef:'30 €', trialDays:30, offlineDays:30, playOfflineDays:7, recheckDays:3
+  playProduct:'licenza_annuale', playBasePlan:'annuale', price:'30 €', playPriceDef:'30 €', trialDays:30, offlineDays:30, playOfflineDays:7, recheckDays:3
 };
 const set=v=>v && !/^__/.test(v);
 const DAY=86400000, K='ia517p_lic', KT='ia517p_t0', KS='ia517p_seen';
@@ -75,6 +75,8 @@ L.status=function(){
 L.inFlight=function(){ try{ return !!(typeof PH!=='undefined'&&PH&&PH.flight) || (typeof S!=='undefined'&&S.gpsReal&&S.gs>35); }catch(e){ return false; } };
 
 // ---------- Polar ----------
+// abbonamento: Polar toglie la chiave quando non si rinnova; in più si rispetta la scadenza della chiave, se c'è
+const expired=t=>{ if(!t) return false; const d=Date.parse(t); return isFinite(d)&&d<Date.now(); };
 async function post(path,body){
   const url=CFG.polarApi.replace(/\/$/,'')+path;
   const nh=typeof PH!=='undefined'&&PH&&PH.native&&PH.native.http;
@@ -93,14 +95,15 @@ L.activate=async function(key){
   if(r.status<200||r.status>=300||!r.d||!r.d.id) throw new Error('Il server delle licenze non ha risposto ('+r.status+'). Riprova tra poco.');
   const lk=r.d.license_key||{};
   if(lk.status && lk.status!=='granted') throw new Error('Questa chiave non è valida (stato: '+lk.status+').');
+  if(expired(lk.expires_at)) throw new Error('Questa chiave è scaduta: rinnova l\'abbonamento dal tuo spazio su Polar.');
   L.state={kind:'polar',ok:true,key,act:r.d.id,lastOk:Date.now(),mail:(lk.customer&&lk.customer.email)||'',limit:lk.limit_activations||2,display:lk.display_key||''};
   L.save(); return L.state;
 };
 L.validate=async function(){
   const s=L.state; if(!s||s.kind!=='polar'||!s.key) return;
   const r=await post('/v1/customer-portal/license-keys/validate',{key:s.key,organization_id:CFG.polarOrg,activation_id:s.act,conditions:{device:L.dev}});
-  if(r.status>=200&&r.status<300&&r.d&&r.d.status==='granted'){ s.ok=true; s.revoked=false; s.lastOk=Date.now(); L.save(); return true; }
-  if(r.status===404||(r.d&&r.d.status&&r.d.status!=='granted')){ s.ok=false; s.revoked=true; L.save(); return false; }   // annullata, rimborsata o dispositivo tolto
+  if(r.status>=200&&r.status<300&&r.d&&r.d.status==='granted'&&!expired(r.d.expires_at)){ s.ok=true; s.revoked=false; s.lastOk=Date.now(); L.save(); return true; }
+  if(r.status===404||(r.d&&r.d.status&&r.d.status!=='granted')||(r.d&&expired(r.d.expires_at))){ s.ok=false; s.revoked=true; L.save(); return false; }   // annullata, rimborsata o dispositivo tolto
   return null;                                                               // server non raggiungibile: si riprova
 };
 // ---------- Google Play ----------
@@ -152,8 +155,8 @@ L.panel=function(st){
     (play?`<p><b>Abbonamento annuale: ${esc(L.playPrice||CFG.playPriceDef)} all'anno</b>, su tutti i telefoni del tuo account Google. Si rinnova da solo ogni anno finché non lo disdici; puoi disdire quando vuoi dal Play Store (Abbonamenti) e l'app resta attiva fino alla fine dell'anno già pagato.</p>
       <button class="pri" type="button" data-l="buy">Abbonati · ${esc(L.playPrice||CFG.playPriceDef)}/anno</button><button type="button" data-l="restore">Ho già l'abbonamento: ripristina</button>
       <a class="lic-a" href="${L.manageUrl()}" target="_blank" rel="noopener">Gestisci o disdici l'abbonamento</a>`:
-     `<p>Con la licenza da <b>${CFG.price}</b>, una volta sola, l'app resta completa per sempre su <b>2 dispositivi</b> (telefono, tablet o browser). La chiave arriva alla mail con cui paghi.</p>
-      ${set(CFG.checkout)?`<a class="lic-a pri" href="${esc(CFG.checkout)}" target="_blank" rel="noopener" data-l="checkout">Acquista la licenza · ${CFG.price}</a>`:''}
+     `<p><b>Abbonamento annuale: ${CFG.price} all'anno</b>, su <b>2 dispositivi</b> (telefono, tablet o browser). Si rinnova da solo ogni anno finché non lo disdici dal tuo spazio su Polar; l'app resta attiva fino alla fine dell'anno già pagato. La chiave arriva alla mail con cui paghi.</p>
+      ${set(CFG.checkout)?`<a class="lic-a pri" href="${esc(CFG.checkout)}" target="_blank" rel="noopener" data-l="checkout">Abbonati · ${CFG.price}/anno</a>`:''}
       <p><b>Hai la chiave?</b> Incollala qui:</p><textarea id="licKey" placeholder="IA517-…" autocapitalize="characters" spellcheck="false"></textarea>
       <button type="button" data-l="act">Attiva su questo dispositivo</button>
       <p><small>Codice di questo dispositivo: <b>${L.dev}</b>. ${set(CFG.portal)?`Ricevute, chiave e dispositivi attivi: <a href="${esc(CFG.portal)}" target="_blank" rel="noopener" style="color:#3fd6ff">il tuo spazio su Polar</a>.`:''}</small></p>`))+
