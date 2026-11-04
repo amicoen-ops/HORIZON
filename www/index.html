@@ -1074,20 +1074,22 @@ function infoBox(x,y,w,h,col){
   ctx.beginPath(); ctx.roundRect(x,y,w,h,4*k); ctx.fill(); ctx.stroke();
 }
 function destBox(rx,by,sw,bh,g){
-  infoBox(rx,by,sw,bh,NAV.dest?C.mag:'#4a5260');
+  if(!NAV.dest) return;                                  // senza destinazione niente riquadro vuoto (era «premi: DIRECT TO», tagliato dal bordo)
+  infoBox(rx,by,sw,bh,C.mag);
   ctx.textAlign='center'; ctx.textBaseline='middle';
   if(NAV.dest){
     const mins=Math.round((g.ete||0)/60), d=NAV.app?g.s:g.dist;
     ctx.fillStyle=C.mag; ctx.font=font(R*0.058,'700');
     ctx.fillText('→ '+NAV.dest.short+(NAV.app?' '+NAV.app.end.id:'')+(NAV.route?` ${NAV.route.idx+1}/${NAV.route.r.wps.length}`:''), rx+sw/2, by+bh*0.32, sw*0.92);
     ctx.fillStyle=C.white; ctx.font=font(R*0.05,'600');
-    ctx.fillText((d/1000).toFixed(d<10000?1:0)+' km · '+(mins<1?'<1':mins)+"'", rx+sw/2, by+bh*0.74);
+    ctx.fillText((d/1000).toFixed(d<10000?1:0)+' km · '+(mins<1?'<1':mins)+"'", rx+sw/2, by+bh*0.74, sw*0.92);
   } else {
     ctx.fillStyle='#8b93a0'; ctx.font=font(R*0.05,'600');
     ctx.fillText('premi: DIRECT TO', rx+sw/2, by+bh/2);
   }
 }
 function windBox(x,y,w,h,refHdg){
+  if(!WIND.valid) return;                               // vento non ancora stimato: niente riquadro «VENTO ---» (il valore è nella griglia sotto)
   infoBox(x,y,w,h,'#4a5260');
   const ax=x+h*0.5, ay=y+h/2;
   ctx.textBaseline='middle'; ctx.textAlign='left';
@@ -2266,6 +2268,32 @@ PH.onRotate=function(){ const ang=PH.scrAng(); if(ang===PH.lastAng) return; PH.l
 PH.smoothTxt=function(){ const v=PH.smooth; return v<=0?'immediato':(v/10).toFixed(1).replace('.',',')+' s'; };
 PH.resetMount=function(){ PH.M=[[0,0,-1],[1,0,0],[0,-1,0]]; PH.mountCal=false; PH.ahrsMount&&PH.ahrsMount(); try{ localStorage.removeItem('ia517p_mount'); }catch(e){} PH.ahrsInit=false; toast('MONTAGGIO: TELEFONO VERTICALE'); };
 
+// ---- ordine degli assi del giroscopio: riconosciuto da solo ----
+// Lo standard (W3C) è x=beta, y=gamma, z=alpha, ma alcuni Android e browser li danno in un altro ordine o col segno opposto:
+// allora girando il telefono attorno alla verticale l'orizzonte cabrava e picchiava. La gravità misurata dall'accelerometro è fissa
+// nel mondo, quindi nel telefono ruota come da/dt = -w × a: si prova ogni ordine e segno e si tiene quello che torna, poi lo si ricorda.
+PH.GPERM=[[1,2,0],[2,1,0],[0,1,2],[0,2,1],[1,0,2],[2,0,1]];          // per x,y,z l'indice in [alpha,beta,gamma]; il primo è lo standard
+PH.gmap=lsGet('ia517p_gmap',null)||{p:0,s:1,fixed:false};
+PH.gdet={A:null,w:null,E:new Float64Array(12),n:0};
+PH.gyroRaw=function(r){ const v=[r.alpha||0,r.beta||0,r.gamma||0], P=PH.GPERM[PH.gmap.p]||PH.GPERM[0], s=PH.gmap.s||1; return [v[P[0]]*s,v[P[1]]*s,v[P[2]]*s]; };
+PH.gyroLearn=function(a,r,dt){
+  if(PH.gmap.fixed) return;
+  const D=PH.gdet, v=[r.alpha||0,r.beta||0,r.gamma||0].map(x=>x*D2R), k=1-Math.exp(-dt/0.05);
+  if(!D.A){ D.A=a.slice(); D.w=v.slice(); return; }
+  const Ap=D.A.slice(); for(let i=0;i<3;i++){ D.A[i]+=(a[i]-D.A[i])*k; D.w[i]+=(v[i]-D.w[i])*k; }
+  const g=Math.hypot(D.A[0],D.A[1],D.A[2]), wm=Math.hypot(D.w[0],D.w[1],D.w[2]); if(wm<0.6 || Math.abs(g-9.81)>2) return;
+  const da=[0,1,2].map(i=>(D.A[i]-Ap[i])/dt), A=D.A;
+  for(let p=0;p<6;p++) for(let sg=0;sg<2;sg++){ const P=PH.GPERM[p], s=sg?-1:1, w=[D.w[P[0]]*s,D.w[P[1]]*s,D.w[P[2]]*s];
+    const pr=[-(w[1]*A[2]-w[2]*A[1]), -(w[2]*A[0]-w[0]*A[2]), -(w[0]*A[1]-w[1]*A[0])];
+    D.E[p*2+sg]+=Math.hypot(da[0]-pr[0],da[1]-pr[1],da[2]-pr[2])*dt; }
+  if(++D.n<180) return;                                                  // ~3 s di rotazioni vere
+  const fam=[0,1,2,3,4,5].map(p=>[Math.min(D.E[p*2],D.E[p*2+1]),p]).sort((x,y)=>x[0]-y[0]);
+  if(fam[0][0]<0.7*fam[1][0]){ const p=fam[0][1], e0=D.E[p*2], e1=D.E[p*2+1], sOk=Math.min(e0,e1)<0.85*Math.max(e0,e1);
+    const s=sOk?(e0<=e1?1:-1):(PH.gmap.p===p?PH.gmap.s:1), changed=p!==PH.gmap.p||s!==PH.gmap.s;
+    PH.gmap={p,s,fixed:sOk}; lsSet('ia517p_gmap',PH.gmap);
+    if(changed){ PH.ahrsInit=false; PH.attF=null; PH.act&&PH.act('giroscopio: assi '+(p===0?'standard':'nell\'ordine '+PH.GPERM[p].map(i=>'αβγ'[i]).join(''))+(s<0?', segno invertito':'')); } }
+  D.E.fill(0); D.n=0; };
+PH.gyroTxt=function(){ const g=PH.gmap; return (g.p===0?'assi standard':'assi '+PH.GPERM[g.p].map(i=>'αβγ'[i]).join(''))+(g.s<0?' invertiti':'')+(g.fixed?' (riconosciuti)':' (in verifica: gira il telefono)'); };
 // ---- sensori di movimento ----
 PH.onMotion=function(e){
   const a=e.accelerationIncludingGravity, r=e.rotationRate;
@@ -2285,7 +2313,8 @@ PH.onMotion=function(e){
   const dtI=(e.interval>0?(e.interval>1?e.interval/1000:e.interval):0.016);
   let dt=(dtTs>0.001&&dtTs<0.1)?dtTs:dtI; dt=clamp(dt,0.001,0.06); PH.mDt=PH.mDt==null?dt:PH.mDt*0.98+dt*0.02; PH.mDtI=dtI;
   const fb=PH.toBody(av).map(x=>x/9.80665);               // forza specifica nel corpo, in g (fermo e livellato: 0,0,-1)
-  const rx=r?(r.beta||0)*D2R:0, ry=r?(r.gamma||0)*D2R:0, wd=[rx*c-ry*sn, rx*sn+ry*c, r?(r.alpha||0)*D2R:0];
+  if(r) PH.gyroLearn([ax,ay,(a.z||0)*ks],r,dt);
+  const gr=r?PH.gyroRaw(r):[0,0,0], rx=gr[0]*D2R, ry=gr[1]*D2R, wd=[rx*c-ry*sn, rx*sn+ry*c, gr[2]*D2R];
   let wb=PH.toBody(wd);
   if(r && (Math.abs(r.alpha||0)+Math.abs(r.beta||0)+Math.abs(r.gamma||0))>1e-4) PH.gyroT=now;
   PH.gyroOk=now-(PH.gyroT||-1e9)<1500;
@@ -2845,7 +2874,7 @@ PH.status=function(){
     [PH.glo.port?(PH.glo.fix&&Date.now()-PH.glo.fix.recv<3000?'ok':'warn'):(PH.glo.want?'bad':'warn'),'Garmin GLO 2',
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
     ['ok','Posizione in uso',PH.demo?'simulata':(PH.src==='glo'?'Garmin GLO 2':(PH.src==='phone'?'GPS del telefono':'nessuna'))+' · scelta '+{auto:'automatica',phone:'solo telefono',glo:'solo GLO 2'}[PH.srcPref]],
-    [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz'+(PH.mDtI?` (dichiarati ${Math.round(1/PH.mDtI)})`:'')+' · schermo '+PH.scrAng()+'°'+(PH.accSign<0?' · segno iOS':''):'nessun dato'],
+    [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz'+(PH.mDtI?` (dichiarati ${Math.round(1/PH.mDtI)})`:'')+' · '+PH.gyroTxt()+' · schermo '+PH.scrAng()+'°'+(PH.accSign<0?' · segno iOS':''):'nessun dato'],
     ...(PH.elevBad&&PH.elevBad.size?[['warn','Campi con quota dubbia',[...PH.elevBad].slice(0,12).join(', ')+' (rilievo usato per il 3D)']]:[]),
     ...(PH.EXT&&PH.EXT.want?[[PH.extAtt()?'ok':'bad','Strumento fisico',PH.extInfo()]]:[]),
     ...(PH.native&&PH.native.ahrs?[[PH.natAtt&&performance.now()-PH.natAtt.t<500?'ok':'bad','Assetto nativo (v2)',PH.natAtt?`${PH.natAtt.hz} Hz · ${PH.attSrc==='nativo'?'in uso':'non in uso'}`:'nessun dato']]:[]),
