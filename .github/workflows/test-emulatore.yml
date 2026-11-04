@@ -11,6 +11,7 @@ on:
 permissions:
   contents: write
   issues: write
+  actions: read
 
 jobs:
   emulatore:
@@ -26,13 +27,16 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Ultima APK pubblicata
+      - name: APK di collaudo dell'ultima compilazione (l'APK pubblico non permette il debug della WebView)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq .tag_name)
           echo "TAG=$TAG" >> $GITHUB_ENV
-          gh release download "$TAG" -R ${{ github.repository }} -p '*.apk' -O app.apk
+          RUN="${{ github.event.workflow_run.id }}"
+          [ -n "$RUN" ] || RUN=$(gh run list -R ${{ github.repository }} -w "Compila APK" -s success -L 1 --json databaseId --jq '.[0].databaseId')
+          gh run download "$RUN" -R ${{ github.repository }} -n apk-collaudo -D apk
+          mv apk/HORIZON-collaudo.apk app.apk
           pip install websocket-client
 
       - name: Prova sull'emulatore (Android 14)

@@ -1343,7 +1343,7 @@ addEventListener('online',()=>fetchModel(false));
     msg(`<span class="warn">Non riuscito: ${esc(why)}.</span>${NATIVE?'':' Dal browser openAIP può non permettere la lettura diretta: usa l\'app installata, oppure scarica il file e usa «Carica file OpenAir».'}`);
   }
   async function byUrl(url,quiet){
-    url=String(url||'').trim(); if(!/^https?:\/\//i.test(url)){ if(!quiet) msg('<span class="warn">Serve un indirizzo che inizia con http:// o https://</span>'); return; }
+    url=String(url||'').trim(); if(!/^https:\/\//i.test(url)){ if(!quiet) msg('<span class="warn">Serve un indirizzo sicuro che inizia con https://</span>'); return; }
     if(!quiet) msg('Scarico…');
     try{ const r=await get(url); if(r.status!==200) throw new Error('risposta '+r.status);
       const n=use(String(r.text||''),decodeURIComponent(url.split('?')[0].split('/').pop()||'openair.txt'),{kind:'url',url}); if(!quiet) toast(`${n} spazi aerei scaricati`);

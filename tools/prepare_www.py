@@ -16,6 +16,7 @@ shutil.copy(HERE / "node_modules/@capacitor/core/dist/capacitor.js", DST / "capa
 idx = (DST / "index.html").read_text(encoding="utf-8")
 tag = '<script src="capacitor.js"></script>\n'
 assert "</head>" in idx
-idx = idx.replace("</head>", tag + "</head>", 1)
+if 'src="capacitor.js"' not in idx:                 # già presente: non lo aggiungo una seconda volta
+    idx = idx.replace("</head>", tag + "</head>", 1)
 (DST / "index.html").write_text(idx, encoding="utf-8")
 print("www pronta:", ", ".join(sorted(p.name for p in DST.iterdir())))

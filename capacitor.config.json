@@ -2,6 +2,6 @@
   "appId": "it.amicoen.horizon",
   "appName": "HORIZON",
   "webDir": "www",
-  "server": { "androidScheme": "https", "cleartext": true },
-  "android": { "allowMixedContent": true, "captureInput": true, "webContentsDebuggingEnabled": true }
+  "server": { "androidScheme": "https", "cleartext": false },
+  "android": { "allowMixedContent": true, "captureInput": true, "webContentsDebuggingEnabled": false }
 }

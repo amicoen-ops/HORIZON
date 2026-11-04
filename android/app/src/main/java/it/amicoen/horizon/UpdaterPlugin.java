@@ -54,10 +54,17 @@ public class UpdaterPlugin extends Plugin {
                     c = (HttpURLConnection) new URL(u).openConnection();
                     c.setInstanceFollowRedirects(false); c.setConnectTimeout(15000); c.setReadTimeout(30000);
                     int code = c.getResponseCode();
-                    if (code >= 300 && code < 400) { u = c.getHeaderField("Location"); c.disconnect(); continue; }
+                    if (code >= 300 && code < 400) {                     // anche i rimandi solo in https
+                        String loc = c.getHeaderField("Location"); c.disconnect(); c = null;
+                        if (loc == null) throw new Exception("rimando senza indirizzo");
+                        u = new URL(new URL(u), loc).toString();
+                        if (!u.startsWith("https://")) throw new Exception("rimando non sicuro");
+                        continue;
+                    }
                     if (code != 200) throw new Exception("risposta " + code);
                     break;
                 }
+                if (c == null || c.getResponseCode() != 200) throw new Exception("troppi rimandi");
                 long total = c.getContentLengthLong(), done = 0, lastEvt = 0;
                 try (InputStream in = c.getInputStream(); FileOutputStream fo = new FileOutputStream(out)) {
                     byte[] buf = new byte[64 * 1024]; int n;
@@ -85,7 +92,7 @@ public class UpdaterPlugin extends Plugin {
                 getContext().startActivity(s);
                 JSObject r = new JSObject(); r.put("needPermission", true); call.resolve(r); return;
             }
-            File f = new File(call.getString("path", ""));
+            File f = new File(new File(getContext().getCacheDir(), "aggiornamento"), "HORIZON.apk");   // solo il file scaricato da apkDownload
             if (!f.exists()) { call.reject("file dell'aggiornamento non trovato"); return; }
             Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", f);
             Intent i = new Intent(Intent.ACTION_VIEW);

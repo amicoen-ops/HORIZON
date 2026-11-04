@@ -74,6 +74,27 @@ jobs:
           (cd android && ./gradlew bundleRelease --no-daemon 2>&1 | tee -a ../build.log)
           cp android/app/build/outputs/bundle/release/app-release.aab HORIZON-1.0.${{ github.run_number }}-play-store.aab
 
+      - name: APK di collaudo (solo per l'emulatore, con il debug della WebView; non va nelle Release)
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          set -o pipefail
+          echo "window.IA517_BUILD={version:'1.0.${{ github.run_number }}',build:'${{ github.run_number }}',channel:'apk'};" > www/version.js
+          sed -i 's/"webContentsDebuggingEnabled": false/"webContentsDebuggingEnabled": true/' capacitor.config.json
+          grep -q '"webContentsDebuggingEnabled": true' capacitor.config.json
+          npx cap sync android
+          (cd android && ./gradlew assembleRelease --no-daemon 2>&1 | tee -a ../build.log)
+          cp android/app/build/outputs/apk/release/app-release.apk HORIZON-collaudo.apk
+          git checkout -- capacitor.config.json www/version.js
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-collaudo
+          path: HORIZON-collaudo.apk
+          retention-days: 7
+
       - name: Registro dell'errore (in una issue, per poterlo leggere da fuori)
         if: failure()
         env:

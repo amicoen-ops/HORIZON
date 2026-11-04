@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Solo HTTPS, tranne il WMS del Geoportale Nazionale (ortofoto), che risponde solo in http. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors><certificates src="system" /></trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">wms.pcn.minambiente.it</domain>
+    </domain-config>
+</network-security-config>
