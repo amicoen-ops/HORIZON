@@ -1617,9 +1617,10 @@ function rdBuild(){
   $('rdAv').onclick=()=>rdAvoidAll();
   $('rdAlt').onclick=()=>{ let mx=0, mi=-1; RD.info.forEach((l,i)=>{ if((l.safeFt||0)>mx){ mx=l.safeFt; mi=i; } }); if(!mx){ rdHint('Quote del terreno non ancora pronte: riprova tra un attimo'); return; }
     const cap=rdCapFt();
-    if(rdProf()==='vds_basico'){ const agl=rdVdsAgl(); rdHint(`VDS basico: ogni tratta vola al massimo consentito, ${agl} ft sull'ostacolo più alto entro 5 km (${agl===500?'giorno feriale':'sabato, domenica o festivo'}), con almeno ${rdMargin()} ft sul terreno sotto la rotta. Non serve alzare la crociera.`,7000); return; }
+    // la quota si decide tratta per tratta: si sale solo dove il terreno di quella tratta lo chiede, poi si torna alla crociera
     if(mx>cap){ rdHint(`T${mi+1}: il terreno chiede ${mx} ft, oltre la tangenza del velivolo (${cap} ft). Tocca «Calcola rotta» per passare dalle valli, oppure sposta i punti.`,7000); return; }
-    const v=Math.max(mx,PLAN.cruiseFt); PLAN.cruiseFt=v; $('pAlt').value=v; rdHint(`Quota di crociera: ${v} ft. La impone T${mi+1}: terreno più alto + ${rdMargin()} ft. Con «Calcola rotta» si può passare più in basso, dalle valli.`,6000); rdAnalyze(); };
+    const ls=RD.info.map((l,i)=>`T${i+1} ${l.altFt}`).join(' · ');
+    rdHint(`Quote tratta per tratta (ft): ${ls}. Ognuna è la crociera, alzata solo dove il terreno della tratta chiede ${rdMargin()} ft di margine${rdProf()==='vds_basico'?` e abbassata dove il limite VDS lo impone (${rdVdsAgl()} ft sull'ostacolo più alto entro 5 km)`:''}. Per salire meno: «Calcola rotta».`,9000); };
   rdGestures(); addEventListener('resize',()=>{ if(RD.on) rdDraw(); });
 }
 function rdHint(t,ms){ const h=$('rdHint'); h.textContent=t; h.hidden=!t; clearTimeout(RD.hT); if(t) RD.hT=setTimeout(()=>{ h.hidden=true; },ms||3500); }
@@ -1722,10 +1723,11 @@ function rdLegAnalyze(a,b,st){
     let altFt, why='';
     if(lo>capFt){ altFt=lo; why='oltre'; }                       // il terreno chiede più della tangenza: tratta da cambiare
     else if(lo>hiW){ altFt=lo; why=(vCap!=null&&lo>vCap&&(ceilFt===vCap))?'vds':'terreno'; }   // il terreno vince sempre: se supera il limite VDS la tratta va spezzata
-    else if(basic){ altFt=Math.max(lo,hiW); why=vCap!=null&&hiW===vCap?'vdsmax':''; }   // VDS basico: il massimo consentito, il più lontano possibile dal terreno
+    else if(basic){ altFt=Math.min(hiW,Math.max(lo,PLAN.cruiseFt));       // VDS basico: la crociera scelta, nella finestra [terreno + margine, limite]
+      why=altFt>PLAN.cruiseFt?'terreno':(altFt<PLAN.cruiseFt&&vCap!=null&&altFt===vCap?'vdsmax':(altFt<PLAN.cruiseFt&&ceilFt!=null?'sotto':'')); }
     else { const cands=[...new Set([PLAN.cruiseFt,lo,hiW,2500,3500,4500,5500,6500].map(x=>Math.round(x/100)*100).filter(x=>x>=lo&&x<=hiW&&x>=1000))];
       if(!cands.length) cands.push(Math.max(lo,Math.min(PLAN.cruiseFt,hiW)));
-      let best=null; for(const c of cands){ const r=rdLeg(a,b,c), sc=r.gs-Math.abs(c-PLAN.cruiseFt)/1000*1.5;   // a parità, vicino alla crociera
+      let best=null; for(const c of cands){ const r=rdLeg(a,b,c), sc=r.gs-Math.abs(c-Math.max(lo,Math.min(PLAN.cruiseFt,hiW)))/1000*5;   // si cambia quota per il vento solo se ne vale la pena (5 km/h ogni 1000 ft)
         if(!best||sc>best.sc) best={c,sc,gs:r.gs}; }
       altFt=best.c; const gs0=rdLeg(a,b,Math.max(lo,Math.min(PLAN.cruiseFt,hiW))).gs;
       why=altFt<PLAN.cruiseFt&&ceilFt!=null&&altFt>=ceilFt-50?'sotto':(best.gs-gs0>=4?'vento':''); }
@@ -1757,12 +1759,12 @@ function rdOrbitRoom(p,R,belowFt){ // giri possibili intorno al punto se il terr
   return {ok:mx<=-1e8?true:mx/0.3048<belowFt, topFt:mx>-1e8?Math.round(mx/0.3048):null}; }
 function rdVertHtml(V){ if(!V) return ''; const ls=V.legs.filter(v=>v.note);
   if(!ls.length) return `<div class="ok">Salite e discese graduali lungo la rotta, senza giri (peso stimato ${V.W} kg).</div>`;
-  return ls.map(v=>`<div class="${v.lvl||(v.ok?'warn':'bad')}">${v.arrive?'Arrivo':'T'+(v.i+1)}: ${esc(v.note)}${v.ok&&v.sec?` (+${fmtMin(v.sec/60)})`:''}</div>`).join('')+`<div class="sub">Peso stimato ${V.W} kg: salite al 60% del rateo (max 500 ft/min), discese max 500 ft/min.</div>`; }
+  return ls.map(v=>`<div class="${v.lvl||(v.ok?'warn':'bad')}">${v.arrive?'Arrivo':'T'+(v.i+1)}: ${esc(v.note)}${v.ok&&v.sec?` (+${fmtMin(v.sec/60)})`:''}</div>`).join('')+`<div class="sub">Peso stimato ${V.W} kg: in rotta salite graduali al 60% del rateo (max 500 ft/min), nei giri di 360° il rateo del velivolo; discese max 500 ft/min. Passata la cresta si torna alla quota della tratta.</div>`; }
 // profilo verticale continuo lungo tutta la rotta: si sale e si scende in modo graduale (motore più fresco, meno stress),
 // cominciando prima quando una cresta lo chiede; i giri di 360° (larghi se c'è spazio, al massimo 4 per parte) solo se la strada non basta
 function rdVert(pts,info){
   const P=window.IA517_PERF||(parent&&parent.IA517_PERF); if(!P||!info.length) return null;
-  const a=ACP(), wb=PLAN.wb||{}, W=P.weight(a,{pil:wb.pil,pax:wb.pax,bag:wb.bag,fuelL:PLAN.fuel}), o={W,isa:0}, MAXT=P.MAXTURNS||4;
+  const a=ACP(), wb=PLAN.wb||{}, W=P.weight(a,{pil:wb.pil,pax:wb.pax,bag:wb.bag,fuelL:PLAN.fuel}), o={W,isa:0}, MAXT=Math.max(P.MAXTURNS||4,8);   // giri in salita: fino a 8 in un punto
   const marg=600, dep=rdFieldFt(pts[0]), arr=rdFieldFt(pts[pts.length-1]), hc=+a.hcFt||1000, M=rdMargin();
   const circ=arr!=null?Math.round((arr+hc)/50)*50:null, vC=P.vgentle(a);
   // campioni ogni 400 m: terreno più alto sotto la rotta (±300 m), quota desiderata e tetto delle zone
@@ -1772,7 +1774,10 @@ function rdVert(pts,info){
     for(let k=(i?1:0);k<=n;k++){ const t=k/n, la=A.lat+(B.lat-A.lat)*t, lo=A.lon+(B.lon-A.lon)*t; let z=-1e9;
       for(const off of [-300,0,300]){ const zz=rdDem(la+(ux*off)/110540, lo-(uy*off)/(111320*cl),10); if(zz===zz&&zz>z) z=zz; }
       const tf=z>-1e8?z/0.3048:0;
-      S.push({x:X+L.d*t,leg:i,tf,U:L.why==='sotto'?L.altFt:Infinity,des:L.why==='sotto'||L.why==='vento'?L.altFt:PLAN.cruiseFt}); }
+      // tetto: base della zona sopra la tratta e, nel VDS basico, il limite di legge della tratta; quota voluta: quella della tratta, ma mai sopra la crociera
+      // per colpa del terreno (il terreno lo gestisce la salita qui sotto, solo dove serve, poi si ridiscende)
+      const U=Math.min(L.why==='sotto'?L.altFt:Infinity, L.vCap!=null?L.vCap:Infinity);
+      S.push({x:X+L.d*t,leg:i,tf,la,lo,U,des:Math.min(L.altFt,Math.max(PLAN.cruiseFt,L.why==='vento'?L.altFt:0),U)}); }
     X+=L.d; });
   // vicino ai campi (decollo e avvicinamento) il margine sul terreno cresce piano: pieno a 5 km dal campo
   for(const q of S){ const dd=Math.min(q.x,X-q.x), me=M*clamp((dd-500)/4500,0,1); q.req=q.tf+me; }
@@ -1785,17 +1790,19 @@ function rdVert(pts,info){
     Ue[n-1]=circ!=null?Math.min(S[n-1].U,circ):S[n-1].U; for(let k=n-2;k>=0;k--) Ue[k]=Math.min(S[k].U,Ue[k+1]+gd*(S[k+1].x-S[k].x));
     const H=new Float64Array(n); let h=dep!=null?dep:S[0].des, worst=0, wAt=-1, high=0;
     for(let k=0;k<n;k++){ if(k){ const dx=S[k].x-S[k-1].x; h+=bump[k]||0;
-        const T=Math.max(E[k],Math.min(Math.max(S[k].des,Math.min(h,Ue[k])),Ue[k]));          // si sale fino alla quota voluta (o al terreno), si scende solo se serve
+        const T=Math.max(E[k],Math.min(S[k].des,Ue[k]));          // quota voluta, alzata solo per il terreno che arriva: passata la cresta si ridiscende piano
         h=h<T?Math.min(T,h+gu(h)*dx):Math.max(T,h-gd*dx); } else h+=bump[0]||0;
       H[k]=h; if(S[k].req-h>worst){ worst=S[k].req-h; wAt=k; } if(h-Ue[k]>high) high=h-Ue[k]; }
     return {H,worst,wAt,high,hEnd:h}; }
   const ev=[]; let steepUp=false, steepDn=false, extra=0, okAll=true, bump=new Float64Array(n);
   // i punti dove si può girare: partenza (sopra il campo) e i punti di rotta
   const vtx=[0]; { let c=0; info.forEach((L,i)=>{ c+=L.d; if(i<info.length-1) vtx.push(S.findIndex(q=>q.x>=c-1)); }); }
-  const vPt=k=>k===0?pts[0]:pts[S[k].leg+1]||pts[0];
+  const vSet=new Set(vtx), vPt=k=>k===0?pts[0]:(vSet.has(k)?(pts[S[k].leg+1]||pts[0]):{lat:S[k].la,lon:S[k].lo,f:null});
+  // punti dove girare: oltre ai punti di rotta, uno ogni 2 km lungo la rotta (in valle, dove c'è spazio per il cerchio)
+  for(let k=1,last=0;k<n;k++) if(S[k].x-S[last].x>=2000){ vtx.push(k); last=k; }
   // il giro più largo che ci sta (10°, 15°, 20°) e il numero minimo di giri, al massimo 4
   function tryOrb(k,stU,H){ const p=vPt(k), hAt=H[k], below=k===0?(dep||0)+500:hAt-marg;
-    for(const bank of [10,15,20]){ const orb=P.orbit(a,hAt,{W,isa:0,bank,soft:!stU}); if(orb.up<20) continue;
+    for(const bank of [10,15,20]){ const orb=P.orbit(a,hAt,{W,isa:0,bank,soft:false}); if(orb.up<20) continue;   // nei giri si sale al rateo del velivolo
       if(!rdOrbitRoom(p,orb.R,below).ok) continue;
       for(let t=1;t<=MAXT;t++){ const b=new Float64Array(n); b[k]=t*orb.up; const rr=sim(b,stU,false); if(rr.worst<=50) return {k,t,orb,bank,rr,b,p}; } }
     return null; }
@@ -1806,11 +1813,11 @@ function rdVert(pts,info){
     let got=null;
     for(const stU of [false,true]){
       if(stU){ const r1=sim(bump,true,false); if(r1.worst<=50){ steepUp=true; r=r1; got='steep'; break; } }
-      const cands=vtx.filter(k=>k<=r.wAt).sort((x,y)=>(x===0?-1:0)-(y===0?-1:0)||y-x);   // prima sopra la partenza, poi il punto più vicino alla cresta
+      const cands=[...new Set(vtx)].filter(k=>k<=r.wAt && (k===0 || S[r.wAt].x-S[k].x>=1500)).sort((x,y)=>y-x);   // il punto più vicino alla cresta con spazio, per ultimo sopra la partenza
       for(const k of cands){ const g=tryOrb(k,stU,stU?sim(bump,true,false).H:r.H); if(!g) continue;
-        bump=g.b; r=g.rr; steepUp=stU; extra+=g.t*g.orb.sec; got=g;
+        const xc=S[r.wAt].x; bump=g.b; r=g.rr; steepUp=stU; extra+=g.t*g.orb.sec; got=g;
         ev.push({i:S[k].leg,dir:'su',turns:g.t,sec:g.t*g.orb.sec,R:g.orb.R,bank:g.bank,from:Math.round(g.rr.H[k]-g.b[k]),to:Math.round(g.rr.H[k]),ok:true,
-          note:`${g.t} ${g.t===1?'giro largo':'giri larghi'} di 360° in salita ${k===0?'sopra il campo di partenza':'su '+(g.p.f?g.p.f.short:'il punto '+(S[k].leg+2))} (raggio ${Math.round(g.orb.R)} m, ${g.bank}°, ${Math.round(g.orb.up)} ft a giro)${stU?', al rateo massimo: tieni d\'occhio le temperature':''}`});
+          note:`${g.t} ${g.t===1?'giro largo':'giri larghi'} di 360° in salita ${k===0?'sopra il campo di partenza':(g.p.f?'su '+g.p.f.short:(vSet.has(k)?'sul punto '+(S[k].leg+2):`a ${(S[k].x/1000).toFixed(1).replace('.',',')} km dalla partenza, ${((xc-S[k].x)/1000).toFixed(1).replace('.',',')} km prima della cresta`))} (raggio ${Math.round(g.orb.R)} m, ${g.bank}°, ${Math.round(g.orb.up)} ft a giro), al rateo del velivolo (~${Math.round(P.roc(a,g.rr.H[k]-g.b[k]/2,o)/10)*10} ft/min): tieni d\'occhio le temperature`});
         break; }
       if(got) break; }
     if(got==='steep') ev.push({i:S[r.wAt>=0?r.wAt:0].leg,dir:'su',ok:true,lvl:'warn',note:'la salita graduale non basta: serve il rateo di salita massimo, tieni d\'occhio le temperature'});
@@ -1854,7 +1861,7 @@ function rdInfo(){
     `margine sul terreno <select id="rdMg">${[500,1000,1500,2000].map(v=>`<option value="${v}"${v===RD.margin?' selected':''}>${v} ft</option>`).join('')}</select></div>`+
     (basic?`<div class="sub">VDS basico (DPR 133/2010 art. 9): ogni tratta al massimo consentito, ${vAgl} ft sull'ostacolo più alto entro 5 km (${vAgl===500?'feriale; 1000 ft sabato, domenica e festivi':'sabato, domenica o festivo'}); almeno ${rdMargin()} ft sul terreno sotto la rotta${RD.margin>rdMargin()?` (il margine di ${RD.margin} ft supera il limite di legge di oggi)`:''}; 5 km dagli aeroporti.</div>`:'')+
     (vBad.length?`<div class="bad">${vBad.join(', ')}: il rilievo cambia troppo lungo la tratta per una quota sola entro il limite VDS. Tocca «Calcola rotta» o aggiungi un punto dove il terreno sale.</div>`:'')+
-    (RD.pending?'<div class="warn">Scarico le quote del terreno…</div>':(capBad.length?`<div class="bad">Terreno troppo alto per il velivolo: ${capBad.join(' · ')} (tangenza ${rdCapFt()} ft). Tocca «Calcola rotta» per passare dalle valli, oppure cambia rotta.</div>`:'')+(mx>PLAN.cruiseFt&&!basic?`<div class="${capBad.length?'warn':'bad'}">Quota sicura sulla rotta: ${mx} ft (T${mxI+1}), più alta della crociera. ${capBad.length?'':'Tocca «Quota sicura» per alzarla, o «Calcola rotta» per passare più in basso.'}</div>`:(mx&&!basic?`<div class="ok">Terreno: la crociera di ${PLAN.cruiseFt} ft lascia almeno ${rdMargin()} ft (quota sicura ${mx} ft).</div>`:'')))+
+    (RD.pending?'<div class="warn">Scarico le quote del terreno…</div>':(capBad.length?`<div class="bad">Terreno troppo alto per il velivolo: ${capBad.join(' · ')} (tangenza ${rdCapFt()} ft). Tocca «Calcola rotta» per passare dalle valli, oppure cambia rotta.</div>`:'')+(mx>PLAN.cruiseFt?`<div class="warn">Il terreno fa salire sopra la crociera solo dove serve: al massimo ${mx} ft su T${mxI+1}. «Calcola rotta» cerca le valli per salire meno.</div>`:(mx?`<div class="ok">Terreno: la crociera di ${PLAN.cruiseFt} ft lascia almeno ${rdMargin()} ft su tutte le tratte.</div>`:'')))+
     (under.length?`<div class="warn">Quote: ${under.join(' · ')}</div>`:'')+
     rdVertHtml(RD.vert)+
     (avoid.length?`<div class="bad">Dentro zone da evitare: ${avoid.join(' · ')}. Tocca «Evita zone».</div>`:'')+
@@ -2145,9 +2152,16 @@ async function rdAvoidAll(){
       RD.pts.splice(i,1); i--; removed++; }
     if(!removed) break; }
   // VDS basico: una tratta su cui il rilievo cambia troppo per una quota sola entro il limite si spezza a metà (salite e discese a gradini)
-  if(basic) for(let pass=0;pass<4;pass++){ rdAnalyze(); let split=0;
-    for(let i=RD.info.length-1;i>=0;i--){ const l=RD.info[i]; if(l.why!=='vds'||l.d<2000) continue; const A=RD.pts[i], B=RD.pts[i+1];
-      RD.pts.splice(i+1,0,{lat:(A.lat+B.lat)/2,lon:(A.lon+B.lon)/2,f:null,name:'R0'}); split++; }
+  // Tutti i tipi di volo: una tratta lunga con una cresta su un solo lato si spezza, così si sale solo per la parte che lo chiede
+  for(let pass=0;pass<4;pass++){ rdAnalyze(); let split=0;
+    for(let i=RD.info.length-1;i>=0;i--){ const l=RD.info[i], A=RD.pts[i], B=RD.pts[i+1];
+      let cut=(l.why==='vds'&&l.d>=2000)?0.5:0;
+      // il punto di taglio che lascia più tratta bassa: a 1/4, 1/2 o 3/4 (la cresta può stare in mezzo)
+      if(!cut && l.d>=6000 && (l.safeFt||0)>PLAN.cruiseFt){ let best=1e9;
+        for(const t of [0.25,0.5,0.75]){ const M={lat:A.lat+(B.lat-A.lat)*t,lon:A.lon+(B.lon-A.lon)*t}, lw=Math.min(rdLegCheck(A,M).safe,rdLegCheck(M,B).safe);
+          if(lw<=(l.safeFt||0)-800 && lw<best){ best=lw; cut=t; } } }
+      if(!cut) continue;
+      RD.pts.splice(i+1,0,{lat:A.lat+(B.lat-A.lat)*cut,lon:A.lon+(B.lon-A.lon)*cut,f:null,name:'R0'}); split++; }
     if(!split) break; }
   let kk=1; for(const p of RD.pts) if(p.name&&/^R\d+$/.test(p.name)) p.name='R'+(kk++);
   added=RD.pts.filter(p=>p.name&&/^R\d+$/.test(p.name)).length;
