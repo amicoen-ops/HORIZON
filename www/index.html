@@ -1920,7 +1920,7 @@ function terrainRaw(E,N){
   const lat=ORIGIN.lat+N/110540, lon=ORIGIN.lon+E/(111320*Math.cos(ORIGIN.lat*D2R));
   const z=phDemAt(lat,lon,PH.demZ);
   if(z===z) return z;
-  return (PH.demo && !PH.sim)?terrainSynth(E,N):NaN;          // in simulazione mai colline finte: si aspetta il rilievo vero
+  return (PH.demo && !PH.sim && !PH.dem.size)?terrainSynth(E,N):NaN;   // colline finte solo nel volo dimostrativo senza rilievo (offline): mai mescolate al rilievo vero
 }
 function phDemAt(lat,lon,z){
   z=z||11;
@@ -1935,6 +1935,18 @@ function phDemAt(lat,lon,z){
   }
   return NaN;
 }
+// quota da un solo livello di dettaglio (niente ripiego su riquadri più grossolani): NaN se quel riquadro non c'è ancora
+function phDemExact(lat,lon,z){
+  const n=2**z, fx=(lon+180)/360*n, lr=lat*D2R, fy=(1-Math.log(Math.tan(lr)+1/Math.cos(lr))/Math.PI)/2*n;
+  const tx=Math.floor(fx), ty=Math.floor(fy), t=PH.dem.get(z+'/'+tx+'/'+ty); if(!t){ phDemFetch(z,tx,ty); return NaN; }
+  let px=(fx-tx)*256-0.5, py=(fy-ty)*256-0.5; px=px<0?0:(px>254.999?254.999:px); py=py<0?0:(py>254.999?254.999:py);
+  const i=px|0, j=py|0, u=px-i, v=py-j, o=j*256+i;
+  return (t[o]*(1-u)+t[o+1]*u)*(1-v)+(t[o+256]*(1-u)+t[o+257]*u)*v; }
+// quota del rilievo di un campo: mediana di centro + 8 punti a 150 m, dal riquadro fine (z12, se no z11)
+function phFieldDem(f){ for(const z of [12,11]){ const v=[]; const cl=Math.cos(f.lat*D2R);
+    for(let k=0;k<9;k++){ const r=k?150:0, an=k*Math.PI/4, q=phDemExact(f.lat+r*Math.cos(an)/110540,f.lon+r*Math.sin(an)/(111320*cl),z); if(q===q) v.push(q); }
+    if(v.length>=7){ v.sort((a,b)=>a-b); return v[v.length>>1]; } }
+  return NaN; };
 function phDemUrl(z,x,y){ return `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`; }
 async function phDemFetch(z,x,y){
   const key=z+'/'+x+'/'+y;
@@ -1961,13 +1973,14 @@ function terrain(E,N){
   const L=(PH&&PH.nearF)||FIELDS;
   for(let i=0;i<L.length;i++){ const f=L[i], dx=E-f.E, dy=N-f.N, lim=f.flat*2.2;
     if(dx>lim||dx<-lim||dy>lim||dy<-lim) continue;
-    // il campo si spiana alla sua quota; se la quota dell'elenco non torna col rilievo (oltre 50 m) si spiana al rilievo:
-    // altrimenti il raccordo diventa un cono a punta («piramide») in mezzo alla pianura
-    let tgt=f.elev;
-    if(PH && f.demZ===undefined){ const t=performance.now(); if(!(t-(f.demTry||0)<1000)){ f.demTry=t; const dz=phDemAt(f.lat,f.lon,11);
-        if(dz===dz){ f.demZ=dz; if(f.elev===f.elev && Math.abs(f.elev-dz)>50){ f.elevBad=true; (PH.elevBad||(PH.elevBad=new Set())).add(f.short);
-          PH.act&&PH.act(`quota dubbia ${f.short}: elenco ${Math.round(f.elev/FT2M)} ft, rilievo ${Math.round(dz/FT2M)} ft`); } } } }
-    if(f.elevBad) tgt=f.demZ;
+    // il campo si spiana alla quota del RILIEVO misurata intorno al campo (mediana di 9 punti sul riquadro fine), mai alla quota
+    // dell'elenco: se le due differiscono anche di poco il raccordo diventa un cono a punta («piramide») o una buca.
+    // Finché il rilievo fine del campo non c'è, il campo non si spiana affatto (si vede il rilievo com'è).
+    let tgt=PH?NaN:f.elev;
+    if(PH){ if(f.demZ===undefined){ const t=performance.now(); if(!(t-(f.demTry||0)<1000)){ f.demTry=t; const dz=phFieldDem(f);
+          if(dz===dz){ f.demZ=dz; if(f.elev===f.elev && Math.abs(f.elev-dz)>50){ f.elevBad=true; (PH.elevBad||(PH.elevBad=new Set())).add(f.short);
+            PH.act&&PH.act(`quota dubbia ${f.short}: elenco ${Math.round(f.elev/FT2M)} ft, rilievo ${Math.round(dz/FT2M)} ft`); } } } }
+      if(f.demZ!==undefined) tgt=f.demZ; }
     if(tgt!==tgt || z!==z) continue;
     const w=Math.exp(-(dx*dx+dy*dy)/(f.flat*f.flat)); z+=(tgt-z)*w; }
   return z;
