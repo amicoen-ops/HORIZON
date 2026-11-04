@@ -454,9 +454,36 @@ function pickRunway(f,wind){
   const xw=wind?Math.abs(wind.kmh*Math.sin(angDiff(end.hdg,wind.dir)*D2R)):null, hw=wind?head(end):null;
   return {end,why,side,hc,warn,xw,hw};
 }
+// circuito d'arrivo, la stessa geometria dello strumento (PAT: sottovento a 800 m, finale 1000 m, ingresso a 45° da 700 m)
+let ARR_PICK=null;
+function circuitLL(f){
+  if(!f||!f.ends||!f.ends.length) return null;
+  const p=(ARR_PICK&&ARR_PICK.id===f.id)?ARR_PICK.p:pickRunway(f,null); if(!p||!p.end) return null;
+  const rw=f.rw.find(r=>r.le===p.end.id||r.he===p.end.id), L=rw&&+rw.L>0?+rw.L:600, h=p.end.hdg*D2R;
+  const u={E:Math.sin(h),N:Math.cos(h)}, rt={E:u.N,N:-u.E}, sd=p.side==='R'?rt:{E:-rt.E,N:-rt.N}, cl=Math.cos(f.lat*D2R);
+  const add=(a,v,m)=>({E:a.E+v.E*m,N:a.N+v.N*m}), LL=q=>({lat:f.lat+q.N/110540,lon:f.lon+q.E/(111320*cl)}), C={E:0,N:0};
+  const T=add(C,u,-L/2), END=add(C,u,L/2), FT=add(T,u,-1000), BT=add(FT,sd,800), DWM=add(C,sd,800), EP=add(add(DWM,sd,700),u,700);
+  return {p, path:[EP,DWM,BT,FT,T].map(LL), rwy:[T,END].map(LL), lab:[[DWM,'SV'],[BT,'BASE'],[FT,'FIN']].map(([q,t])=>Object.assign(LL(q),{t}))};
+}
+function drawCircuit(c,P,f,k){
+  const C=circuitLL(f); if(!C) return; k=k||1;
+  const pp=C.path.map(P), r=C.rwy.map(P), span=Math.max(...pp.map(q=>q.x))-Math.min(...pp.map(q=>q.x))+Math.max(...pp.map(q=>q.y))-Math.min(...pp.map(q=>q.y));
+  if(span<14*k) return;                                   // troppo piccolo a questa scala: si vede ingrandendo
+  const labs=span>120*k;
+  c.save(); c.lineJoin='round';
+  c.strokeStyle='rgba(0,0,0,.6)'; c.lineWidth=5*k; c.beginPath(); pp.forEach((q,i)=>i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y)); c.stroke();
+  c.strokeStyle='#ffd23f'; c.lineWidth=2.5*k; c.setLineDash([7*k,5*k]); c.beginPath(); pp.forEach((q,i)=>i?c.lineTo(q.x,q.y):c.moveTo(q.x,q.y)); c.stroke(); c.setLineDash([]);
+  const a=pp[pp.length-2], b=pp[pp.length-1], ang=Math.atan2(b.y-a.y,b.x-a.x);   // freccia in finale
+  c.fillStyle='#ffd23f'; c.beginPath(); c.moveTo(b.x,b.y); c.lineTo(b.x-Math.cos(ang-0.4)*9*k,b.y-Math.sin(ang-0.4)*9*k); c.lineTo(b.x-Math.cos(ang+0.4)*9*k,b.y-Math.sin(ang+0.4)*9*k); c.closePath(); c.fill();
+  c.strokeStyle='#fff'; c.lineWidth=4*k; c.beginPath(); c.moveTo(r[0].x,r[0].y); c.lineTo(r[1].x,r[1].y); c.stroke();
+  c.font=`700 ${Math.round(10*k)}px system-ui`; c.textAlign='center'; c.textBaseline='middle';
+  if(labs) for(const l of C.lab){ const q=P(l); c.lineWidth=3*k; c.strokeStyle='rgba(0,0,0,.8)'; c.strokeText(l.t,q.x,q.y); c.fillStyle='#ffd23f'; c.fillText(l.t,q.x,q.y); }
+  const q=P(C.lab[0]); c.fillStyle='#ffd23f'; if(labs) c.fillText(`${C.p.end.id} · ${C.p.side==='L'?'SX':'DX'} · ${C.p.hc} ft`,q.x,q.y+13*k);
+  c.restore();
+}
 function arrivalHTML(f,wind,src){
   if(!f) return '<div class="sub">Scegli il campo di arrivo.</div>';
-  const p=pickRunway(f,wind), n=noteOf(f);
+  const p=pickRunway(f,wind), n=noteOf(f); if(p) ARR_PICK={id:f.id,p};
   if(!p) return `<div><b>${esc(f.name)}</b> <span class="sub">${KIND_TXT[f.kind]||''}</span></div><div class="sub">${f.kind==='glac'?'Superficie su ghiacciaio: solo con aereo su sci e abilitazione per il volo in montagna.':(f.kind==='alti'?'Altiporto: pista in pendenza non presente nei dati. Si atterra in salita e si decolla in discesa: verifica direzione, pendenza e quota prima di partire.':'Pista non presente nei dati: sorvola e verifica manica a vento e radio.')}</div>${elevLine(f)}`;
   return `<div class="rwy"><b>${p.end.id}</b><span>${esc(f.name)} · circuito ${p.side==='L'?'sinistro':'destro'} · ${p.hc} ft sopra il campo</span></div>
     <div class="sub">Scelta: ${p.why}${wind?` · vento ${src} ${windDir(wind.dir,1)} · ${Math.round(wind.kmh)} km/h: ${p.hw>=0?'contrario':'in coda'} ${Math.abs(p.hw).toFixed(0)}, traverso ${p.xw.toFixed(0)} km/h`:''}.</div>
@@ -499,6 +526,7 @@ function drawMap(c){
   const lab=(f,col)=>{ const p=P(f); ctx.fillStyle=col; ctx.beginPath(); ctx.arc(p.x,p.y,12,0,7); ctx.fill();
     ctx.lineWidth=5; ctx.strokeStyle='rgba(0,0,0,.75)'; ctx.textAlign=p.x>W*0.72?'right':'left'; const dx=p.x>W*0.72?-20:20;
     ctx.strokeText(f.short,p.x+dx,p.y-22); ctx.fillStyle='#fff'; ctx.fillText(f.short,p.x+dx,p.y-22); };
+  if(c.dst) drawCircuit(ctx,P,c.dst,2.4);
   c.pts.forEach((f,i)=>lab(f,i===c.pts.length-1?'#ff4fd8':'#ffffff'));
   if(c.altF&&c.altF!==c.dst) lab(c.altF,'#d58ccc');
 }
@@ -1953,6 +1981,7 @@ function rdDraw(){
     c.textAlign='center'; c.textBaseline='middle'; c.fillStyle='#111'; c.fillText(t1,0,t2?-8:0.5);
     if(t2){ c.font='700 12px system-ui'; c.fillStyle=up?'#c00':(l.why==='sotto'?'#8a5a00':'#0a6b35'); c.fillText(t2,0,9); }
     c.restore(); }
+  { const Lp=RD.pts[RD.pts.length-1]; if(RD.pts.length>1 && Lp&&Lp.f&&Lp.f.kind!=='wp' && RD.mpp<60) drawCircuit(c,q=>rdP(q.lat,q.lon),Lp.f,1); }   // circuito al campo d'arrivo
   c.textBaseline='middle';
   // punti
   P.forEach((q,i)=>{ const p=RD.pts[i], fld=p.f&&p.f.kind!=='wp'&&Math.abs(p.f.lat-p.lat)<1e-7, drag=RD.g&&RD.g.idx===i, merge=drag&&RD.g.merge!=null;
