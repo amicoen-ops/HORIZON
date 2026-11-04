@@ -935,8 +935,11 @@ async function flushPending(){
 // ---------------- piano e rotte ----------------
 function routeFromPlan(){
   const c=compute();
+  // quota di ogni tratta (terreno, zone, limite del tipo di volo) dal piano: va allo strumento sul punto d'arrivo della tratta
+  let alts=null; try{ const R=pvCompute(false); if(R&&R.info&&R.pts&&R.pts.length===c.pts.length&&!R.pending) alts=R.info.map(l=>l.altFt); }catch(e){}
   return {name:(c.pts.length?c.pts[0].short+' › '+c.pts[c.pts.length-1].short:'Rotta').slice(0,60),cruiseFt:PLAN.cruiseFt,
-    wps:c.pts.map(f=>({id:f.id.slice(0,16),name:f.short.slice(0,40),lat:+f.lat.toFixed(6),lon:+f.lon.toFixed(6),field:f.kind!=='wp'}))};
+    wps:c.pts.map((f,i)=>{ const w={id:f.id.slice(0,16),name:f.short.slice(0,40),lat:+f.lat.toFixed(6),lon:+f.lon.toFixed(6),field:f.kind!=='wp'};
+      if(alts&&i>0&&alts[i-1]!=null) w.altFt=Math.round(alts[i-1]/10)*10; return w; })};
 }
 function notesForInstrument(){
   const out={};

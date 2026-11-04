@@ -2470,7 +2470,7 @@ PH.profClose=function(){ clearInterval(PH.profT); PH.profT=null; };
 // percorso davanti: posizione attuale, poi i punti di rotta che restano (o la destinazione, o la traccia)
 PH.profPath=function(){
   const here={lat:S.lat,lon:S.lon,name:''}, pts=[here]; let what='traccia';
-  if(NAV.route && NAV.route.r && NAV.route.r.wps){ const w=NAV.route.r.wps; for(let i=Math.max(1,NAV.route.idx);i<w.length;i++) pts.push({lat:w[i].lat,lon:w[i].lon,name:(w[i].name||w[i].id||'').toUpperCase().slice(0,12)}); what='rotta'; }
+  if(NAV.route && NAV.route.r && NAV.route.r.wps){ const w=NAV.route.r.wps; for(let i=Math.max(1,NAV.route.idx);i<w.length;i++) pts.push({lat:w[i].lat,lon:w[i].lon,name:(w[i].name||w[i].id||'').toUpperCase().slice(0,12),altFt:w[i].altFt!=null?+w[i].altFt:null}); what='rotta'; }
   else if(NAV.dest && NAV.dest.lat!=null){ pts.push({lat:NAV.dest.lat,lon:NAV.dest.lon,name:(NAV.dest.short||'').toUpperCase()}); what='destinazione'; }
   const rngKm=PH.profRange==='rotta'?null:+PH.profRange;
   if(pts.length<2 || rngKm){ const tr=((S.trk!=null)?S.trk:S.hdg)*D2R, R0=(rngKm||25)*1000, cl=Math.cos(S.lat*D2R);
@@ -2494,13 +2494,27 @@ PH.profDraw=function(){
     const a=P.pts[seg], b=P.pts[Math.min(seg+1,P.pts.length-1)], f=b.d>a.d?(dd-a.d)/(b.d-a.d):0, lat=a.lat+(b.lat-a.lat)*f, lon=a.lon+(b.lon-a.lon)*f, z=phDemAt(lat,lon,11);
     S2.push({d:dd,lat,lon,ft:z===z?z/FT2M:NaN}); }
   const asp=PH.aspList(), cruise=(NAV.route&&NAV.route.r&&NAV.route.r.cruiseFt)||null;
+  // quota pianificata tratta per tratta (dal Piano); senza, la crociera della rotta
+  const legAlt=P.pts.some(p=>p.altFt!=null), altAt=dd=>{ for(let i=1;i<P.pts.length;i++) if(dd<=P.pts[i].d+1) return P.pts[i].altFt!=null?P.pts[i].altFt:cruise; return cruise; };
+  // VDS basico (DPR 133/2010 art. 9 c. 3): quota massima = ostacolo più alto entro 5 km + 500 ft (1000 sabato, domenica e festivi)
+  const R0=window.IA517_RULES, basic=(()=>{ try{ return R0&&R0.get()==='vds_basico'; }catch(e){ return false; } })();
+  let vMax=null, vAgl=500;
+  if(basic){ try{ vAgl=R0.vdsMaxAgl(new Date()); }catch(e){}
+    const key=P.pts.map(p=>p.lat.toFixed(3)+','+p.lon.toFixed(3)).join(';')+'|'+N+'|'+vAgl, C=PH.profV;
+    if(C && C.key===key && Date.now()-C.t<15000) vMax=C.v;
+    else { vMax=[]; let ok=0;
+      for(let k=0;k<=N;k+=4){ const p=S2[k]; let m=-1e9; const cl=Math.cos(p.lat*D2R);
+        for(const r of [0,1700,3300,5000]) for(let j=0;j<(r?8:1);j++){ const an=j*Math.PI/4, z=phDemAt(p.lat+r*Math.cos(an)/110540,p.lon+r*Math.sin(an)/(111320*cl),10); if(z===z&&z>m) m=z; }
+        for(const q of S2) if(q.ft===q.ft && Math.abs(q.d-p.d)<=5000 && q.ft*FT2M>m) m=q.ft*FT2M;     // anche il terreno sotto la rotta entro 5 km
+        if(m>-1e8) ok++; vMax.push({d:p.d,ft:m>-1e8?m/FT2M+vAgl:NaN}); }
+      PH.profV={key,t:Date.now(),v:vMax}; } }
   // spazi aerei lungo il percorso: per ogni area, i tratti in cui ci sei dentro, con base e tetto
   const runs=[]; const near=asp.filter(a=>{ const bb=a.bb; if(!bb||a.cls==='FMC') return false; return S2.some(p=>p.lat>=bb[0]&&p.lat<=bb[1]&&p.lon>=bb[2]&&p.lon<=bb[3]); });
   for(const a of near){ let r=null;
     for(let k=0;k<S2.length;k++){ const p=S2[k], bb=a.bb, ins=p.lat>=bb[0]&&p.lat<=bb[1]&&p.lon>=bb[2]&&p.lon<=bb[3]&&PH.pip(p,a.pts);
       if(ins){ const tf=p.ft===p.ft?p.ft:0, lo=a.lo.ref==='AGL'?(a.lo.ft?a.lo.ft+tf:-1e9):a.lo.ft, hi=a.hi.ref==='AGL'?a.hi.ft+tf:a.hi.ft;
         if(!r){ r={a,k0:k,cols:[]}; runs.push(r); } r.cols.push({k,lo,hi}); } else r=null; } }
-  let top=Math.max(S.alt||0,cruise||0,...S2.map(p=>p.ft===p.ft?p.ft:0))+1500;
+  let top=Math.max(S.alt||0,cruise||0,...P.pts.map(p=>p.altFt||0),...S2.map(p=>p.ft===p.ft?p.ft:0))+1500;
   for(const r of runs) for(const q of r.cols) if(q.lo>-1e8 && q.lo<top+3000) top=Math.max(top,Math.min(q.hi,q.lo+2500));
   top=Math.min(14000,Math.ceil(top/1000)*1000);
   const L=44, R=W-8, T=8, B=H-26, x=d=>L+(R-L)*d/tot, y=ft=>B-(B-T)*Math.max(0,ft)/top;
@@ -2523,7 +2537,15 @@ PH.profDraw=function(){
   const gr=c.createLinearGradient(0,T,0,B); gr.addColorStop(0,'#8a6a3a'); gr.addColorStop(1,'#2f5a2a'); c.fillStyle=gr; c.fill();
   c.strokeStyle='#c9a46a'; c.lineWidth=1.5; c.beginPath(); S2.forEach((p,i)=>{ const Y=y(p.ft===p.ft?p.ft:0); i?c.lineTo(x(p.d),Y):c.moveTo(x(p.d),Y); }); c.stroke();
   // quota della rotta e punti
-  if(cruise){ c.strokeStyle='#ff46e0'; c.lineWidth=2.5; c.setLineDash([8,5]); c.beginPath(); c.moveTo(L,y(cruise)); c.lineTo(R,y(cruise)); c.stroke(); c.setLineDash([]);
+  if(vMax && vMax.length>1){ c.strokeStyle='#ffb020'; c.lineWidth=2; c.setLineDash([3,4]); c.beginPath(); let st=false;
+    for(const q of vMax){ if(q.ft!==q.ft){ st=false; continue; } st?c.lineTo(x(q.d),y(q.ft)):c.moveTo(x(q.d),y(q.ft)); st=true; } c.stroke(); c.setLineDash([]);
+    const q0=vMax.find(q=>q.ft===q.ft); if(q0){ c.fillStyle='#ffb020'; c.textAlign='left'; c.textBaseline='bottom'; c.font='700 11px system-ui'; c.fillText(`max VDS basico (${vAgl} ft sull'ostacolo entro 5 km)`,L+4,y(q0.ft)-3); } }
+  if(legAlt){ c.strokeStyle='#ff46e0'; c.lineWidth=2.5; c.beginPath();
+    for(let i=1;i<P.pts.length;i++){ const al=P.pts[i].altFt!=null?P.pts[i].altFt:cruise; if(al==null) continue; const X0=x(P.pts[i-1].d), X1=x(P.pts[i].d);
+      if(i===1) c.moveTo(X0,y(al)); else c.lineTo(X0,y(al)); c.lineTo(X1,y(al));
+      c.fillStyle='#ff46e0'; c.textAlign='center'; c.textBaseline='bottom'; c.font='700 11px system-ui'; c.fillText(al+' ft',(X0+X1)/2,y(al)-3); }
+    c.stroke(); }
+  else if(cruise){ c.strokeStyle='#ff46e0'; c.lineWidth=2.5; c.setLineDash([8,5]); c.beginPath(); c.moveTo(L,y(cruise)); c.lineTo(R,y(cruise)); c.stroke(); c.setLineDash([]);
     c.fillStyle='#ff46e0'; c.textAlign='right'; c.textBaseline='bottom'; c.font='700 11px system-ui'; c.fillText('crociera '+cruise+' ft',R-4,y(cruise)-3); }
   c.font='700 11px system-ui'; c.textAlign='center';
   for(const p of P.pts.slice(1)){ if(!p.name) continue; const X=x(p.d); c.strokeStyle='rgba(255,70,224,.6)'; c.lineWidth=1; c.beginPath(); c.moveTo(X,T); c.lineTo(X,B); c.stroke();
@@ -2535,12 +2557,14 @@ PH.profDraw=function(){
   c.textAlign='left'; c.textBaseline='bottom'; c.font='800 12px system-ui'; c.fillStyle='#fff'; c.fillText(Math.round(S.alt||0)+' ft',L+16,ya-4);
   // riepilogo sotto: terreno più alto davanti, primo spazio da evitare, margine
   const ahead=S2.filter(p=>p.ft===p.ft), mx=ahead.reduce((m,p)=>p.ft>m.ft?p:m,{ft:-1e9,d:0});
-  const firstBad=runs.filter(r=>{ try{ return R_.verdict(r.a).status==='bad'; }catch(e){ return false; } }).map(r=>({r,d:S2[r.k0].d,lo:r.cols[0].lo,hi:r.cols[0].hi})).filter(q=>q.lo-50<=Math.max(S.alt||0,cruise||0)&&q.hi+50>=Math.min(S.alt||0,cruise||1e9)).sort((a,b)=>a.d-b.d)[0];
+  const firstBad=runs.filter(r=>{ try{ return R_.verdict(r.a).status==='bad'; }catch(e){ return false; } }).map(r=>({r,d:S2[r.k0].d,lo:r.cols[0].lo,hi:r.cols[0].hi})).filter(q=>{ const pa=altAt(q.d); return q.lo-50<=Math.max(S.alt||0,pa||0)&&q.hi+50>=Math.min(S.alt||0,pa||1e9); }).sort((a,b)=>a.d-b.d)[0];
   const clr=mx.ft>-1e8?Math.round((S.alt||0)-mx.ft):null, h=PH.aspHere&&PH.aspHere();
   const here=h&&h.inside&&h.inside.length?h.inside.map(q=>`${q.a.cls} ${q.a.name}`).slice(0,2).join(' · '):'classe G';
   el('phProfInfo').innerHTML=`<div>${P.what==='traccia'?'Davanti, sulla traccia':(P.what==='rotta'?'Lungo la rotta':'Verso la destinazione')} · ${(tot/1000).toFixed(tot<10000?1:0)} km · ora in: <b>${here}</b></div>`+
     (mx.ft>-1e8?`<div class="${clr<500?'b':(clr<1000?'w':'o')}">Terreno più alto: ${Math.round(mx.ft)} ft a ${(mx.d/1000).toFixed(1)} km · margine alla quota attuale ${clr} ft</div>`:'<div class="w">Quote del terreno in arrivo…</div>')+
     (firstBad?`<div class="b">${firstBad.d<150?'Sei dentro':'A '+(firstBad.d/1000).toFixed(1)+' km'}: ${firstBad.r.a.cls} ${firstBad.r.a.name} (${firstBad.r.a.lo.txt}–${firstBad.r.a.hi.txt}) vietato per il tuo tipo di volo</div>`:'')+
+    (P.what==='rotta'&&!legAlt?'<div class="w">Rotta senza quote per tratta: aprila nel Piano, «Calcola rotta» e salvala di nuovo (quote sotto le zone e nel limite del tuo tipo di volo).</div>':'')+
+    (vMax&&legAlt&&P.pts.some((p,i)=>i&&p.altFt!=null&&vMax.some(q=>q.ft===q.ft&&q.d>P.pts[i-1].d&&q.d<=p.d&&p.altFt>q.ft+50))?'<div class="b">Una tratta pianificata supera il massimo del VDS basico (linea arancio): ricalcola nel Piano.</div>':'')+
     (asp.length?'':'<div class="w">Spazi aerei non caricati: Piano › Briefing.</div>');
 };
 PH.tqNow=function(){ const e=el('phTqNow'); if(e) e.textContent=PH.terrQ==='auto'?'ora: '+TERR_NAMES[PH.terrLvl]+` · ${PH.perf.avg.toFixed(0)} ms per fotogramma`:''; };
