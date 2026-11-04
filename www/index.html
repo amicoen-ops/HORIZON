@@ -1998,7 +1998,13 @@ const TERR_NAMES=['normale','alto','fine','molto fine','massimo','ultra'].slice(
 const TERR_HALF=46*Math.PI/180;                               // mezza apertura: copre lo schermo anche con l'aereo inclinato
 const TERR_FAR=70*Math.pow(1.205,29);                         // distanza massima come prima (~15 km)
 function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
-  { const gz=phDemAt(S.lat,S.lon,12); if(gz===gz && acAlt<gz+2) acAlt=gz+2; }   // quota GPS sotto il terreno (a terra, in casa): l'occhio resta sul terreno, non sotto
+  // punto di vista: stessa superficie che si disegna (terrain), mai sotto. A terra fermo a 8 m sul terreno, senza seguire la quota GPS
+  // (che oscilla di metri): da 2 m ogni ondulazione del rilievo, girando il telefono, alzava e abbassava l'orizzonte del terreno.
+  // In volo la quota dell'occhio è smussata (~0,5 s), così il terreno non salta con il rumore del GPS.
+  { const gz=terrain(ac.E,ac.N), now=performance.now(), dtE=clamp((now-(PH&&PH.eyeT||now))/1000,0,0.5); if(PH) PH.eyeT=now;
+    if(gz===gz && PH && !PH_air()) acAlt=gz+8;
+    else { if(PH){ if(!(PH.eyeF===PH.eyeF) || Math.abs(acAlt-PH.eyeF)>150) PH.eyeF=acAlt; else PH.eyeF+=(acAlt-PH.eyeF)*Math.min(1,dtE/0.5); acAlt=PH.eyeF; }
+      if(gz===gz && acAlt<gz+2) acAlt=gz+2; } }
   const lvl=PH?Math.min(TERR_Q.length-1,PH.terrQ==='auto'?PH.terrLvl:(+PH.terrQ||0)):0, FN=TERR_Q[lvl][0], LN=TERR_Q[lvl][1];
   const ratio=Math.pow(TERR_FAR/70,1/(FN-1)), sinH=Math.sin(hdgRad), cosH=Math.cos(hdgRad);
   const n=FN*LN, Z=new Float32Array(n), X=new Float32Array(n), Y=new Float32Array(n), OK=new Uint8Array(n);
