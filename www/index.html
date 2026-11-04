@@ -3712,6 +3712,18 @@ PH.terrFloor=function(){
   const V=Math.max(15,(S.gs!=null?S.gs:S.ias||100)/3.6), tas=tasOf(Math.max(S.ias||0,40),S.alt||0), w=G*Math.tan((S.roll||0)*D2R)/Math.max(15,tas);
   const ac=enu(S.lat,S.lon); let x=ac.E, y=ac.N, tr=(S.trk!=null?S.trk:S.hdg)*D2R, turned=0, top=-1e9, cant=false, unk=0;
   const fE=A?A.f.E:null, fN=A?A.f.N:null;
+  if(A){
+    // nel circuito si guarda il percorso del circuito (ingresso, sottovento, base, finale), non la linea dritta oltre il campo:
+    // altrimenti in sottovento le colline al di là del campo tenevano l'aereo alto e si mancava la finale
+    const pts=[{E:ac.E,N:ac.N}]; for(let i=A.idx;i<A.legs.length;i++) pts.push(A.legs[i].b);
+    let dd=0; const Mc=fin?TAWS_RED:120;
+    for(let i=0;i<pts.length-1 && dd<4000;i++){ const a=pts[i], b=pts[i+1], L=Math.hypot(b.E-a.E,b.N-a.N); if(L<1) continue;
+      const ux=(b.E-a.E)/L, uy=(b.N-a.N)/L;
+      for(let s=0;s<=L && dd<4000;s+=100, dd+=100){ const px=a.E+ux*s, py=a.N+uy*s;
+        if(Math.hypot(px-fE,py-fN)<(fin?2500:(A.f.flat||300)*2)) continue;          // vicino al campo il terreno è spianato: lì comanda il sentiero
+        for(const l of [-150,0,150]){ const z=terrain(px+l*uy,py-l*ux); if(z!==z){ unk++; continue; }
+          if(z+Mc>top) top=z+Mc; const t=dd/V; if(t>=4 && alt+roc*t*0.9 < z+TAWS_RED) cant=true; } } }
+    const r={t:simClock, floorFt:top>-1e8?top/FT2M:null, cant, unk}; PH.floorC=r; return r; }
   for(let t=0;t<=90;t+=2){
     if(t){ x+=V*Math.sin(tr)*2; y+=V*Math.cos(tr)*2; if(turned<2*Math.PI){ tr+=w*2; turned+=Math.abs(w*2); } }
     if(fin && Math.hypot(x-fE,y-fN)<2500) continue;
