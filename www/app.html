@@ -1604,6 +1604,7 @@ function rdDem(lat,lon,z){ try{ return parent&&parent.phDemAt?parent.phDemAt(lat
 // quota vera, con il fondo del mare: sotto −5 m è mare (le lagune e le terre sotto il livello del mare restano terra)
 function rdDemRaw(lat,lon,z){ try{ return parent&&parent.phDemAt?parent.phDemAt(lat,lon,z||10,true):NaN; }catch(e){ return NaN; } }
 const RD_SEA=-5;
+const RD_VDS_TOL=500;     // calcola rotta: una tratta si spezza solo se la quota supera il limite VDS del giorno di oltre 500 ft
 function rdAspAll(){ return (typeof ASP!=='undefined'&&Array.isArray(ASP)&&ASP_SRC.real)?ASP:[]; }
 function rdPip(p,poly){ let ins=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i], b=poly[j];
   if(((a.lat>p.lat)!==(b.lat>p.lat)) && (p.lon<(b.lon-a.lon)*(p.lat-a.lat)/(b.lat-a.lat)+a.lon)) ins=!ins; } return ins; }
@@ -1887,13 +1888,15 @@ function rdInfo(){
   const lst=m=>[...m].map(([k,ts])=>`${esc(k)} (T${[...new Set(ts)].join(',')})`), avoid=lst(av), other=lst(ot);
   let mxI=0; RD.info.forEach((l,i)=>{ if((l.safeFt||0)>(RD.info[mxI].safeFt||0)) mxI=i; });
   const capBad=RD.info.map((l,i)=>l.why==='oltre'?`T${i+1} chiede ${l.safeFt} ft`:null).filter(Boolean);
-  const vBad=RD.info.map((l,i)=>l.why==='vds'?`T${i+1}`:null).filter(Boolean), basic=rdProf()==='vds_basico', vAgl=rdVdsAgl();
+  const vBad=RD.info.map((l,i)=>l.why==='vds'&&l.altFt-(l.vCap||0)>RD_VDS_TOL?`T${i+1}`:null).filter(Boolean),
+    vSoft=RD.info.map((l,i)=>l.why==='vds'&&l.altFt-(l.vCap||0)<=RD_VDS_TOL?`T${i+1} +${Math.max(0,Math.round((l.altFt-l.vCap)/10)*10)} ft`:null).filter(Boolean), basic=rdProf()==='vds_basico', vAgl=rdVdsAgl();
   try{ $('pAlt').max=rdCapFt(); }catch(e){}
   const under=RD.info.map((l,i)=>l.why==='vdsmax'?`T${i+1} ${l.altFt} ft (max VDS)`:l.why==='sotto'?`T${i+1} a ${l.altFt} ft sotto ${esc(l.ceilName)}`:(l.why==='terreno'?`T${i+1} sali a ${l.altFt} ft per il terreno`:null)).filter(Boolean);
   const wind=RD.info.some(l=>l.wind);
   box.innerHTML=`<div><b>${km.toFixed(0)} km · ${fmtMin(min)}</b> a ${PLAN.tas} km/h${wind?' con il vento previsto':' senza vento'} · crociera ${PLAN.cruiseFt} ft · `+
     `margine sul terreno <select id="rdMg">${[500,1000,1500,2000].map(v=>`<option value="${v}"${v===RD.margin?' selected':''}>${v} ft</option>`).join('')}</select></div>`+
     (basic?`<div class="sub">VDS basico (DPR 133/2010 art. 9): ogni tratta al massimo consentito, ${vAgl} ft sull'ostacolo più alto entro 5 km (${vAgl===500?'feriale; 1000 ft sabato, domenica e festivi':'sabato, domenica o festivo'}); almeno ${rdMargin()} ft sul terreno sotto la rotta${RD.margin>rdMargin()?` (il margine di ${RD.margin} ft supera il limite di legge di oggi)`:''}; 5 km dagli aeroporti.</div>`:'')+
+    (vSoft.length?`<div class="warn">Sopra il limite VDS di oggi per tenere poche tratte (al massimo 500 ft, cioè entro 1000 ft dall'ostacolo più alto): ${vSoft.join(' · ')}. Dove il terreno scende, scendi anche tu se vuoi restare nel limite.</div>`:'')+
     (vBad.length?`<div class="bad">${vBad.join(', ')}: il rilievo cambia troppo lungo la tratta per una quota sola entro il limite VDS. Tocca «Calcola rotta» o aggiungi un punto dove il terreno sale.</div>`:'')+
     (RD.pending?'<div class="warn">Scarico le quote del terreno…</div>':(capBad.length?`<div class="bad">Terreno troppo alto per il velivolo: ${capBad.join(' · ')} (tangenza ${rdCapFt()} ft). Tocca «Calcola rotta» per passare dalle valli, oppure cambia rotta.</div>`:'')+(mx>PLAN.cruiseFt?`<div class="warn">Il terreno fa salire sopra la crociera solo dove serve: al massimo ${mx} ft su T${mxI+1}. «Calcola rotta» cerca le valli per salire meno.</div>`:(mx?`<div class="ok">Terreno: la crociera di ${PLAN.cruiseFt} ft lascia almeno ${rdMargin()} ft su tutte le tratte.</div>`:'')))+
     (under.length?`<div class="warn">Quote: ${under.join(' · ')}</div>`:'')+
@@ -2212,11 +2215,12 @@ async function rdAvoidAll(){
   // Tutti i tipi di volo: una tratta lunga con una cresta su un solo lato si spezza, così si sale solo per la parte che lo chiede
   for(let pass=0;pass<4;pass++){ rdAnalyze(); let split=0;
     for(let i=RD.info.length-1;i>=0;i--){ const l=RD.info[i], A=RD.pts[i], B=RD.pts[i+1];
-      let cut=(l.why==='vds'&&l.d>=2000)?0.5:0;
+      // richiesta dell'autore: meno punti. Si spezza solo se la quota supera il limite VDS di oltre RD_VDS_TOL (500 ft): resta entro 1000 ft dall'ostacolo
+      let cut=(l.why==='vds'&&l.d>=2000&&l.altFt-(l.vCap||0)>RD_VDS_TOL)?0.5:0;
       // il punto di taglio che lascia più tratta bassa: a 1/4, 1/2 o 3/4 (la cresta può stare in mezzo)
       if(!cut && l.d>=6000 && (l.safeFt||0)>PLAN.cruiseFt){ let best=1e9;
         for(const t of [0.25,0.5,0.75]){ const M={lat:A.lat+(B.lat-A.lat)*t,lon:A.lon+(B.lon-A.lon)*t}, lw=Math.min(rdLegCheck(A,M).safe,rdLegCheck(M,B).safe);
-          if(lw<=(l.safeFt||0)-800 && lw<best){ best=lw; cut=t; } } }
+          if(lw<=(l.safeFt||0)-1000 && lw<best){ best=lw; cut=t; } } }
       if(!cut) continue;
       RD.pts.splice(i+1,0,{lat:A.lat+(B.lat-A.lat)*cut,lon:A.lon+(B.lon-A.lon)*cut,f:null,name:'R0'}); split++; }
     if(!split) break; }
