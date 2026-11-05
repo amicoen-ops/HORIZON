@@ -50,6 +50,15 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: bash tools/emu_test.sh app.apk out
 
+      - name: Schermate e registro come artifact del workflow
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collaudo-${{ env.TAG || github.run_id }}
+          path: out/
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Risultati in una issue (schermate nella pre-release «diagnostica»)
         if: always()
         env:
@@ -57,8 +66,30 @@ jobs:
         run: |
           R=${{ github.repository }}
           gh release view diagnostica -R $R >/dev/null 2>&1 || gh release create diagnostica -R $R --prerelease --title "Diagnostica (schermate del collaudo)" --notes "Non è una versione da installare."
+          # Pulizia: GitHub ammette al massimo 1000 asset per release. Si tengono solo gli
+          # asset delle 10 build caricate più di recente (prefisso build-N_ o v2-build-N_),
+          # più quelli della build corrente; gli altri asset (es. it_*) non si toccano.
+          RID=$(gh api repos/$R/releases/tags/diagnostica --jq .id)
+          gh api --paginate "repos/$R/releases/$RID/assets?per_page=100" \
+            --jq '.[] | select(.name|test("^(v2-)?build-[0-9]+_")) | "\(.id) \(.created_at) \(.name|capture("^(?<p>(v2-)?build-[0-9]+)_").p)"' > ../asset.txt
+          sort -k2,2r ../asset.txt | awk '!s[$3]++ && n++ < 10 {print $3}' > ../tieni.txt
+          [ -n "$TAG" ] && echo "$TAG" >> ../tieni.txt
+          awk 'NR==FNR {k[$1]=1; next} !($3 in k) {print $1, $3}' ../tieni.txt ../asset.txt > ../da_cancellare.txt
+          echo "Asset build in release: $(wc -l < ../asset.txt); da cancellare: $(wc -l < ../da_cancellare.txt); build tenute: $(sort -u ../tieni.txt | tr '\n' ' ')"
+          while read -r id pref; do
+            gh api -X DELETE repos/$R/releases/assets/$id || echo "::warning::Cancellazione dell'asset $id ($pref) non riuscita"
+          done < ../da_cancellare.txt
           cd out 2>/dev/null || exit 0
-          for f in *.png; do mv "$f" "${TAG}_$f"; done
-          gh release upload diagnostica -R $R --clobber *.png logcat.txt 2>/dev/null || true
-          { echo "APK: $TAG"; echo; echo '```'; cat cdp.txt 2>/dev/null | tail -60; echo '```'; echo; echo '```'; cat sintesi.txt 2>/dev/null | cut -c1-300 | head -250; echo '```'; } > ../report.md
+          for f in *.png; do [ -e "$f" ] && mv "$f" "${TAG}_$f"; done
+          [ -f logcat.txt ] && mv logcat.txt "${TAG}_logcat.txt"
+          CARICA=$(ls ${TAG}_*.png "${TAG}_logcat.txt" 2>/dev/null || true)
+          ESITO="Caricati nella release «diagnostica»: $(echo $CARICA | wc -w) file."
+          if [ -n "$CARICA" ] && ! gh release upload diagnostica -R $R --clobber $CARICA 2> ../upload_err.txt; then
+            cat ../upload_err.txt
+            echo "::warning::Caricamento nella release diagnostica non riuscito: $(head -c 500 ../upload_err.txt)"
+            ESITO="Caricamento nella release «diagnostica» NON riuscito: $(head -c 500 ../upload_err.txt)"
+          fi
+          LOGURL="https://github.com/$R/releases/download/diagnostica/${TAG}_logcat.txt"
+          RUNURL="${{ github.server_url }}/$R/actions/runs/${{ github.run_id }}"
+          { echo "APK: $TAG"; echo; echo "$ESITO"; echo "Registro: $LOGURL"; echo "Artifact del workflow (7 giorni): $RUNURL"; echo; echo '```'; cat cdp.txt 2>/dev/null | tail -60; echo '```'; echo; echo '```'; cat sintesi.txt 2>/dev/null | cut -c1-300 | head -250; echo '```'; } > ../report.md
           gh issue create -R $R --title "Collaudo emulatore $TAG" --body-file ../report.md
