@@ -4178,6 +4178,7 @@ PH.renderInfo=function(){
     ${h[1]?`<div class="ph-row"><span>Versione precedente</span><small>${h[1].v} · fino al ${dt(h[0].t)}</small></div>`:''}
     <div class="ph-row"><span>Avvertenze accettate</span><small>${acc?dt(acc.t):'no'}</small></div>
   </section>
+  ${PH.guidaInfoHtml?PH.guidaInfoHtml():''}
   ${window.IA517_LIC?IA517_LIC.infoHtml():''}
   <section><h3>Aggiornamenti</h3><p class="ph-sub">Controllo a ogni avvio con internet${b.channel==='play'?', dal Play Store':b.channel==='web'?'':', dalle versioni pubblicate su GitHub'}.</p><div id="phUpd">${upHtml(up)}</div>
     <div class="ph-btns"><button class="ph-btn" id="phUpdGo">Controlla ora</button></div>
@@ -4224,6 +4225,7 @@ PH.renderInfo=function(){
   el('phLicDet').ontoggle=async e=>{ const pre=el('phLicTxt'); if(!e.target.open || pre.dataset.ok) return;
     try{ const r=await fetch('LICENZE.txt'); pre.textContent=(await r.text()).replace(/([a-zà-ù0-9,;:'")])\n(?=[^\n\s])/g,'$1 ').replace(/([a-zà-ù0-9,;:'")])\n {2,}(?![a-z]\) )/g,'$1 '); pre.style.whiteSpace='pre-wrap'; pre.dataset.ok=1; }catch(_){ pre.textContent='Testo non disponibile: lo trovi nel file LICENSE del repository amicoen-ops/strumento-i-a517.'; } };
   try{ window.IA517_LIC&&IA517_LIC.infoWire(); }catch(e){}
+  try{ PH.guidaInfoWire&&PH.guidaInfoWire(); }catch(e){}
   el('phWebCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText(PH_INFO.web); toast('LINK COPIATO'); }catch(e){ prompt('Copia il link:',PH_INFO.web); } };
   el('phWebShare').onclick=async()=>{ const d={title:'HORIZON · strumento di volo',text:'HORIZON, strumento di volo per telefono, tablet e browser',url:PH_INFO.web};
     try{ if(PH.native&&PH.native.share){ await PH.native.share.share(d); return; } if(navigator.share){ await navigator.share(d); return; } }catch(e){ return; }
@@ -4406,13 +4408,14 @@ PH.acSectionHtml=function(){
     <p class="ph-sub">Il velivolo attivo regola tutta l'app: scala di velocità, circuito, simulazione, piano di volo, carico e centraggio, piste e vento al traverso, tipo di volo e transponder.</p>
     <div id="phAcList">${PH.acs.map(a=>`<label class="ph-row ph-acrow"><input type="radio" name="phAc" value="${e(a.id)}" ${a.id===PH.ac.id?'checked':''}><span style="flex:1"><b>${e(a.reg||'—')}</b> ${e(a.model||'')}<br><small>${({vds_basico:'VDS basico',vds_avanzato:'VDS avanzato',vfr:'VFR'})[a.cat]||''} · VNE ${e(a.vne)} km/h · crociera ${e(a.vcruise)} km/h · ${e(a.burn)} L/h</small></span><button class="ph-btn" type="button" data-ace="${e(a.id)}">Modifica</button></label>`).join('')}</div>
     <label class="ph-chk"><input type="checkbox" id="phGlide" ${PH.glideOn?'checked':''}> Cerchio di planata sulla mappa (dall'efficienza del velivolo attivo, con il 25% di margine)</label>
-    <div class="ph-btns"><button class="ph-btn pri" type="button" id="phAcNew">Nuovo velivolo</button><button class="ph-btn" type="button" id="phAcDup">Duplica l'attivo</button><button class="ph-btn" type="button" id="phAcExp">Esporta</button><label class="ph-btn" style="cursor:pointer">Importa<input type="file" id="phAcImp" accept=".json,application/json" hidden></label></div>
+    <div class="ph-btns"><button class="ph-btn pri" type="button" id="phAcCat">Dal catalogo</button><button class="ph-btn" type="button" id="phAcNew">Nuovo velivolo</button><button class="ph-btn" type="button" id="phAcDup">Duplica l'attivo</button><button class="ph-btn" type="button" id="phAcExp">Esporta</button><label class="ph-btn" style="cursor:pointer">Importa<input type="file" id="phAcImp" accept=".json,application/json" hidden></label></div>
   </section>`; };
 PH.acSectionWire=function(){
   const box=el('phAcList'); if(!box) return;
   const gl=el('phGlide'); if(gl) gl.onchange=()=>{ PH.glideOn=gl.checked; lsSet('ia517p_glide',PH.glideOn); toast(PH.glideOn?'CERCHIO DI PLANATA ACCESO':'CERCHIO DI PLANATA SPENTO'); };
   box.querySelectorAll('input[name=phAc]').forEach(r=>r.onchange=()=>{ PH.acSelect(r.value); PH.renderImp(); });
   box.querySelectorAll('[data-ace]').forEach(b=>b.onclick=ev=>{ ev.preventDefault(); PH.acEdit(PH.acs.find(a=>a.id===b.dataset.ace)); });
+  if(el('phAcCat')) el('phAcCat').onclick=()=>PH.guidaOpen&&PH.guidaOpen('catalogo');
   el('phAcNew').onclick=()=>PH.acEdit(Object.assign({},PH.AC_NEW,{id:'ac-'+Date.now().toString(36)}),true);
   el('phAcDup').onclick=()=>PH.acEdit(Object.assign({},PH.ac,{id:'ac-'+Date.now().toString(36),reg:PH.ac.reg+' (copia)'}),true);
   el('phAcExp').onclick=()=>PH.download('HORIZON_velivoli.json',JSON.stringify({horizon:'velivoli',v:1,list:PH.acs},null,2),'application/json');
@@ -4859,4 +4862,5 @@ requestAnimationFrame(frame);
 
 </script>
 
+<script src="guida.js"></script>
 </body></html>
