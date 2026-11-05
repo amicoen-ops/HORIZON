@@ -1,1 +1,1 @@
-Orizzonte corretto in virata: quando la virata è ricavata dal GPS (telefono senza giroscopio, o giroscopio che non la vede) l'orizzonte non beccheggia più e il vario resta giusto, anche provando in macchina. Più sicurezza: solo collegamenti HTTPS e nessun backup dei dati della licenza.
+Nuovo in Impostazioni: «Registra 20 s e invia», manda allo sviluppatore i dati grezzi dei sensori di movimento (senza posizione) per studiare un orizzonte che sbanda. Assetto: ordine degli assi del giroscopio riconosciuto anche girando il telefono sul posto.
