@@ -119,6 +119,10 @@ const G=[
     <p><b>Senza internet</b>: ricevitori GDL90 sulla stessa rete Wi-Fi o sullo stesso telefono (SafeSky, SkyEcho, PilotAware; porta UDP 4000).</p>
     <p><b>Con internet</b>: OGN (FLARM e tracker) e adsb.lol ogni 6 s; all'esterno va solo la zona arrotondata a 0,1° (circa 10 km), mai la posizione esatta.</p>
     <p>Sullo strumento compare un triangolo di pericolo per un aereo entro 1000 ft di lato e di quota, adesso o entro 60 s. La pagina TRAFFICO mostra radar ed elenco; toccando un aereo se ne vede la scheda.</p>`},
+  {id:'squadriglia',t:'Squadriglia',h:`
+    <p>ALTRO › <b>SQUADRIGLIA</b>: gli aerei che volano con te. Per ognuno marche, nome del pilota, nominativo radio (se lo lasci vuoto lo scrive l'app dalle marche, con l'alfabeto ICAO: I-A517 → «India Alfa Cinque Uno Sette», abbreviato «India Uno Sette»), velivolo e, se lo conosci, il codice FLARM/OGN o ICAO.</p>
+    <p>In volo, se l'aereo trasmette (SafeSky, FLARM/OGN, ADS-B), sulla mappa e nel radar compare col <b>nome del pilota in verde</b>; toccandolo vedi marche e nominativo radio. Il pericolo di collisione resta giallo e rosso come per tutti. Quando uno della squadriglia compare la prima volta, un avviso a schermo dice chi è e dove.</p>
+    <p>Esporta la lista e mandala agli altri: la importano e vedete tutti gli stessi nomi.</p>`},
   {id:'circuito',t:'Circuito, atterraggio e piste rilevate',h:`
     <p>A 7 km dal campo lo strumento sceglie la pista con il vento più contrario e disegna il circuito alla quota del velivolo (Impostazioni › Velivoli). Controlla sempre manica a vento e radio.</p>
     <p>Se decolli o atterri su una pista che non conosce, l'app la propone: dopo averla salvata, a terra, chiede se <b>condividerla</b> in forma anonima con gli altri piloti. Una pista vista uguale da 3 telefoni entra nelle mappe di tutti; la riga «Campi volo» nello Stato dice quante e quando.</p>`},
@@ -156,7 +160,7 @@ const T=[
   {s:['.ph-cards'],t:'I dati di volo',x:'Velocità al suolo, quota, vario, traccia, vento, destinazione, tempo di volo e tramonto.'},
   {s:['.ph-nav [data-v="piano"]'],t:'PIANO',x:'Rotte, campi, meteo, NOTAM e spazi aerei. «Calcola rotta» gira intorno alle zone, passa dalle valli, evita il mare e sorvola i campi.'},
   {s:['.ph-nav [data-v="trf"]'],t:'TRAFFICO',x:'Aerei intorno da SafeSky/SkyEcho o da internet (OGN, ADS-B). Sullo strumento un triangolo avvisa del pericolo.'},
-  {s:['#phNavMore'],t:'ALTRO',x:'Impostazioni (velivoli, montaggio, interfaccia), Simula, Profilo verticale, Carburante e Info, dove trovi questa guida.'},
+  {s:['#phNavMore'],t:'ALTRO',x:'Impostazioni (velivoli, montaggio, interfaccia), Simula, Profilo verticale, Carburante, Squadriglia (i nomi e i nominativi radio degli aerei che volano con te) e Info, dove trovi questa guida.'},
 ];
 let tour=null;
 function tourEl(st){ for(const q of st.s){ const e=document.querySelector(q); if(e){ const r=e.getBoundingClientRect(); if(r.width>4&&r.height>4&&!e.closest('[hidden]')) return e; } } return null; }
