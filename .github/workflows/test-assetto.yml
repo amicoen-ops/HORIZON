@@ -1,0 +1,24 @@
+name: Prove dell'assetto
+
+# Banco di prova del filtro di assetto (tools/test_assetto.js): pochi secondi, a ogni modifica della pagina strumento.
+on:
+  push:
+    paths: ['www/index.html', 'tools/test_assetto.js', '.github/workflows/test-assetto.yml']
+  pull_request:
+    paths: ['www/index.html', 'tools/test_assetto.js']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assetto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Orizzonte in curva, in virata, con e senza giroscopio
+        run: node tools/test_assetto.js

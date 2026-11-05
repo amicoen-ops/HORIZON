@@ -1,0 +1,59 @@
+---
+name: horizon
+description: Come lavorare su HORIZON (strumento di volo per ultraleggeri e VFR, Capacitor/Android + PWA). Usala per qualsiasi modifica a www/index.html o app.html, ai moduli Java, ai workflow, all'assetto, al vario, al TAWS, agli spazi aerei, alla licenza o al Play Store, e prima di dire che una modifica è provata.
+---
+
+# HORIZON: come è fatto e come si lavora
+
+Testi, commenti, commit e risposte all'autore: **in italiano**, frasi semplici, termini aeronautici italiani (virata, beccheggio, rollio, vario, quota, prua, traccia).
+
+## Struttura
+- `www/index.html`: lo strumento (orizzonte, mappa, sensori, filtri, avvisi, diario). Un solo grande script; oggetto globale `PH`, stato `S`, scadenze `LIVE`/`STALE`.
+- `www/app.html`: il piano (rotte, campi, meteo, NOTAM, spazi aerei openAIP); gira dentro un iframe dello strumento.
+- `www/regole.js` (regole VDS basico/avanzato/VFR), `carburante.js`, `prestazioni.js`, `licenza.js`.
+- `www/` è generata da `build_android.py` (sorgenti nel ramo `v2`, cartella `sorgenti`) e copiata con `tools/prepare_www.py`: una modifica fatta solo qui va riportata anche nei sorgenti.
+- `android/app/src/main/java/it/amicoen/horizon/`: plugin nativi (GLO 2 Bluetooth, bussola, GDL90 UDP 4000, batteria/rete, licenza e Play Billing, aggiornamenti).
+- Novità mostrate nell'app: array `PH_CHANGES` in `index.html` (versione = `1.0.<numero della compilazione>`).
+
+## Compilazione e collaudo (GitHub Actions)
+- Push su `main` → `build-apk.yml`: prove dell'assetto, APK (canale `apk`), AAB per il Play Store (canale `play`, senza `REQUEST_INSTALL_PACKAGES`), APK di collaudo con il debug della WebView (artifact `apk-collaudo`, non va nelle Release).
+- Dopo la compilazione → `test-emulatore.yml`: installa `apk-collaudo` su un emulatore Android 14 e lo pilota via CDP (`tools/emu_test.sh`, `tools/emu_cdp.py`); i risultati finiscono in una issue «Collaudo emulatore».
+- `pubblica-web.yml`: sito GitHub Pages (iPhone, browser) con copia notturna degli spazi aerei openAIP.
+- Sul ramo di lavoro i workflow di compilazione non partono: le prove vere arrivano dopo l'unione in `main`.
+
+## Prove da fare prima di dire «provato»
+1. **Sintassi** di ogni script dentro le pagine: estrarre i `<script>` inline e compilarli con `new vm.Script(...)` in Node.
+2. **Assetto**: `node tools/test_assetto.js`. Usa il codice vero di `PhMahony`, `PH.toBody` e `PH.onMotion`; deve uscire con 0. Se tocchi l'assetto aggiungi un caso, e fai la controprova: il caso nuovo deve fallire con il codice di prima.
+3. **Browser**: servire `www/` con `python3 -m http.server` e aprire `index.html` con Playwright (Chromium già installato). Per superare le condizioni d'uso: spuntare `#phTermsOk`, poi cliccare `#phTermsGo`; l'invito alla donazione si chiude con «Più tardi». Barra in basso: VOLO, PIANO, TRAFFICO, ALTRO; da ALTRO › SIMULA › «Direct to un campo» › «Avvia la simulazione» per un volo finto con avvisi veri. Controllare `pageerror` e `console.error`. Gli errori di rete verso open-meteo, opentopomap o la cartella `dati/` sono attesi in locale.
+4. La parte Java non si compila qui (manca l'SDK Android): dirlo, e lasciare la verifica alla compilazione su `main`.
+
+## Assetto, sensori e vario: convenzioni
+- Assi dell'aereo: avanti, destra, giù. Forza specifica a riposo e livellato = (0, 0, −1 g).
+- `accelerationIncludingGravity` su Android = forza specifica negli assi del telefono. Safari iOS la dà col segno opposto: `PH.accSign`, riconosciuto da solo con il telefono dritto.
+- `rotationRate`: beta attorno a x, gamma attorno a y, alpha attorno a z (°/s). Alcuni Android li danno in un altro ordine: `PH.gyroLearn` e `PH.gmap` li riconoscono confrontando la rotazione della gravità.
+- I vettori del telefono si ruotano negli assi dello schermo con `PH.scrAng()`, poi negli assi dell'aereo con la matrice di montaggio `PH.M`: righe = avanti, destra, giù negli assi dello schermo. Il valore di partenza è il telefono in verticale, schermo verso il pilota; LIVELLA (`PH.level`) la ricalcola.
+- Passo di tempo: misurato da `e.timeStamp`, perché molti Android dichiarano 16 ms ma mandano 100–200 Hz.
+- Compensazione in virata: con V dal GPS, `fy -= r·V/g`, `fz += q·V/g`, `fx -= dV/dt/g`. Il filtro Mahony scarta l'accelerometro se |f| è lontano da 1 g o se la rotazione è forte (`trust`).
+- **Virata dal GPS** (senza giroscopio, o giroscopio che per 3 s non vede la virata): la velocità di virata della traccia è una rotazione attorno alla **verticale**. Va portata negli assi dell'aereo con l'assetto **stimato in quel momento** (`[-w sinθ, w sinφ cosθ, w cosφ cosθ]`), mai con l'inclinazione teorica della virata coordinata: in macchina, o ad ali ancora livellate, quell'errore faceva beccheggiare l'orizzonte di circa 28° con il vario a −10 m/s.
+- Vario: filtro complementare del 3° ordine su quota GPS e accelerazione verticale (`PhVario`, τ 3 s); senza GPS da 3 s non integra.
+- Scadenze dei dati: assetto 0,7 s, velocità e quota 2,5 s, GPS 3,5 s → bandierine rosse, mai valori congelati.
+
+## Logiche di sicurezza (non cambiare le soglie senza dirlo all'autore)
+- TAWS: ogni 1 s, da 0 a 60 s a passi di 5 s con il vario. «TERRENO! CABRA» sotto 100 ft entro 30 s, «ATTENZIONE TERRENO» sotto 300 ft. Tace vicino alla destinazione in circuito e senza GPS. Colori del terreno: rosso sotto 60 m, giallo sotto 180 m.
+- Spazi aerei: dentro adesso, tra 30 s, tra 1 minuto; giudizio da `IA517_RULES` secondo il tipo di volo.
+- Traffico: GDL90 (SafeSky, SkyEcho, PilotAware), oppure OGN e adsb.lol da internet ogni 6 s; triangolo di pericolo entro 1000 ft di lato e di quota, adesso o entro 60 s.
+- Planata: raggio = altezza sul terreno × efficienza × 0,75.
+
+## Sicurezza e rete
+- Release senza debug della WebView (`webContentsDebuggingEnabled: false`); solo HTTPS, tranne `wms.pcn.minambiente.it` (`network_security_config.xml`); niente backup (`allowBackup=false`, `data_extraction_rules.xml`); FileProvider solo sulla cache.
+- Un indirizzo inserito dall'utente deve essere `https://`.
+- Al traffico da internet va solo la zona arrotondata a 0,1°, mai la posizione esatta.
+
+## Licenza e vendita
+- Per ora si vende solo sul **Play Store**: abbonamento annuale da 30 € (`licenza_annuale` / `annuale`), 30 giorni di prova, in volo l'app non si blocca mai.
+- La licenza Polar per APK e web è spenta finché `polarOrg` in `licenza.js` resta un segnaposto. I testi dicono comunque 30 €/anno.
+- Niente inviti alla donazione nella versione Play, né quando la licenza a pagamento è attiva.
+
+## Git
+- Commit in italiano: titolo che dice cosa cambia per il pilota, poi il perché.
+- Lavorare sul ramo assegnato. Se la pull request precedente è già unita, ripartire da `origin/main`.
