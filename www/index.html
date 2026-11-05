@@ -2285,13 +2285,32 @@ PH.gyroTxt=function(){ const g=PH.gmap; return (g.p===0?'assi standard':'assi '+
 // ---- registrazione dei sensori: dati grezzi di 20 s, per rifare a casa quello che il telefono ha visto ----
 // Una riga per evento: ms dall'inizio, passo di tempo usato, accelerometro x y z (m/s², come arriva), giroscopio alpha beta gamma (°/s, come arriva),
 // rollio e beccheggio mostrati, accelerazione verticale del vario, fonte della virata. Va per posta con la segnalazione, insieme allo stato.
-PH.recStart=function(sec,done){ PH.rec={t0:performance.now(),end:performance.now()+sec*1000,rows:[],done,
+PH.recState=null;                          // {fase:'rec'|'invio'|'ok'|'file'|'err', fine, testo}: resta anche se si cambia pagina
+PH.recStart=function(sec){ if(PH.rec) return;
+  PH.rec={t0:performance.now(),end:performance.now()+sec*1000,rows:[],
   head:[`montaggio ${JSON.stringify(PH.M.map(r=>r.map(x=>+x.toFixed(4))))} · a terra ${PH.groundPitch||0}° · segno acc ${PH.accSign} · assi ${JSON.stringify(PH.gmap)} · schermo ${PH.scrAng()}° · liscio ${PH.smooth}`,
     `GPS ${S.gpsReal?'vivo':'no'} · GS ${(+S.gs||0).toFixed(1)} km/h · bussola ${PH.mag&&PH.mag.hdg!=null?Math.round(PH.mag.hdg)+'°':'—'} · ${navigator.userAgent}`]};
-  PH.act&&PH.act('registrazione sensori '+sec+' s'); };
-PH.recPush=function(e,a,r,dt){ const R=PH.rec, now=performance.now(), f=(v,n)=>v==null?'':(+v).toFixed(n);
-  R.rows.push([Math.round(now-R.t0),f(dt*1000,1),f(a.x,3),f(a.y,3),f(a.z,3),r?f(r.alpha,2):'',r?f(r.beta,2):'',r?f(r.gamma,2):'',f(S.roll,1),f(S.pitch,1),f(PH.vario&&PH.vario.v,2),PH.turnSrc||''].join(' '));
-  if(now>=R.end){ PH.rec=null; R.done&&R.done(R); } };
+  PH.recState={fase:'rec',fine:Date.now()+sec*1000};
+  PH.act&&PH.act('registrazione sensori '+sec+' s'); toast('REGISTRAZIONE: '+sec+' SECONDI');
+  clearTimeout(PH.recT); PH.recT=setTimeout(()=>PH.recFinish(),sec*1000); PH.recUi&&PH.recUi(); };
+PH.recPush=function(e,a,r,dt){ const R=PH.rec; if(R.rows.length>=6000) return; const now=performance.now(), f=(v,n)=>v==null?'':(+v).toFixed(n);
+  R.rows.push([Math.round(now-R.t0),f(dt*1000,1),f(a.x,3),f(a.y,3),f(a.z,3),r?f(r.alpha,2):'',r?f(r.beta,2):'',r?f(r.gamma,2):'',f(S.roll,1),f(S.pitch,1),f(PH.vario&&PH.vario.v,2),PH.turnSrc||''].join(' ')); };
+// la fine non dipende dagli eventi dei sensori (se non arrivano, la registrazione finisce lo stesso e lo dice)
+PH.recFinish=async function(){ const R=PH.rec; if(!R) return; PH.rec=null; const set=(fase,testo)=>{ PH.recState={fase,testo}; PH.recUi&&PH.recUi(); };
+  if(!R.rows.length){ set('err','Nessun dato dai sensori di movimento: controlla il permesso e riprova.'); toast('REGISTRAZIONE VUOTA'); return; }
+  let txt='';
+  try{ txt=PH.recText(R); set('invio','Invio di '+R.rows.length+' righe…'); toast('REGISTRAZIONE FINITA, INVIO');
+    let diag=''; try{ diag=PH.diag(); }catch(e){ diag='stato non disponibile: '+(e&&e.message); }
+    const rep={kind:'Registrazione sensori',text:'Registrazione di 20 s dei sensori di movimento ('+R.rows.length+' eventi).',reply:'',t:Date.now(),diag:diag+'\n\n'+txt};
+    await Promise.race([PH.sendReport(rep),new Promise((_,no)=>setTimeout(()=>no(new Error('nessuna risposta in 20 s')),20000))]);
+    set('ok','Inviata per posta ('+R.rows.length+' righe). Grazie.'); toast('REGISTRAZIONE INVIATA');
+  }catch(err){ const m=String(err&&err.message||err).slice(0,120); PH.logErr&&PH.logErr('registrazione sensori: '+m);
+    set('file','Invio automatico non riuscito ('+m+'). Si apre la condivisione: scegli Gmail e invia il file ad amicoen@gmail.com.');
+    toast('INVIO NON RIUSCITO: SCEGLI GMAIL');
+    try{ await PH.download('HORIZON-sensori-'+new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')+'.txt',txt||R.rows.join('\n'),'text/plain'); }catch(e){} } };
+PH.recUi=function(){ const b=el('phRecGo'), m=el('phRecMsg'); if(!b||!m) return; const st=PH.recState;
+  b.disabled=!!(st&&(st.fase==='rec'||st.fase==='invio'));
+  m.textContent=!st?'':st.fase==='rec'?'Registro… ripeti il movimento (ancora '+Math.max(0,Math.ceil((st.fine-Date.now())/1000))+' s). Puoi tornare su VOLO: alla fine lo dice da sola.':(st.testo||''); };
 PH.recText=function(R){ return ['REGISTRAZIONE SENSORI '+((R.rows.length/((R.end-R.t0)/1000))||0).toFixed(0)+' eventi/s',...R.head,
   'ms dt_ms ax ay az alpha beta gamma rollio beccheggio vario virata',...R.rows].join('\n'); };
 
@@ -3053,7 +3072,7 @@ PH.renderImp=function(){
   box.innerHTML=`
   <section><h3>Stato</h3><div id="phImpStat"></div></section>
   <section><h3>Registrazione dei sensori</h3>
-    <p class="ph-sub">Se l'orizzonte fa qualcosa di strano: tocca il pulsante e ripeti subito il movimento per 20 secondi. Poi i dati grezzi del telefono partono per posta allo sviluppatore, che può rifare la stessa prova al computer. Non contengono la posizione.</p>
+    <p class="ph-sub">Se l'orizzonte fa qualcosa di strano: tocca il pulsante, torna su VOLO e ripeti il movimento per 20 secondi. Alla fine l'app avvisa a voce e a schermo e manda i dati grezzi del telefono per posta allo sviluppatore, che può rifare la stessa prova al computer. Se l'invio non riesce si apre la condivisione: scegli Gmail. Non contengono la posizione.</p>
     <div class="ph-btns"><button class="ph-btn" id="phRecGo">Registra 20 s e invia</button></div><p class="ph-sub" id="phRecMsg"></p></section>
   ${PH.acSectionHtml?PH.acSectionHtml():''}
   <section><h3>Interfaccia</h3>
@@ -3119,15 +3138,9 @@ PH.renderImp=function(){
   <section><h3>Info</h3><div class="ph-btns"><button class="ph-btn" id="phToInfo">Versione, aggiornamenti, segnalazioni, crediti</button></div></section>
   <section><h3>Avvertenza</h3><p class="ph-sub">Strumento sperimentale per la consapevolezza della situazione, non certificato. Assetto dai sensori del telefono, velocità e quota dal GPS: nessuna velocità indicata vera, nessun altimetro barometrico. In volo valgono gli strumenti di bordo, la vista fuori, la manica a vento e la radio.</p></section>`;
   const stat=()=>{ const s=PH.status(); el('phImpStat').innerHTML=s.rows.map(([c,a,b])=>`<div class="ph-row"><span><i class="dot ${c}"></i>${a}</span><small>${b}</small></div>`).join(''); };
-  if(el('phRecGo')) el('phRecGo').onclick=()=>{ const b=el('phRecGo'), m=el('phRecMsg'); if(PH.rec) return; b.disabled=true;
-    let left=20; m.textContent='Registro… ripeti il movimento ('+left+' s)'; const tk=setInterval(()=>{ left--; if(left>0&&PH.rec) m.textContent='Registro… ripeti il movimento ('+left+' s)'; },1000);
-    PH.recStart(20,async R=>{ clearInterval(tk); b.disabled=false;
-      if(!R.rows.length){ m.textContent='Nessun dato dai sensori di movimento: controlla il permesso e riprova.'; return; }
-      const rep={kind:'Registrazione sensori',text:'Registrazione di 20 s dei sensori di movimento ('+R.rows.length+' eventi).',reply:'',t:Date.now(),diag:PH.diag()+'\n\n'+PH.recText(R)};
-      m.textContent='Invio…';
-      try{ await PH.sendReport(rep); m.textContent='Inviata ('+R.rows.length+' eventi). Grazie.'; }
-      catch(err){ m.textContent='Il servizio di invio non ha risposto: scegli un\'app per inviarla (Gmail).'; await PH.shareReport(rep); } }); };
-  stat(); clearInterval(PH.impT); PH.impT=setInterval(()=>{ if(el('phImp').hidden) clearInterval(PH.impT); else stat(); },1000);
+  if(el('phRecGo')) el('phRecGo').onclick=()=>PH.recStart(20);
+  PH.recUi();
+  stat(); clearInterval(PH.impT); PH.impT=setInterval(()=>{ if(el('phImp').hidden) clearInterval(PH.impT); else { stat(); PH.recUi(); } },1000);
   el('phSrc').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.srcPref=b.dataset.s; lsSet('ia517p_src',PH.srcPref);
     el('phSrc').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); stat(); });
   if(el('phGloOn')) el('phGloOn').onclick=async()=>{ el('phGloMsg').textContent='Scegli il GLO 2 nell\'elenco…'; const ok=await PH.gloConnect(true);
