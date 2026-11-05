@@ -47,6 +47,8 @@ Testi, commenti, commit e risposte all'autore: **in italiano**, frasi semplici, 
 - Spazi aerei: dentro adesso, tra 30 s, tra 1 minuto; giudizio da `IA517_RULES` secondo il tipo di volo.
 - Traffico: GDL90 (SafeSky, SkyEcho, PilotAware), oppure OGN e adsb.lol da internet ogni 6 s; triangolo di pericolo entro 1000 ft di lato e di quota, adesso o entro 60 s.
 - Planata: raggio = altezza sul terreno × efficienza × 0,75.
+- Terreno (AWS Terrarium): contiene il fondo del mare. `phDemAt` dà sempre almeno 0 m (quote, TAWS, rotte); `phDemAt(...,true)` dà il valore vero, e sotto −5 m è mare.
+- Calcola rotta (`rdAround` in app.html): il mare al largo è vietato; se non c'è altra strada (isole) si ripete con il mare permesso ma caro (×9, costa ×2). Il costo cresce oltre 3 km da un campo o da terreno pianeggiante (dove atterrare). Le scorciatoie non possono avere più mare del percorso trovato.
 
 ## Sicurezza e rete
 - Release senza debug della WebView (`webContentsDebuggingEnabled: false`); solo HTTPS, tranne `wms.pcn.minambiente.it` (`network_security_config.xml`); niente backup (`allowBackup=false`, `data_extraction_rules.xml`); FileProvider solo sulla cache.
