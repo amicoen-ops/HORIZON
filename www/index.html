@@ -182,9 +182,9 @@
   .ph-terms{z-index:40} .ph-terms .ph-imp{padding-top:max(16px,env(safe-area-inset-top,0px))}
 
   /* zoom della mappa */
-  .ph-zoom{position:absolute;right:4%;bottom:4%;display:flex;flex-direction:column;gap:10px;z-index:6}
-  .ph-zoom button{width:52px;height:52px;border-radius:14px;border:1px solid rgba(255,255,255,.28);background:rgba(7,8,10,.72);
-    color:#f2f4f7;font:700 28px/1 system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .ph-zoom{position:absolute;right:4%;bottom:4%;display:flex;flex-direction:column;align-items:flex-end;gap:8px;z-index:6}
+  .ph-zoom button{width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(7,8,10,.72);
+    color:#f2f4f7;font:700 24px/1 system-ui,sans-serif;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
   .ph-zoom button:active{background:rgba(255,255,255,.22)}
   .ph-range{display:flex;flex-direction:column;gap:6px;width:100%}
   .ph-range input{width:100%;accent-color:#ff4fd8}
@@ -206,7 +206,7 @@
   .ph-mbar button:last-child{min-width:44px}
   .ph-mbar button:active{background:rgba(255,255,255,.2)}
 
-  .ph-panhome{width:auto!important;min-width:auto!important;padding:0 10px!important;font:700 12px "Oxanium",system-ui,sans-serif!important;letter-spacing:.04em;color:var(--cyan)!important;border-color:var(--cyan)!important}
+  .ph-panhome{padding:0!important;font:400 26px/1 system-ui,sans-serif!important;color:var(--cyan)!important;border-color:var(--cyan)!important}   /* solo l'icona, come nei navigatori: la mappa resta libera */
 
   /* interfaccia semplice: solo orizzonte */
   body.ph-simple .ph-nav button[data-v="piano"], body.ph-simple #phMore [data-v="sim"], body.ph-simple #phMore [data-v="prof"], body.ph-simple #phPage, body.ph-simple #phDest, body.ph-simple #phAsp, body.ph-simple #unit2, body.ph-simple #phZoom{display:none!important}
@@ -3097,7 +3097,7 @@ PH.renderLog=function(){
     PH.trackShow={k:f.start,pts}; const mid=pts[Math.floor(pts.length/2)], cosl=Math.cos(S.lat*D2R);
     PH.pan={E:(mid[1]-S.lon)*111320*cosl,N:(mid[0]-S.lat)*110540}; PH.panBtn&&PH.panBtn();
     if(PH.ui==='simple') PH.setUi('full');
-    PH.show('volo'); if(PAGE!=='map') togglePage(); toast('TRACCIA SULLA MAPPA · ⌖ CENTRA PER TORNARE'); }));
+    PH.show('volo'); if(PAGE!=='map') togglePage(); toast('TRACCIA SULLA MAPPA · ⌖ PER TORNARE SULL\'AEREO'); }));
   el('phCsv').addEventListener('click',()=>{ const rows=['data;velivolo;partenza;arrivo;decollo;atterraggio;durata_min;km;quota_max_ft'].concat(book.map(f=>{
       const a=new Date(f.start), b=new Date(f.end); return [a.toLocaleDateString('it-IT'),f.ac||'',f.from,f.to,a.toLocaleTimeString('it-IT'),b.toLocaleTimeString('it-IT'),Math.round((f.end-f.start)/60000),(f.dist/1000).toFixed(1),f.maxFt].join(';'); }));
     PH.download('HORIZON_diario.csv','﻿'+rows.join('\n'),'text/csv'); });
@@ -3545,7 +3545,7 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
     const lim=ZOOMS[ZOOMS.length-1]*1000; PH.pan.E=clamp(PH.pan.E,-lim,lim); PH.pan.N=clamp(PH.pan.N,-lim,lim);
     PH.panBtn(); };
   PH.panHome=function(){ PH.pan=null; MR.zi=-1; PH.panBtn(); toastShow('MAPPA CENTRATA SULL\'AEREO'); };
-  const pb=document.createElement('button'); pb.type='button'; pb.id='phPanHome'; pb.className='ph-panhome'; pb.textContent='⌖ CENTRA'; pb.hidden=true;
+  const pb=document.createElement('button'); pb.type='button'; pb.id='phPanHome'; pb.className='ph-panhome'; pb.textContent='⌖'; pb.title='Centra sull\'aereo'; pb.setAttribute('aria-label','Centra la mappa sull\'aereo'); pb.hidden=true;
   pb.onclick=e=>{ e.stopPropagation(); PH.panHome(); }; zb.appendChild(pb);
   PH.panBtn=function(){ pb.hidden=!PH.pan; };
   // seconda vista (schermo diviso): trascinare sposta la mappa allo stesso modo
