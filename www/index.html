@@ -4676,7 +4676,7 @@ PH.trfMap=function(){
     const qx=e.x-pE, qy=e.y-pN, x=ax+(qx*ct-qy*st)*sc, y=ay-(qx*st+qy*ct)*sc; if(Math.hypot(x-CX,y-CY)>R*1.02) continue;
     if(main) T.mapHits.push({id:e.t.id,x,y});
     const near=e.dz===e.dz && Math.abs(e.dz)<PH.TRF_LIM && e.d<3000;
-    const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(e.age>30||e.t.ground||e.t.kmh<25?'#9aa4af':(near?'#ffe08a':'#4fd2ff')));
+    const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(PH.sqOf&&PH.sqOf(e.t)?'#6dff8f':(e.age>30||e.t.ground||e.t.kmh<25?'#9aa4af':(near?'#ffe08a':'#4fd2ff'))));
     ctx.save(); ctx.translate(x,y); ctx.rotate(e.t.trk*D2R-t0); ctx.fillStyle=col; ctx.strokeStyle='#000'; ctx.lineWidth=Math.max(1.5,s*0.18);
     ctx.beginPath(); ctx.moveTo(0,-s); ctx.lineTo(s*0.7,s*0.8); ctx.lineTo(0,s*0.35); ctx.lineTo(-s*0.7,s*0.8); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
     const dz=e.dz===e.dz?(e.dz>=0?'+':'−')+String(Math.round(Math.abs(e.dz)/FT2M/100)).padStart(2,'0'):'';
@@ -4737,7 +4737,7 @@ PH.trfPage=function(){
     T.hits.push({id:e.t.id,x:px,y:py});
     if(T.sel===e.t.id){ c.strokeStyle='#fff'; c.lineWidth=2; c.beginPath(); c.arc(px,py,16,0,Math.PI*2); c.stroke(); }
     const near=e.dz===e.dz && Math.abs(e.dz)<PH.TRF_LIM && e.d<3000;
-    const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(e.age>30||e.t.ground||e.t.kmh<25?'#6b7684':(near?'#ffe08a':'#4fd2ff')));
+    const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(PH.sqOf&&PH.sqOf(e.t)?'#6dff8f':(e.age>30||e.t.ground||e.t.kmh<25?'#6b7684':(near?'#ffe08a':'#4fd2ff'))));
     c.save(); c.translate(px,py); c.rotate(e.t.trk*D2R-up); c.fillStyle=col; c.strokeStyle='#000'; c.lineWidth=1.5;
     c.beginPath(); c.moveTo(0,-9); c.lineTo(6,7); c.lineTo(0,3); c.lineTo(-6,7); c.closePath(); c.fill(); c.stroke(); c.restore();
     c.fillStyle=col; c.font='700 11px "Oxanium",system-ui'; c.textAlign='left'; c.textBaseline='middle';
@@ -4785,6 +4785,7 @@ PH.trfDetHtml=function(ev){
   const typ=[PH.trfType(t), t.model].filter(Boolean).join(' · ');
   const nm=PH.trfName(t), cs=t.cn&&PH.trfFmtReg(t.cn)!==nm?t.cn:'';
   const rows=[
+    ...(PH.sqRows?PH.sqRows(t):[]),
     ['Tipo', typ||'non indicato'],
     ['Posizione', `${dec(e.d/1000,e.d<10000?1:0)} km · ore ${PH.trfClock(e)} · rilevamento ${String(Math.round(e.brg)).padStart(3,'0')}°`],
     ['Quota', alt===alt?`${fm(Math.round(alt/10)*10)} ft (${fm(alt*FT2M)} m) · ${PH.trfDz(e)} rispetto a te${t.baro?' · quota barometrica':''}${t.src==='SafeSky'&&T.gdlOfs!=null?' · riportata alla tua quota GPS':''}`:'non indicata'],
@@ -4863,4 +4864,5 @@ requestAnimationFrame(frame);
 </script>
 
 <script src="guida.js"></script>
+<script src="squadriglia.js"></script>
 </body></html>
