@@ -2186,7 +2186,11 @@ async function rdAvoidAll(){
   const noAsp=!rdAspAll().length;                            // senza spazi aerei si calcola lo stesso: valli, terreno e vento
   if(noAsp) rdHint('Spazi aerei non caricati: calcolo con terreno e vento soltanto',4000);
   rdAnalyze(); const bad=RD.info.map((l,i)=>l.hits.some(h=>h.avoid)?i:-1).filter(i=>i>=0);
-  rdPush(); RD.busy='Calcolo la rotta…'; rdDraw(); let added=0, failed=0, k=1;
+  rdPush();
+  // si ricalcola da capo: via i punti R1, R2… di un calcolo precedente (anche se salvati), restano quelli messi dal pilota
+  const isR=p=>/^R\d+$/.test(p.name||'')||(p.f&&p.f.kind==='wp'&&/^R\d+$/.test(p.f.short||''));
+  RD.pts=RD.pts.filter((p,i)=>i===0||i===RD.pts.length-1||!isR(p)); rdAnalyze();
+  RD.busy='Calcolo la rotta…'; rdDraw(); let added=0, failed=0, k=1;
   // anche le tratte senza zone: se il terreno chiede di salire, si cerca la valle
   const todo=RD.info.map((l,i)=>i);                          // tutte le tratte: la più breve in tempo, col vento, intorno alle zone, dalle valli
   const cap=rdCapFt(), basic=rdProf()==='vds_basico'; let over=0, seaUsed=0;
@@ -2224,15 +2228,27 @@ async function rdAvoidAll(){
       if(!cut) continue;
       RD.pts.splice(i+1,0,{lat:A.lat+(B.lat-A.lat)*cut,lon:A.lon+(B.lon-A.lon)*cut,f:null,name:'R0'}); split++; }
     if(!split) break; }
+  // sicurezza: un punto aggiunto con un campo a meno di 4 km si sposta sul campo (si passa sopra un posto dove atterrare),
+  // se così non si entra in zone nuove, il terreno non chiede più di 300 ft in più e non si passa di più sul mare
+  { const used=new Set(RD.pts.filter(p=>p.f).map(p=>p.f.id));
+    for(let i=1;i<RD.pts.length-1;i++){ const p=RD.pts[i]; if(!(p.name&&/^R\d+$/.test(p.name))) continue;
+      await new Promise(r=>setTimeout(r,0)); rdChk();
+      const A=RD.pts[i-1], B=RD.pts[i+1], c1=rdLegCheck(A,p), c2=rdLegCheck(p,B);
+      const near=(typeof FIELDS!=='undefined'?FIELDS:[]).filter(f=>f.kind!=='wp'&&!used.has(f.id)&&!(basic&&f.kind==='aero')).map(f=>({f,d:dist(p,f).d})).filter(x=>x.d<4000).sort((a,b)=>a.d-b.d);
+      for(const {f} of near.slice(0,3)){ const n1=rdLegCheck(A,f), n2=rdLegCheck(f,B);
+        if([...n1.zones,...n2.zones].some(z=>!c1.zones.has(z)&&!c2.zones.has(z))) continue;
+        if(Math.max(n1.safe,n2.safe)>Math.max(c1.safe,c2.safe)+300) continue;
+        if(n1.sea+n2.sea>c1.sea+c2.sea+100) continue;
+        RD.pts[i]={lat:f.lat,lon:f.lon,f,name:f.short||f.name}; used.add(f.id); break; } } }
   let kk=1; for(const p of RD.pts) if(p.name&&/^R\d+$/.test(p.name)) p.name='R'+(kk++);
-  added=RD.pts.filter(p=>p.name&&/^R\d+$/.test(p.name)).length;
+  added=RD.pts.filter(p=>p.name&&/^R\d+$/.test(p.name)).length; const onF=RD.pts.slice(1,-1).filter(p=>p.f).length; added+=onF;
   RD.busy=false; rdAnalyze();
   if(noAsp) RD.msgNoAsp=true; else RD.msgNoAsp=false;
   const left=new Set(); RD.info.forEach(l=>l.hits.forEach(h=>{ if(h.avoid) left.add(`${h.a.cls} ${h.a.name}`); }));
   if(over>seaUsed && !failed) RD.msgOver=`VDS basico: per ${over-seaUsed} tratt${over-seaUsed>1?'e':'a'} non c'è un giro che resti a ${PLAN.cruiseFt} ft senza passare sul mare; la rotta sale sul terreno (massimo ${cap} ft, tangenza del velivolo).`; else RD.msgOver='';
   if(seaUsed){ let sm=0; for(let i=1;i<RD.pts.length;i++) sm+=rdLegCheck(RD.pts[i-1],RD.pts[i]).sea;
     if(sm>=1000) RD.msgOver+=(RD.msgOver?' ':'')+`Non c'è un passaggio tutto sopra la terra: circa ${Math.round(sm/1000)} km sul mare, il più corto possibile e vicino alla costa. Quota per arrivare a terra in planata, giubbotti!`; }
-  RD.msg=failed?`Per ${failed} tratt${failed>1?'e':'a'} non trovo un passaggio: il terreno è troppo alto per il velivolo (tangenza ${cap} ft con ${rdMargin()} ft di margine) o le zone chiudono la strada. Cambia rotta o sposta i punti a mano.`:(RD.msgOver?RD.msgOver+' ':'')+(added?`Aggiunti ${added} punti (R1, R2…): la rotta più breve in tempo con il vento previsto, intorno alle zone e ai punti da non sorvolare, dalle valli dove il terreno lo chiede.`+(left.size?` Restano da verificare: ${[...left].slice(0,4).join(', ')} (ci parti o ci arrivi, oppure il terreno obbliga a salire dentro). Controlla la rotta prima del volo.`:' Controlla la rotta prima del volo.'):(left.size?`La rotta diritta è già la migliore, ma restano: ${[...left].slice(0,4).join(', ')}.`:'La rotta diritta è già la più breve e libera: nessun punto da aggiungere.'));
+  RD.msg=failed?`Per ${failed} tratt${failed>1?'e':'a'} non trovo un passaggio: il terreno è troppo alto per il velivolo (tangenza ${cap} ft con ${rdMargin()} ft di margine) o le zone chiudono la strada. Cambia rotta o sposta i punti a mano.`:(RD.msgOver?RD.msgOver+' ':'')+(added?`Aggiunti ${added} punti (R1, R2…${onF?`, di cui ${onF} sopra campi dove atterrare in caso di problemi`:''}): la rotta più breve in tempo con il vento previsto, intorno alle zone e ai punti da non sorvolare, dalle valli dove il terreno lo chiede.`+(left.size?` Restano da verificare: ${[...left].slice(0,4).join(', ')} (ci parti o ci arrivi, oppure il terreno obbliga a salire dentro). Controlla la rotta prima del volo.`:' Controlla la rotta prima del volo.'):(left.size?`La rotta diritta è già la migliore, ma restano: ${[...left].slice(0,4).join(', ')}.`:'La rotta diritta è già la più breve e libera: nessun punto da aggiungere.'));
   rdChanged(); rdHint(failed?'Rotta calcolata in parte: vedi sotto la mappa':(added?`Rotta calcolata: ${added} punti aggiunti`+(left.size?' · restano zone, vedi sotto':''):'La rotta diritta è già la migliore'),3500);
 }
 

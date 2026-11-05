@@ -2975,7 +2975,7 @@ PH.valField=function(d){
   return u;
 };
 PH.valRoute=function(d){
-  if(!d||!Array.isArray(d.wps)||d.wps.length<1||d.wps.length>40) throw new Error('rotta: da 1 a 40 punti');
+  if(!d||!Array.isArray(d.wps)||d.wps.length<1||d.wps.length>100) throw new Error('rotta: da 1 a 100 punti');
   const wps=d.wps.map((w,i)=>{ const lat=+w.lat, lon=+w.lon; if(!(Math.abs(lat)<=90&&Math.abs(lon)<=180)) throw new Error(`punto ${i+1}: coordinate`);
     return {id:String(w.id||('P'+(i+1))).slice(0,16),name:String(w.name||w.id||('P'+(i+1))).slice(0,40),lat,lon,altFt:w.altFt!=null&&w.altFt!==''?+w.altFt:null,field:!!w.field}; });
   return {id:String(d.id||('R-'+Date.now().toString(36).toUpperCase())).slice(0,16),name:String(d.name||(wps[0].name+' - '+wps[wps.length-1].name)).slice(0,60),
