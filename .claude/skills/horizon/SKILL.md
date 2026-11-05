@@ -13,6 +13,7 @@ Testi, commenti, commit e risposte all'autore: **in italiano**, frasi semplici, 
 - `www/regole.js` (regole VDS basico/avanzato/VFR), `carburante.js`, `prestazioni.js`, `licenza.js`.
 - `www/` è generata da `build_android.py` (sorgenti nel ramo `v2`, cartella `sorgenti`) e copiata con `tools/prepare_www.py`: una modifica fatta solo qui va riportata anche nei sorgenti.
 - `android/app/src/main/java/it/amicoen/horizon/`: plugin nativi (GLO 2 Bluetooth, bussola, GDL90 UDP 4000, batteria/rete, licenza e Play Billing, aggiornamenti).
+- Campi volo: `FIELDS_RAW`, uguale in `index.html` e `app.html` (circa 1950: tutta Italia, Francia, Alpi vicine). Si aggiornano scaricando `airports.csv` e `runways.csv` di OurAirports (raw.githubusercontent.com/davidmegginson/ourairports-data/main/), poi `python3 tools/campi_ourairports.py <cartella> campi.json` e `python3 tools/unisci_campi.py campi.json`: i campi esistenti restano come sono (prendono solo piste e quota se non le hanno). Il menu DIRECT TO mostra i 250 più vicini; la ricerca per nome cerca su tutti.
 - Novità mostrate nell'app: array `PH_CHANGES` in `index.html` (versione = `1.0.<numero della compilazione>`).
 
 ## Compilazione e collaudo (GitHub Actions)

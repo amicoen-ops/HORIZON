@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 # Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
-"""Campi del Nord Italia e delle Alpi vicine (Francia, Svizzera, Austria, Slovenia) da OurAirports (pubblico dominio).
+"""Campi di tutta Italia, San Marino, tutta la Francia (Corsica compresa) e delle Alpi vicine (Svizzera, Austria, Slovenia) da OurAirports (pubblico dominio).
 
 Uso:  python3 campi_ourairports.py cartella_con_airports.csv_e_runways.csv
-Scrive src/campi_nord.json nel formato di FIELDS_RAW:
+Scrive src/campi.json nel formato di FIELDS_RAW:
   [id, sigla, nome, lat, lon, quota_ft|null, [[le, he, prua_vera, lunghezza_m, asfalto 0/1], ...], tipo]
 tipo: aero (aeroporto), ulm (aviosuperficie), alti (altiporto), glac (ghiacciaio).
 I campi che ci sono già nello strumento restano come sono: questo elenco li completa soltanto.
@@ -12,9 +12,9 @@ I campi che ci sono già nello strumento restano come sono: questo elenco li com
 import csv, json, re, sys
 from pathlib import Path
 
-REGIONI = {"IT-21", "IT-23", "IT-25", "IT-32", "IT-34", "IT-36", "IT-42", "IT-45"}  # Piemonte, VdA, Lombardia, Trentino-AA, Veneto, FVG, Liguria, Emilia-Romagna
 TIPI = {"small_airport", "medium_airport", "large_airport"}
-ESTERO = {"FR", "CH", "AT", "SI", "MC"}                       # Alpi oltre confine: lat 43,6–47,3 · lon 5,8–14,6
+INTERI = {"IT", "SM", "FR", "MC"}                             # paesi presi interi
+ESTERO = {"CH", "AT", "SI"}                                   # Alpi oltre confine: lat 43,6–47,3 · lon 5,8–14,6
 PAVED = re.compile(r"asp|con|bit|pem|tar|pav|cem", re.I)
 VIA = re.compile(r"\b(aviosuperficie|avio\s?superficie|airfield|airstrip|airport|aeroporto( di)?|aerodromo|aérodrome|aerodrome|altiport|altisurface|flugplatz|flugfeld|letališče|campo( di)? volo|ultralight( field)?|field|ulm|ultraleggeri|club)\b", re.I)
 GLAC = re.compile(r"ghiacciaio|glacier|gletscher|\bgh\.", re.I)
@@ -40,15 +40,12 @@ def main(cart):
         piste.setdefault(r["airport_ident"], []).append(r)
     out = []
     for a in csv.DictReader(open(cart / "airports.csv", encoding="utf-8")):
-        if a["type"] not in TIPI or (a["iso_country"] != "IT" and a["iso_country"] not in ESTERO):
+        if a["type"] not in TIPI or (a["iso_country"] not in INTERI and a["iso_country"] not in ESTERO):
             continue
         lat, lon = num(a["latitude_deg"]), num(a["longitude_deg"])
         if lat is None or lon is None:
             continue
-        if a["iso_country"] == "IT":
-            if a["iso_region"] not in REGIONI and not (a["iso_region"].startswith("IT-U") and lat > 44.0):
-                continue
-        elif not (43.6 <= lat <= 47.3 and 5.8 <= lon <= 14.6):
+        if a["iso_country"] in ESTERO and not (43.6 <= lat <= 47.3 and 5.8 <= lon <= 14.6):
             continue
         if re.search(r"heli|elisuperficie|eliporto|hospital|ospedale", a["name"], re.I):
             continue
@@ -74,7 +71,7 @@ def main(cart):
                 d = re.match(r"\d+", le)
                 if not d:
                     continue
-                hdg = (int(d.group()) * 10 + 3) % 360          # declinazione nel Nord Italia circa +3°
+                hdg = (int(d.group()) * 10 + (1 if a["iso_country"] == "FR" else 3)) % 360   # declinazione: Italia circa +3°, Francia circa +1°
             if not he:
                 d = re.match(r"(\d+)([LRC]?)", le)
                 if d:
@@ -83,7 +80,7 @@ def main(cart):
             rws.append([le, he, round(hdg, 1), round(L * 0.3048), 1 if PAVED.search(r["surface"] or "") else 0])
         out.append([ident, sigla, nome, round(lat, 5), round(lon, 5), int(elev) if elev is not None else None, rws, kind])
     out.sort(key=lambda f: f[0])
-    dest = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).resolve().parent / "src" / "campi_nord.json"
+    dest = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).resolve().parent / "src" / "campi.json"
     dest.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     from collections import Counter
     print(len(out), "campi", dict(Counter(f[7] for f in out)), "con piste", sum(1 for f in out if f[6]), "->", dest)
