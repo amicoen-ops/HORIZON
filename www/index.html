@@ -2247,12 +2247,20 @@ PH.onMotion=function(e){
     const miss=Math.abs(PH.trkRate)>4 && Math.abs(psiG)<0.3*Math.abs(PH.trkRate);
     PH.gyroMissT=miss?(PH.gyroMissT||now):0; PH.gyroSus=miss && now-PH.gyroMissT>3000; } else PH.gyroSus=false;
   PH.turnSrc=(!PH.gyroOk||PH.gyroSus)?(gpsTurn?'gps':'nessuna'):'giroscopio';
-  if(PH.turnSrc==='gps'){ const w=PH.trkRate*D2R, Vg=PH.tas||S.gs/3.6, pg=Math.atan(Vg*w/9.80665);   // inclinazione di virata coordinata
-    wb=[0,w*Math.sin(pg),w*Math.cos(pg)]; }
+  // virata vista dal GPS = rotazione attorno alla verticale: la porto negli assi dell'aereo con l'assetto stimato adesso.
+  // Prima si usava l'inclinazione teorica della virata coordinata: ad ali ancora livellate (o in macchina, che non
+  // s'inclina) una parte della virata finiva sul beccheggio, l'orizzonte saliva di decine di gradi e il vario impazziva.
+  if(PH.turnSrc==='gps'){ const w=PH.trkRate*D2R, ea=PH.ahrsInit?PH.ahrs.euler():[0,0], ph=ea[0]*D2R, th=ea[1]*D2R;
+    wb=[-w*Math.sin(th), w*Math.sin(ph)*Math.cos(th), w*Math.cos(ph)*Math.cos(th)]; }
   if(!PH.ahrsInit){ PH.ahrs.levelFrom(fb[0],fb[1],fb[2]); PH.ahrsInit=true; PH.attF=null; PH.hdg=S.trk!=null?S.trk:S.hdg; }
   // compensazione di virata e accelerazione con la velocità GPS (come la scheda sensori con il Pitot)
   const V=(S.gpsReal && S.gs>15)?(PH.tas||S.gs/3.6):0;
-  const fx=fb[0]-(V>0?PH.dvdt/9.80665:0), fy=fb[1]-wb[2]*V/9.80665, fz=fb[2]+wb[1]*V/9.80665;
+  let fx=fb[0]-(V>0?PH.dvdt/9.80665:0), fy=fb[1]-wb[2]*V/9.80665, fz=fb[2]+wb[1]*V/9.80665;
+  // virata dal GPS: finché l'inclinazione stimata non ha raggiunto quella vera, la compensazione fatta con l'assetto stimato
+  // lascia un vettore più lungo di 1 g e il filtro lo scarterebbe. Se la forza misurata è quella attesa dalla virata
+  // (√(1+(V·ω/g)²), in volo come in macchina) ne tengo solo la direzione, così l'inclinazione converge da sola.
+  if(PH.turnSrc==='gps' && V>0){ const nE=Math.hypot(1,V*PH.trkRate*D2R/9.80665), nF=Math.hypot(fb[0],fb[1],fb[2]), nC=Math.hypot(fx,fy,fz);
+    if(nC>0.1){ const kc=nF/nE/nC; fx*=kc; fy*=kc; fz*=kc; } }
   PH.ahrs.update(wb[0],wb[1],wb[2],fx,fy,fz,dt);
   const [ro,pi]=PH.ahrs.euler();
   // orizzonte più morbido: filtro del primo ordine regolabile (0 = immediato, 10 = 1 s)
