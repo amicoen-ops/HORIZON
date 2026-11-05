@@ -1926,7 +1926,9 @@ function terrainRaw(E,N){
   if(z===z) return z;
   return (PH.demo && !PH.sim && !PH.dem.size)?terrainSynth(E,N):NaN;   // colline finte solo nel volo dimostrativo senza rilievo (offline): mai mescolate al rilievo vero
 }
-function phDemAt(lat,lon,z){
+// il terreno scaricato ha anche il fondo del mare (quote negative): per quote, TAWS e rotte vale il livello del mare (0 m).
+// Con raw=true restituisce il valore vero, che serve a riconoscere il mare (sotto −5 m)
+function phDemAt(lat,lon,z,raw){
   z=z||11;
   for(let zz=z, zmin=Math.min(8,Math.max(5,z-2)); zz>=zmin; zz--){
     const n=2**zz, fx=(lon+180)/360*n, lr=lat*D2R, fy=(1-Math.log(Math.tan(lr)+1/Math.cos(lr))/Math.PI)/2*n;
@@ -1935,7 +1937,9 @@ function phDemAt(lat,lon,z){
     let px=(fx-tx)*256-0.5, py=(fy-ty)*256-0.5;
     px=px<0?0:(px>254.999?254.999:px); py=py<0?0:(py>254.999?254.999:py);
     const i=px|0, j=py|0, u=px-i, v=py-j, o=j*256+i;
-    return (t[o]*(1-u)+t[o+1]*u)*(1-v)+(t[o+256]*(1-u)+t[o+257]*u)*v;
+    if(raw) return (t[o]*(1-u)+t[o+1]*u)*(1-v)+(t[o+256]*(1-u)+t[o+257]*u)*v;
+    const a=t[o]>0?t[o]:0, b=t[o+1]>0?t[o+1]:0, c=t[o+256]>0?t[o+256]:0, d=t[o+257]>0?t[o+257]:0;
+    return (a*(1-u)+b*u)*(1-v)+(c*(1-u)+d*u)*v;
   }
   return NaN;
 }
@@ -1945,7 +1949,7 @@ function phDemExact(lat,lon,z){
   const tx=Math.floor(fx), ty=Math.floor(fy), t=PH.dem.get(z+'/'+tx+'/'+ty); if(!t){ phDemFetch(z,tx,ty); return NaN; }
   let px=(fx-tx)*256-0.5, py=(fy-ty)*256-0.5; px=px<0?0:(px>254.999?254.999:px); py=py<0?0:(py>254.999?254.999:py);
   const i=px|0, j=py|0, u=px-i, v=py-j, o=j*256+i;
-  return (t[o]*(1-u)+t[o+1]*u)*(1-v)+(t[o+256]*(1-u)+t[o+257]*u)*v; }
+  return Math.max(0,(t[o]*(1-u)+t[o+1]*u)*(1-v)+(t[o+256]*(1-u)+t[o+257]*u)*v); }
 // quota del rilievo di un campo: mediana di centro + 8 punti a 150 m, dal riquadro fine (z12, se no z11)
 function phFieldDem(f){ for(const z of [12,11]){ const v=[]; const cl=Math.cos(f.lat*D2R);
     for(let k=0;k<9;k++){ const r=k?150:0, an=k*Math.PI/4, q=phDemExact(f.lat+r*Math.cos(an)/110540,f.lon+r*Math.sin(an)/(111320*cl),z); if(q===q) v.push(q); }
