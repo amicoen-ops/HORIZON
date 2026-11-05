@@ -30,6 +30,9 @@ jobs:
       - name: Dipendenze
         run: npm ci --no-audit --no-fund
 
+      - name: Prove dell'assetto (se l'orizzonte sbaglia in virata, niente APK)
+        run: node tools/test_assetto.js
+
       - name: Versione dentro l'app
         run: echo "window.IA517_BUILD={version:'1.0.${{ github.run_number }}',build:'${{ github.run_number }}',channel:'apk'};" > www/version.js
 
@@ -114,3 +117,27 @@ jobs:
           files: |
             HORIZON-1.0.${{ github.run_number }}.apk
             HORIZON-1.0.${{ github.run_number }}-play-store.aab
+
+      # Google Play: il file .aab va da solo nel canale «Test interni» (i tester lo ricevono dal Play Store).
+      # La pubblicazione per tutti (Produzione) resta una scelta a mano nella Play Console.
+      # Serve il secret PLAY_SERVICE_ACCOUNT_JSON (chiave JSON di un account di servizio invitato nella Play Console):
+      # se manca, questo passo si salta e la compilazione resta verde.
+      - name: Credenziali di Google Play
+        id: play
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$PLAY_JSON" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::Manca il secret PLAY_SERVICE_ACCOUNT_JSON: il file .aab non viene caricato su Google Play (vedi docs/play/SCHEDA-E-GUIDA.md, capitolo 7)"; fi
+
+      - name: Carica su Google Play (Test interni)
+        if: steps.play.outputs.ok == 'true'
+        uses: r0adkll/upload-google-play@v1.1.3
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: it.amicoen.horizon
+          releaseFiles: HORIZON-1.0.${{ github.run_number }}-play-store.aab
+          releaseName: 1.0.${{ github.run_number }}
+          track: internal
+          status: ${{ vars.PLAY_STATUS || 'completed' }}
+          whatsNewDirectory: docs/play/novita

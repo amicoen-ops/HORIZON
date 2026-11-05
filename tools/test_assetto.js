@@ -1,0 +1,103 @@
+#!/usr/bin/env node
+// HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
+// Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
+//
+// Banco di prova dell'assetto: prende il codice VERO dei sensori da www/index.html (filtro Mahony, montaggio,
+// PH.onMotion), gli dà dati di sensori calcolati da un moto noto e controlla orizzonte e vario.
+// Uso: node tools/test_assetto.js        (esce con 1 se una prova non passa)
+// Nel moto simulato l'inclinazione dell'aereo cambia di colpo (a 2 s e a 7 s): per l'aereo si misura in virata stabile, dopo 4 s.
+//
+// Convenzioni (le stesse dell'app):
+//  - assi dell'aereo: avanti, destra, giù; forza specifica a riposo e livellato = (0, 0, −1 g)
+//  - accelerationIncludingGravity (Android, W3C) = forza specifica negli assi del telefono
+//  - rotationRate: beta attorno a x, gamma attorno a y, alpha attorno a z, in °/s
+//  - telefono in verticale, schermo verso il pilota: x = destra, y = su, z = verso il pilota
+'use strict';
+const fs = require('fs'), path = require('path');
+const SRC = fs.readFileSync(path.join(__dirname, '..', 'www', 'index.html'), 'utf8').split('\n');
+
+function block(startRe, endTest) {
+  const i = SRC.findIndex(l => startRe.test(l));
+  if (i < 0) throw new Error('non trovato in index.html: ' + startRe);
+  let j = i; while (!endTest(SRC[j], j - i)) j++;
+  return SRC.slice(i, j + 1).join('\n');
+}
+const code = [
+  block(/^function PhMahony\(/, (l, k) => k > 0 && /^PhMahony\.prototype\.euler/.test(SRC[SRC.indexOf(l) - 2] || '')),
+  block(/^PH\.toBody=/, () => true),
+  block(/^PH\.onMotion=function/, (l) => /^};/.test(l)),
+].join('\n');
+
+const D2R = Math.PI / 180, R2D = 180 / Math.PI, G = 9.80665;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const angDiff = (a, b) => ((a - b + 540) % 360) - 180, wrap360 = a => ((a % 360) + 360) % 360;
+let T = 0; const performance = { now: () => T };
+let S, PH, LIVE, PhMahony;
+// il codice dell'app gira qui dentro con le sue variabili globali sostituite da quelle del banco
+const load = new Function('ctx', `
+  let {D2R,R2D,clamp,angDiff,wrap360,performance}=ctx; let PH=ctx.PH, S=ctx.S, LIVE=ctx.LIVE;
+  ${code}
+  return {PhMahony, onMotion: PH.onMotion, toBody: PH.toBody, bind(p,s,l){ PH=p; S=s; LIVE=l; }};`);
+
+// righe = assi dell'aereo (avanti, destra, giù) espressi negli assi dello schermo
+const VERTICALE = [[0, 0, -1], [1, 0, 0], [0, -1, 0]];
+function inclinato(deg) { const a = deg * D2R, c = Math.cos(a), s = Math.sin(a); return [[0, -s, -c], [1, 0, 0], [0, -c, s]]; }
+
+function prova(nome, o) {
+  const ctx = { D2R, R2D, clamp, angDiff, wrap360, performance, PH: {}, S: {}, LIVE: {} };
+  const app = load(ctx);
+  S = { gpsReal: true, gs: o.V * 3.6, roll: 0, hdg: 0, trk: 0 }; LIVE = {};
+  PH = { M: o.mount || VERTICALE, accSign: 1, aAvg: [0, 0, 0], mCount: 0, mT0: 0, demo: false, scrAng: () => o.scr || 0, accCheck: () => {},
+    gyroLearn: () => {}, gyroRaw: r => [r.beta || 0, r.gamma || 0, r.alpha || 0],
+    ahrs: new app.PhMahony(), ahrsInit: false, attF: null, smooth: 3, tas: null, dvdt: 0, trkRate: 0, trkRateT: -1e9, slipF: 0, hdg: 0,
+    magInUse: () => false, mag: {}, act: () => {}, vario: { a: 0, predict(a) { this.a = a; } } };
+  PH.toBody = app.toBody; PH.onMotion = app.onMotion; app.bind(PH, S, LIVE);
+  const Mt = o.mountTrue || o.mount || VERTICALE;
+  const toScr = v => [0, 1, 2].map(j => Mt[0][j] * v[0] + Mt[1][j] * v[1] + Mt[2][j] * v[2]);
+  const sc = (o.scr || 0) * D2R, c = Math.cos(sc), sn = Math.sin(sc);
+  const toRaw = v => [v[0] * c + v[1] * sn, -v[0] * sn + v[1] * c, v[2]];        // inverso della rotazione fatta dall'app
+  let peggio = { roll: 0, pitch: 0, aUp: 0 }, fine = null;
+  for (let i = 0; i < 60 * 10; i++) {
+    T = i * 1000 / 60; const t = T / 1000, inV = t > 2 && t < 7, V = o.V;
+    let f, w, trk;
+    if (o.aereo) {                                       // virata coordinata: inclinato, nessuna forza laterale
+      const ph = inV ? o.aereo * D2R : 0, wt = G * Math.tan(ph) / V;
+      f = [0, 0, -G / Math.cos(ph)]; w = [0, wt * Math.sin(ph), wt * Math.cos(ph)]; trk = wt;
+    } else {                                             // macchina: non s'inclina, forza laterale verso il centro
+      const wt = inV ? o.virata * D2R : 0; f = [0, V * wt, -G]; w = [0, 0, wt]; trk = wt;
+    }
+    const fd = toRaw(toScr(f)), wd = toRaw(toScr(w)).map(x => x + 0.001);
+    PH.trkRate = trk * R2D; PH.trkRateT = T; S.roll = PH.attF ? PH.attF[0] : 0;
+    PH.onMotion({ accelerationIncludingGravity: { x: fd[0], y: fd[1], z: fd[2] },
+      rotationRate: o.senzaGiro ? null : { alpha: wd[2] * R2D, beta: wd[0] * R2D, gamma: wd[1] * R2D }, interval: 1 / 60, timeStamp: T });
+    if (t > 1) {
+      const r0 = o.atteso ? (inV && t > 4 ? o.atteso.roll : null) : 0;
+      if (r0 != null) peggio.roll = Math.max(peggio.roll, Math.abs(S.roll - r0));
+      peggio.pitch = Math.max(peggio.pitch, Math.abs(S.pitch - (o.pitch0 || 0)));
+      if (!o.atteso || (inV && t > 4)) peggio.aUp = Math.max(peggio.aUp, Math.abs(PH.vario.a));
+    }
+    if (Math.abs(t - 6) < 1e-9) fine = { roll: S.roll, pitch: S.pitch, src: PH.turnSrc };
+  }
+  const lim = o.limiti || { roll: 3, pitch: 3, aUp: 0.6 };
+  const ok = peggio.roll <= lim.roll && peggio.pitch <= lim.pitch && peggio.aUp <= lim.aUp;
+  console.log(`${ok ? 'OK  ' : 'FAIL'} ${nome.padEnd(58)} errore max: rollio ${peggio.roll.toFixed(1)}° · beccheggio ${peggio.pitch.toFixed(1)}° · acc. verticale ${peggio.aUp.toFixed(2)} m/s²` +
+    ` · a 6 s: ${fine.roll.toFixed(1)}° / ${fine.pitch.toFixed(1)}° (${fine.src})`);
+  return ok;
+}
+
+const P = [
+  ['Macchina, curva a destra 20°/s, giroscopio', { V: 15, virata: 20 }],
+  ['Macchina, curva a sinistra 20°/s, giroscopio', { V: 15, virata: -20 }],
+  ['Macchina, curva a destra, virata dal GPS (senza giroscopio)', { V: 15, virata: 20, senzaGiro: true }],
+  ['Macchina, curva a sinistra, virata dal GPS (senza giroscopio)', { V: 15, virata: -20, senzaGiro: true }],
+  ['Macchina, telefono in orizzontale (schermo 90°)', { V: 15, virata: 20, scr: 90 }],
+  ['Macchina, telefono in orizzontale (schermo 270°)', { V: 15, virata: 20, scr: 270 }],
+  ['Macchina, telefono inclinato 30° e livellato', { V: 15, virata: 20, mount: inclinato(30) }],
+  ['Aereo, virata coordinata a destra 30°, giroscopio', { V: 32, aereo: 30, atteso: { roll: 30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
+  ['Aereo, virata coordinata a sinistra 30°, giroscopio', { V: 32, aereo: -30, atteso: { roll: -30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
+  ['Aereo, virata coordinata a destra 30°, virata dal GPS', { V: 32, aereo: 30, senzaGiro: true, atteso: { roll: 30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
+  ['Aereo, virata coordinata a sinistra 30°, virata dal GPS', { V: 32, aereo: -30, senzaGiro: true, atteso: { roll: -30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
+];
+let tutti = true; for (const [n, o] of P) tutti = prova(n, o) && tutti;
+console.log(tutti ? '\nTutte le prove dell\'assetto passano.' : '\nAlmeno una prova dell\'assetto NON passa.');
+process.exit(tutti ? 0 : 1);

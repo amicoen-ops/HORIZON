@@ -175,3 +175,29 @@ Passi nella Play Console (una volta sola):
 Commissione di Google sugli abbonamenti: 15%. Il prezzo comprende l'IVA, che Google versa per te. Su 30 €: circa 5,41 € di IVA, 3,69 € di commissione, a te circa 20,90 € a cliente all'anno. Per la dichiarazione dei guadagni senti il tuo commercialista.
 
 Attenzione: finché l'APK di GitHub e la versione web restano gratuite, chi le trova può usare l'app senza abbonamento. Quando la versione del Play Store è pubblicata conviene togliere l'APK pubblico, oppure attivare anche lì la licenza (per esempio con Polar.sh).
+
+## 7. Caricamento automatico per i tester (Test interni)
+
+Da quando è attivo, ogni compilazione su `main` carica da sola il file `.aab` nel canale **Test interni** della Play Console: i tester ricevono l'aggiornamento dal Play Store, di solito in pochi minuti. La **Produzione** (tutti gli utenti) resta a mano: nella Play Console, dalla release dei test interni, *Promuovi release › Produzione*.
+
+Da fare una volta sola:
+1. **Google Cloud Console** (console.cloud.google.com), con lo stesso account Google della Play Console:
+   - crea un progetto, per esempio «horizon-play», oppure usane uno già esistente;
+   - *API e servizi › Libreria*: cerca **Google Play Android Developer API** e attivala;
+   - *IAM e amministrazione › Account di servizio › Crea account di servizio*: nome per esempio «github-play»; nessun ruolo da aggiungere qui;
+   - apri l'account appena creato › *Chiavi › Aggiungi chiave › Crea nuova chiave › JSON*: si scarica un file `.json`. **È una password**: non mandarlo per mail o in chat e non metterlo nel repository.
+2. **Play Console › Utenti e autorizzazioni › Invita nuovi utenti**:
+   - email: quella dell'account di servizio (finisce con `iam.gserviceaccount.com`);
+   - *Autorizzazioni app*: aggiungi HORIZON e spunta **Rilascia app nei canali di test**. Non serve altro;
+   - invia l'invito: per un account di servizio è attivo subito, a volte dopo qualche minuto.
+3. **GitHub › repository HORIZON › Settings › Secrets and variables › Actions › New repository secret**:
+   - nome: `PLAY_SERVICE_ACCOUNT_JSON`;
+   - valore: tutto il contenuto del file `.json` (aprilo con un editor di testo e copia tutto).
+4. Facoltativo, in *Variables*: `PLAY_STATUS` = `draft` se preferisci che la release arrivi in bozza e la avvii tu dalla Play Console. Senza la variabile parte subito (`completed`).
+
+Note di rilascio: il testo che leggono i tester è nel file `docs/play/novita/whatsnew-it-IT` (al massimo 500 caratteri). Aggiornalo insieme alle modifiche.
+
+Se il caricamento non riesce, la compilazione su GitHub diventa rossa ma APK e AAB restano comunque nella release di GitHub. Errori tipici:
+- «The caller does not have permission»: l'invito del punto 2 manca, o non ha il permesso sui canali di test, o non è ancora attivo.
+- «APK specifies a version code that has already been used»: quella versione era già stata caricata a mano; dalla compilazione successiva si risolve da solo.
+- «Only releases with status draft may be created on draft app»: l'app non è mai stata pubblicata in nessun canale. Imposta `PLAY_STATUS` = `draft` (punto 4).
