@@ -18,6 +18,7 @@ Testi, commenti, commit e risposte all'autore: **in italiano**, frasi semplici, 
 ## Compilazione e collaudo (GitHub Actions)
 - Push su `main` → `build-apk.yml`: prove dell'assetto, APK (canale `apk`), AAB per il Play Store (canale `play`, senza `REQUEST_INSTALL_PACKAGES`), APK di collaudo con il debug della WebView (artifact `apk-collaudo`, non va nelle Release).
 - Dopo la compilazione → `test-emulatore.yml`: installa `apk-collaudo` su un emulatore Android 14 e lo pilota via CDP (`tools/emu_test.sh`, `tools/emu_cdp.py`); i risultati finiscono in una issue «Collaudo emulatore».
+- In fondo a `build-apk.yml` il file `.aab` va da solo nel canale **Test interni** di Google Play (`r0adkll/upload-google-play`), se c'è il secret `PLAY_SERVICE_ACCOUNT_JSON`; note per i tester in `docs/play/novita/whatsnew-it-IT` (al massimo 500 caratteri). La Produzione resta a mano. Guida: `docs/play/SCHEDA-E-GUIDA.md`, capitolo 7.
 - `pubblica-web.yml`: sito GitHub Pages (iPhone, browser) con copia notturna degli spazi aerei openAIP.
 - Sul ramo di lavoro i workflow di compilazione non partono: le prove vere arrivano dopo l'unione in `main`.
 
