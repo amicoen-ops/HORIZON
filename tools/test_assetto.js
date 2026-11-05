@@ -120,7 +120,7 @@ let tutti = true; for (const [n, o] of P) tutti = prova(n, o) && tutti;
 // Si rigiocano nel codice vero con il riconoscimento degli assi acceso. Riferimento: l'assetto dal solo accelerometro
 // mediato su 1 s (il telefono è fermo o quasi). Dopo 9 s la stima deve stargli entro 8° di beccheggio e 15° di rollio.
 // Controprova: gli stessi dati riportati all'ordine standard (alpha = z, beta = x, gamma = y) non devono far cambiare l'ordine degli assi.
-function registrazione(file, rimetti) {
+function registrazione(file, rimetti, partenza) {
   const righe = fs.readFileSync(file, 'utf8').split('\n');
   const mont = JSON.parse((righe.find(l => /^# montaggio /.test(l)) || '# montaggio null').slice(12));
   const dati = righe.filter(l => l && l[0] !== '#').map(l => l.split(' ').map(Number));
@@ -130,7 +130,7 @@ function registrazione(file, rimetti) {
     trkRate: 0, trkRateT: -1e9, slipF: 0, hdg: 0, magInUse: () => false, mag: {}, act: m => log.push(m), vario: { predict() {} },
     ahrs: new app.PhMahony(), ahrsInit: false, attF: null };
   for (const k of ['GPERM', 'gyroRaw', 'gyroLearn']) PH[k] = app.giro[k];
-  PH.gmap = { p: 0, s: 1, fixed: false }; PH.gdet = { A: null, w: null, E: new Float64Array(12), n: 0, tt: 0 };
+  PH.gmap = Object.assign({ p: 0, s: 1, fixed: false }, partenza || {}); PH.gdet = { A: null, G: null, E: new Float64Array(12), n: 0, tt: 0, rot: 0 };
   PH.toBody = app.toBody; PH.onMotion = app.onMotion; app.bind(PH, S, LIVE);
   const acc = [];                                          // assetto dal solo accelerometro, mediato su 1 s
   let peggio = { roll: 0, pitch: 0 };
@@ -144,14 +144,42 @@ function registrazione(file, rimetti) {
       peggio.roll = Math.max(peggio.roll, Math.abs(angDiff(S.roll, ro))); peggio.pitch = Math.max(peggio.pitch, Math.abs(S.pitch - pi)); }
   }
   const cambi = log.filter(m => /giroscopio: assi/.test(m));
-  const ok = peggio.pitch <= 8 && peggio.roll <= 15 && (rimetti ? cambi.length === 0 : true);
-  console.log(`${ok ? 'OK  ' : 'FAIL'} ${(path.basename(file) + (rimetti ? ' (riportata agli assi standard)' : '')).padEnd(58)} scarto max dall'accelerometro dopo 9 s: rollio ${peggio.roll.toFixed(1)}° · beccheggio ${peggio.pitch.toFixed(1)}° · ${cambi.length ? cambi.join(', ') : 'assi invariati'}`);
+  // il segno del giroscopio non deve mai finire invertito: girando su sé stessi non lo si può distinguere
+  const ok = peggio.pitch <= 8 && peggio.roll <= 15 && (rimetti ? cambi.length === 0 : true) && PH.gmap.s === 1;
+  console.log(`${ok ? 'OK  ' : 'FAIL'} ${(path.basename(file) + (rimetti ? ' (riportata agli assi standard)' : '') + (partenza ? ' (da «αβγ invertiti»)' : '')).padEnd(58)} scarto max dall'accelerometro dopo 9 s: rollio ${peggio.roll.toFixed(1)}° · beccheggio ${peggio.pitch.toFixed(1)}° · ${cambi.length ? cambi.join(', ') : 'assi invariati'} · finale ${JSON.stringify(PH.gmap)}`);
   return ok;
 }
+// ---- segno del giroscopio: girando attorno alla verticale con il rumore di un telefono vero non deve mai invertirsi ----
+// (sulla 1.0.77 una finestra rumorosa bastava per invertirlo: in volo il rollio sarebbe andato dalla parte opposta)
+function provaSegno() {
+  let inv = 0, giri = 0;
+  for (let sd = 1; sd <= 10; sd++) {
+    const ctx = { D2R, R2D, clamp, angDiff, wrap360, performance, PH: {}, S: {}, LIVE: {} }, app = load(ctx);
+    const L = { GPERM: app.giro.GPERM, gyroLearn: app.giro.gyroLearn, gmap: { p: 0, s: 1, fixed: false }, gdet: { A: null, G: null, E: new Float64Array(12), n: 0, tt: 0, rot: 0 }, act: () => {} };
+    PH = L; app.bind(PH, {}, {});
+    let seme = sd * 7919; const rnd = () => (seme = (seme * 16807) % 2147483647) / 2147483647;
+    const gs = () => { let u = 0, v = 0; while (!u) u = rnd(); while (!v) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const q = x => Math.round(x * 10) / 10;                // accelerometro arrotondato a 0,1 m/s² (Samsung S23 FE)
+    let s0 = 1;
+    for (let i = 0; i < 60 * 60; i++) { const t = i / 60, w = 60 * 2 * Math.PI * 0.3 * Math.cos(2 * Math.PI * 0.3 * t);
+      PH.gyroLearn([q(0.3 * gs()), q(9.7 + 0.1 * gs()), q(1 + 0.3 * gs())],
+        { alpha: 8 * Math.cos(t * 2.3) + 3 * gs(), beta: 8 * Math.sin(t * 1.7) + 3 * gs(), gamma: w + 3 * gs() }, 1 / 60);
+      if (PH.gmap.s !== s0) { giri++; s0 = PH.gmap.s; } }
+    if (PH.gmap.s < 0) inv++;
+  }
+  const ok = giri === 0;
+  console.log(`${ok ? 'OK  ' : 'FAIL'} ${'Segno del giroscopio, 10 minuti girando attorno alla verticale'.padEnd(58)} inversioni del segno: ${giri} · finite invertite: ${inv}`);
+  return ok;
+}
+tutti = provaSegno() && tutti;
+
 const dirReg = path.join(__dirname, 'registrazioni');
 if (fs.existsSync(dirReg)) for (const f of fs.readdirSync(dirReg).filter(f => f.endsWith('.txt')).sort()) {
   tutti = registrazione(path.join(dirReg, f), false) && tutti;
-  if (/scambiati/.test(fs.readFileSync(path.join(dirReg, f), 'utf8').slice(0, 400))) tutti = registrazione(path.join(dirReg, f), true) && tutti;
+  if (/scambiati/.test(fs.readFileSync(path.join(dirReg, f), 'utf8').slice(0, 400))) {
+    tutti = registrazione(path.join(dirReg, f), true) && tutti;
+    tutti = registrazione(path.join(dirReg, f), false, { p: 2, s: -1, fixed: false }) && tutti;   // come il telefono dopo la 1.0.77
+  }
 }
 console.log(tutti ? '\nTutte le prove dell\'assetto passano.' : '\nAlmeno una prova dell\'assetto NON passa.');
 process.exit(tutti ? 0 : 1);

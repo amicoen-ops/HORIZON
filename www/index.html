@@ -2278,18 +2278,27 @@ PH.gyroLearn=function(a,r,dt){
   if(D.rot>0.15){ for(let q=0;q<12;q++){ const G=D.G[q]; D.E[q]+=Math.hypot(G[0]-D.A[0],G[1]-D.A[1],G[2]-D.A[2]); } D.n++; }   // almeno ~9° di rotazione
   D.G=null;
   if(D.n<4) return;                                                      // 4 mezzi secondi di rotazione vera
+  D.k=(D.k||0)+1;                                                        // decisioni con prove accumulate
   const fam=[0,1,2,3,4,5].map(p=>[Math.min(D.E[p*2],D.E[p*2+1]),p]).sort((x,y)=>x[0]-y[0]);
+  // a pari merito (entro il 30%: succede girando attorno a un asse solo) vince l'ordine più probabile:
+  // prima lo standard, poi alpha, beta, gamma = x, y, z (quello di alcuni WebView Android, come il Samsung S23 FE)
+  const RANGO=[0,2,1,3,4,5]; if(fam[1][0]<1.3*fam[0][0] && RANGO.indexOf(fam[1][1])<RANGO.indexOf(fam[0][1])) fam.splice(0,2,fam[1],fam[0]);
   const cp=PH.gmap.p, eCur=D.E[cp*2+(PH.gmap.s<0?1:0)], bad=fam[0][0]<0.5*eCur;   // l'ordine in uso spiega male la rotazione vista
   const usa=(p,s,fixed)=>{ const changed=p!==PH.gmap.p||s!==PH.gmap.s; PH.gmap={p,s,fixed}; lsSet('ia517p_gmap',PH.gmap);
     if(changed){ PH.ahrsInit=false; PH.attF=null; PH.act&&PH.act('giroscopio: assi '+(p===0?'standard':'nell\'ordine '+PH.GPERM[p].map(i=>'αβγ'[i]).join(''))+(s<0?', segno invertito':'')); } };
-  if(PH.gmap.fixed){ if(bad) usa(fam[0][1],D.E[fam[0][1]*2]<=D.E[fam[0][1]*2+1]?1:-1,false); }   // riconosciuti ma smentiti: si rimette in verifica
-  else if(fam[0][0]<0.7*fam[1][0]){ const p=fam[0][1], e0=D.E[p*2], e1=D.E[p*2+1], sOk=Math.min(e0,e1)<0.85*Math.max(e0,e1);
-    usa(p,sOk?(e0<=e1?1:-1):(PH.gmap.p===p?PH.gmap.s:1),sOk); }
+  // segno: si cambia solo con una prova netta (errore meno di 0,6 volte l'altro) su prove accumulate; girando attorno alla
+  // verticale i due segni sono pari e il segno resta quello che era (prima bastava una finestra rumorosa per invertirlo)
+  const segno=p=>{ const e0=D.E[p*2], e1=D.E[p*2+1]; return Math.min(e0,e1)<0.6*Math.max(e0,e1)?(e0<=e1?1:-1):0; };
+  const sTieni=p=>segno(p)||(PH.gmap.p===p?PH.gmap.s:1);
+  if(PH.gmap.fixed){ if(bad) usa(fam[0][1],sTieni(fam[0][1]),false); }   // riconosciuti ma smentiti: si rimette in verifica
+  else if(fam[0][0]<0.7*fam[1][0]){ const p=fam[0][1]; usa(p,sTieni(p),!!segno(p) && D.k>=3); }
   // rotazione su un asse solo (per esempio il telefono girato sul tavolo attorno alla verticale): due ordini la spiegano
   // allo stesso modo e prima non se ne sceglieva nessuno, così con gli assi sbagliati la rotazione finiva sul beccheggio
   // per tutto il tempo. Se quello in uso è chiaramente peggio, si passa al migliore e si continua a verificare.
   else if(bad && fam[0][1]!==cp) usa(fam[0][1],PH.gmap.s,false);
-  D.E.fill(0); D.n=0; };
+  // pari merito con l'ordine in uso ma più probabile: si passa a quello (una volta sola, poi resta)
+  else if(fam[0][1]!==cp && fam[0][0]<=1.3*Math.min(D.E[cp*2],D.E[cp*2+1]) && RANGO.indexOf(fam[0][1])<RANGO.indexOf(cp)) usa(fam[0][1],PH.gmap.s,false);
+  for(let q=0;q<12;q++) D.E[q]*=0.6; D.n=0; };                          // le prove vecchie pesano sempre meno, ma restano
 PH.gyroTxt=function(){ const g=PH.gmap; return (g.p===0?'assi standard':'assi '+PH.GPERM[g.p].map(i=>'αβγ'[i]).join(''))+(g.s<0?' invertiti':'')+(g.fixed?' (riconosciuti)':' (in verifica: gira il telefono)'); };
 // ---- registrazione dei sensori: dati grezzi di 20 s, per rifare a casa quello che il telefono ha visto ----
 // Una riga per evento: ms dall'inizio, passo di tempo usato, accelerometro x y z (m/s², come arriva), giroscopio alpha beta gamma (°/s, come arriva),
