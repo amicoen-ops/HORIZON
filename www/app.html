@@ -2374,6 +2374,22 @@ async function pvBest(manual){
   catch(e){ PV.msg=PV.abort?'':'Calcolo non riuscito: '+e.message; }
   finally{ RD.on=false; RD.busy=false; PV.busy=false; PV.abort=false; PV.autoDone=PV.sig(); renderPV(); if(PV.openAfter){ PV.openAfter=false; setTimeout(rdOpen,50); } }
 }
+// DIRECT TO dallo strumento: stesso calcolo di «Calcola rotta» (zone vietate per il tipo di volo, valli, vento) da dove
+// si è adesso al campo scelto, con la quota sicura tratta per tratta. Non tocca il piano e non apre l'editor.
+// Risponde null se il calcolo non si può fare adesso (editor aperto o un altro calcolo in corso).
+window.IA517_dctRoute=async function(from,dest){
+  if(RD.on || (typeof PV!=='undefined' && PV.busy)) return null;
+  const f=byId(dest.id)||{id:dest.id,short:dest.short,name:dest.name||dest.short,lat:dest.lat,lon:dest.lon};
+  rdBuild(); RD.pts=[{lat:from.lat,lon:from.lon,f:null,name:'QUI'},{lat:f.lat,lon:f.lon,f}]; RD.hist=[]; RD.on=true; RD.msg='';
+  try{
+    await rdAvoidAll();
+    for(let i=0;i<20 && RD.pending;i++){ await new Promise(r=>setTimeout(r,500)); rdAnalyze(); }     // quote del terreno in arrivo
+    const left=new Set(); RD.info.forEach(l=>l.hits.forEach(h=>{ if(h.avoid) left.add(`${h.a.cls} ${h.a.name}`); }));
+    return { wps:RD.pts.map((p,i)=>({id:i===0?'QUI':(p.f?p.f.id:'DCT'+i),name:i===0?'QUI':(p.f?(p.f.short||p.f.name):p.name),lat:p.lat,lon:p.lon,
+               field:!!(p.f&&i===RD.pts.length-1),altFt:i>0&&RD.info[i-1]?RD.info[i-1].altFt:null})),
+             zone:[...left], msg:RD.msg||'', cruiseFt:PLAN.cruiseFt, profilo:rdProf() };
+  } finally { RD.on=false; RD.busy=false; }
+};
 function pvAutoCheck(){
   if(PV.first===undefined){ PV.first=PV.sig(); PV.autoDone=PV.first; return; }                // all'avvio: il piano salvato resta com'è
   let vis=true; try{ const sh=parent.document.getElementById('phPiano'); vis=!sh||!sh.hidden; }catch(e){}

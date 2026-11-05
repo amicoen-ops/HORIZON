@@ -1556,7 +1556,7 @@ function push(){
   if(menuEl.hidden){ sel=0; openMain(); return; }
   const it=items[sel];
   if(it.t==='adj'){ if(EDIT===it.key){ EDIT=null; adjustDone(it.key); } else EDIT=it.key; items=mainItems(); renderMenu(); return; }
-  if(it.t==='field'){ if(menuMode==='build'){ buildAdd(it.f); return; } directTo(it.f); closeMenu(); return; }
+  if(it.t==='field'){ if(menuMode==='build'){ buildAdd(it.f); return; } if(PH&&PH.dctSmart) PH.dctSmart(it.f); else directTo(it.f); closeMenu(); return; }
   if(it.t==='route'){ activateRoute(it.r); closeMenu(); return; }
   const keep=it.fn();
   if(keep && menuMode==='main'){ items=mainItems(); renderMenu(); }
@@ -2725,6 +2725,31 @@ PH.checkTerrain=function(){
 };
 PH.pip=function(p,poly){ let ins=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i], b=poly[j];
   if(((a.lat>p.lat)!==(b.lat>p.lat)) && (p.lon<(b.lon-a.lon)*(p.lat-a.lat)/(b.lat-a.lat)+a.lon)) ins=!ins; } return ins; };
+// DIRECT TO «intelligente»: subito la linea diritta (la guida parte senza aspettare), intanto il Piano calcola la rotta
+// come «Calcola rotta» (intorno alle zone vietate per il tipo di volo, CTR e R comprese, dalle valli, col vento) e la quota
+// sicura tratta per tratta. Se serve una deviazione la rotta diventa quella; se no resta il diretto, alla quota migliore.
+PH.dctSmart=function(f,quiet){
+  if(!f) return; if(!quiet) directTo(f);
+  const id=(PH.dctN=(PH.dctN||0)+1), w=(()=>{ try{ return el('phAppFrame').contentWindow; }catch(e){ return null; } })();
+  if(!w || !w.IA517_dctRoute){ PH.act&&PH.act('direct to senza calcolo rotta: piano non pronto'); return; }
+  if(!quiet) toast('DIRECT TO '+f.short+' · CALCOLO LA ROTTA');
+  const from={lat:S.lat,lon:S.lon};
+  Promise.resolve(w.IA517_dctRoute(from,{id:f.id,short:f.short,name:f.name,lat:f.lat,lon:f.lon})).then(R=>{
+    if(id!==PH.dctN || NAV.dest!==f && !(NAV.route&&NAV.route.r&&NAV.route.r.dct===f.id)) return;   // nel frattempo si è scelto altro
+    if(!R || !R.wps || R.wps.length<2){ PH.act&&PH.act('direct to: calcolo rotta non disponibile'); return; }
+    const alts=R.wps.slice(1).map(p=>p.altFt).filter(x=>x!=null), zone=R.zone&&R.zone.length?' · ATTENZIONE: '+R.zone.slice(0,2).join(', '):'';
+    if(R.wps.length>2){
+      const r={id:'DCT-'+f.id,dct:f.id,name:'→ '+f.short,cruiseFt:R.cruiseFt,wps:R.wps.map((p,i)=>i===R.wps.length-1?Object.assign({},p,{id:f.id,field:true}):p)};
+      activateRoute(r,1);
+      toast(`DIRECT TO ${f.short} · DEVIAZIONE: ${R.wps.length-2} ${R.wps.length-2===1?'PUNTO':'PUNTI'} · ${alts[0]!=null?alts[0]+' FT':''}${zone}`);
+      PH.act&&PH.act(`direct to ${f.short}: rotta calcolata ${R.wps.length-2} punti, quote ${alts.join('/')}`);
+    } else {
+      if(alts[0]!=null) NAV.altTgt=alts[0]; saveNav();
+      toast(`DIRECT TO ${f.short} · DIRITTO LIBERO${alts[0]!=null?' · '+alts[0]+' FT':''}${zone}`);
+      PH.act&&PH.act(`direct to ${f.short}: diritto libero, quota ${alts[0]}`);
+    }
+  }).catch(e=>{ PH.act&&PH.act('direct to: calcolo rotta non riuscito '+String(e&&e.message||e).slice(0,60)); });
+};
 PH.aspList=function(){ try{ const w=el('phAppFrame').contentWindow; if(w && w.IA517_asp) return w.IA517_asp(); }catch(e){} return []; };
 PH.checkAirspace=function(){
   if(!(PH.sim || (PH.flight && S.gpsReal && !PH.demo))) return;
@@ -3335,7 +3360,7 @@ PH.simStart=function(cfg){
   S.alt=Math.max(((gz===gz?gz:250)+300)/FT2M, Math.min(+cfg.ft||2500,((gz===gz?gz:250)+300)/FT2M+500));   // si parte in volo, circa 1000 ft sul terreno
   S.ias=SIM_CRUISE; S.pitch=2; S.roll=0; S.vs=0; S.slip=0;
   if(r){ const rc=Object.assign({},r,{cruiseFt:+cfg.ft||r.cruiseFt||2500}); S.hdg=distBrg(start,r.wps[first]).brg; activateRoute(rc,first); }
-  else { S.hdg=distBrg(start,f).brg; directTo(f,+cfg.ft||2500); }
+  else { S.hdg=distBrg(start,f).brg; directTo(f,+cfg.ft||2500); PH.dctSmart(f,true); }
   S.trk=S.hdg; PH.hdg=S.hdg; MR.zi=-1;
   PH.act('simula '+name);
   PH.show('volo');
@@ -3618,7 +3643,7 @@ PH.fuelRender=function(){
   FU.wire(list,FIELDS,{onChange:()=>{ PH.fuelRender(); try{ const w=el('phAppFrame').contentWindow; w.renderFuelAlt&&w.renderFuelAlt(); }catch(e){} },
     onRow:(fid,row,act)=>{ const f=FIELDS.find(x=>x.id===fid);
       act.innerHTML=(f?'<button type="button" class="fu-b pri" data-a="go">Vai diretto</button>':'')+'<button type="button" class="fu-b" data-a="mark">Correggi il carburante</button>';
-      const g=act.querySelector('[data-a=go]'); if(g) g.onclick=()=>{ directTo(f,null); PH.act&&PH.act('diretto per carburante '+f.short); toast('DIRETTO · '+f.short); PH.show('volo'); };
+      const g=act.querySelector('[data-a=go]'); if(g) g.onclick=()=>{ PH.dctSmart(f); PH.act&&PH.act('diretto per carburante '+f.short); toast('DIRETTO · '+f.short); PH.show('volo'); };
       act.querySelector('[data-a=mark]').onclick=()=>{ const q=list.querySelector('.fu-q'); q.value=f?`${f.name} · ${f.short}`:''; q.dispatchEvent(new Event('change')); q.scrollIntoView({block:'center'}); }; }});
 };
 PH.fuelOpen=function(){ PH.act&&PH.act('apri carburante'); PH.fuelRender(); clearInterval(PH.fuelT); PH.fuelT=setInterval(PH.fuelRender,15000); };
