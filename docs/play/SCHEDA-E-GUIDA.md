@@ -147,7 +147,7 @@ Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sost
 | `tablet-1-orizzonte-e-mappa.png` | Schermata per tablet da 10 pollici (2560 × 1600) |
 
 
-## 6. Abbonamento annuale da 20 € (licenza d'uso)
+## 6. Abbonamento annuale da 30 € (licenza d'uso)
 
 Come funziona nell'app (versione Play Store):
 - 30 giorni di prova senza carta dal primo avvio; avvisi negli ultimi 7 giorni.
