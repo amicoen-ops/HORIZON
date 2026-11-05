@@ -119,7 +119,7 @@ let tutti = true; for (const [n, o] of P) tutti = prova(n, o) && tutti;
 // ---- registrazioni vere (Impostazioni › Registra 20 s e invia), in tools/registrazioni ----
 // Si rigiocano nel codice vero con il riconoscimento degli assi acceso. Riferimento: l'assetto dal solo accelerometro
 // mediato su 1 s (il telefono è fermo o quasi). Dopo 9 s la stima deve stargli entro 8° di beccheggio e 15° di rollio.
-// Controprova: gli stessi dati con beta e gamma rimessi in ordine non devono far cambiare l'ordine degli assi.
+// Controprova: gli stessi dati riportati all'ordine standard (alpha = z, beta = x, gamma = y) non devono far cambiare l'ordine degli assi.
 function registrazione(file, rimetti) {
   const righe = fs.readFileSync(file, 'utf8').split('\n');
   const mont = JSON.parse((righe.find(l => /^# montaggio /.test(l)) || '# montaggio null').slice(12));
@@ -135,7 +135,7 @@ function registrazione(file, rimetti) {
   const acc = [];                                          // assetto dal solo accelerometro, mediato su 1 s
   let peggio = { roll: 0, pitch: 0 };
   for (const r of dati) {
-    T = r[0]; const g = rimetti ? [r[5], r[7], r[6]] : [r[5], r[6], r[7]];
+    T = r[0]; const g = rimetti ? [r[7], r[5], r[6]] : [r[5], r[6], r[7]];   // telefono: alpha, beta, gamma = x, y, z
     PH.onMotion({ accelerationIncludingGravity: { x: r[2], y: r[3], z: r[4] }, rotationRate: { alpha: g[0], beta: g[1], gamma: g[2] }, interval: 0.016, timeStamp: T });
     const fb = PH.toBody([r[2], r[3], r[4]]).map(x => x / G);
     acc.push([T, Math.atan2(-fb[1], -fb[2]) * R2D, Math.atan2(fb[0], Math.hypot(fb[1], fb[2])) * R2D]);
@@ -145,7 +145,7 @@ function registrazione(file, rimetti) {
   }
   const cambi = log.filter(m => /giroscopio: assi/.test(m));
   const ok = peggio.pitch <= 8 && peggio.roll <= 15 && (rimetti ? cambi.length === 0 : true);
-  console.log(`${ok ? 'OK  ' : 'FAIL'} ${(path.basename(file) + (rimetti ? ' (assi rimessi in ordine)' : '')).padEnd(58)} scarto max dall'accelerometro dopo 9 s: rollio ${peggio.roll.toFixed(1)}° · beccheggio ${peggio.pitch.toFixed(1)}° · ${cambi.length ? cambi.join(', ') : 'assi invariati'}`);
+  console.log(`${ok ? 'OK  ' : 'FAIL'} ${(path.basename(file) + (rimetti ? ' (riportata agli assi standard)' : '')).padEnd(58)} scarto max dall'accelerometro dopo 9 s: rollio ${peggio.roll.toFixed(1)}° · beccheggio ${peggio.pitch.toFixed(1)}° · ${cambi.length ? cambi.join(', ') : 'assi invariati'}`);
   return ok;
 }
 const dirReg = path.join(__dirname, 'registrazioni');
