@@ -1698,6 +1698,7 @@ function onLink(m){
 // ---------------- campi dell'utente e note dei campi ----------------
 KIND_TXT.wp='punto'; KIND_COL.wp='#ff9cf0';
 const BASE_FIELDS=FIELDS.slice(), BASE_INFO=JSON.parse(JSON.stringify(FIELD_INFO));
+const PISTE_PILOTI={n:0,data:null};   // piste entrate dall'archivio comune (le aggiorna tools/piste_piloti.py)
 let USER_FIELDS=[];
 function makeField(u){
   const f={id:String(u.id),short:String(u.short||u.id).toUpperCase().slice(0,14),name:String(u.name||u.short||u.id),
@@ -1845,9 +1846,9 @@ function restoreNav(st,local){
 
 // ---------------- conferme con la manopola ----------------
 let PROMPT=null;
-function askShow(text,yes,secs){ PROMPT={text,yes,until:performance.now()+(secs||25)*1000}; el('promptT').textContent=text; el('prompt').hidden=false; }
+function askShow(text,yes,secs,no){ PROMPT={text,yes,no,until:performance.now()+(secs||25)*1000}; el('promptT').textContent=text; el('prompt').hidden=false; }
 function promptAnswer(ok){ const p=PROMPT; PROMPT=null; el('prompt').hidden=true;
-  if(p && ok){ try{ p.yes(); }catch(e){ console.error(e); toast('OPERAZIONE NON RIUSCITA'); } } else if(p) toast('IGNORATO'); }
+  if(p && ok){ try{ p.yes(); }catch(e){ console.error(e); toast('OPERAZIONE NON RIUSCITA'); } } else if(p){ try{ p.no&&p.no(); }catch(e){} toast('IGNORATO'); } }
 function offerRoute(r,src){
   if(!r||!Array.isArray(r.wps)||!r.wps.length) return;
   setRoutes(ROUTES.filter(x=>x.id!==r.id).concat([r]));
@@ -1871,8 +1872,8 @@ function learnUpdate(dt){
   LB.buf.push({t:now,lat:S.lat,lon:S.lon,gs,trk:S.trk,alt:S.alt});
   while(LB.buf.length && now-LB.buf[0].t>150) LB.buf.shift();
   const prev=LB.buf.length>1?LB.buf[LB.buf.length-2].gs:gs;
-  if(prev<60 && gs>=60 && now-LB.lastLow<90) learnPropose(LB.buf.filter(p=>p.t>=LB.lastLow&&p.gs>=12),'DECOLLO');
-  if(prev>12 && gs<=12 && now-LB.lastHigh<90) learnPropose(LB.buf.filter(p=>p.t>=LB.lastHigh&&p.gs>=12),'ATTERRAGGIO');
+  if(prev<60 && gs>=60 && now-LB.lastLow<90){ learnPropose(LB.buf.filter(p=>p.t>=LB.lastLow&&p.gs>=12),'DECOLLO'); if(PH&&PH.contaCampo) PH.contaCampo('d'); }
+  if(prev>12 && gs<=12 && now-LB.lastHigh<90){ learnPropose(LB.buf.filter(p=>p.t>=LB.lastHigh&&p.gs>=12),'ATTERRAGGIO'); if(PH&&PH.contaCampo) PH.contaCampo('a'); }
   if(gs<12) LB.lastLow=now;
   if(gs>45) LB.lastHigh=now;
 }
@@ -1897,7 +1898,8 @@ function learnPropose(seg,kind){
     lat:+mid.lat.toFixed(6),lon:+mid.lon.toFixed(6),elevFt:elev,kind:'ulm',runways:[rw],source:'rilevato'};
   LB.asked=performance.now()/1000;
   ask(`NUOVA PISTA ${le}/${he} · ${len} m · ${elev} ft${near?' · '+near.short:''} (DAL ${kind})`,
-      ()=>{ addUserField(u); toast('PISTA SALVATA '+u.short+' '+le+'/'+he); },30);
+      ()=>{ addUserField(u); toast('PISTA SALVATA '+u.short+' '+le+'/'+he);
+        if(PH&&PH.pistaChiedi) setTimeout(()=>PH.pistaChiedi(u,rw,kind,near,mid),2500); },30);
 }
 
 // HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
@@ -2065,7 +2067,7 @@ function renderMenuPos(){
 function linkStart(){ LINK.ok=true; }
 function linkSend(o){ if(PH) PH.fromPfd(o); return true; }
 function toast(msg){ toastShow(msg); if(PH) PH.voiceToast(msg); }
-function ask(text,yes,secs){ askShow(text,yes,secs); if(PH){ PH.say(text,true); PH.buzz([80,60,80]); } }
+function ask(text,yes,secs,no){ askShow(text,yes,secs,no); if(PH){ PH.say(text,true); PH.buzz([80,60,80]); } }
 function buildApproach(f,pick,ac){
   const A=buildApproachBase(f,pick,ac);
   if(f.elevUnknown && !A.warn) A.warn='QUOTA CAMPO NON NOTA · GUIDA VERTICALE INDICATIVA';
@@ -2303,6 +2305,48 @@ PH.gyroTxt=function(){ const g=PH.gmap; return (g.p===0?'assi standard':'assi '+
 // ---- registrazione dei sensori: dati grezzi di 20 s, per rifare a casa quello che il telefono ha visto ----
 // Una riga per evento: ms dall'inizio, passo di tempo usato, accelerometro x y z (m/s², come arriva), giroscopio alpha beta gamma (°/s, come arriva),
 // rollio e beccheggio mostrati, accelerazione verticale del vario, fonte della virata. Va per posta con la segnalazione, insieme allo stato.
+// ---- archivio comune: piste rilevate e campi usati (anonimi, con il consenso del pilota) ----
+// Viaggiano con lo stesso canale delle segnalazioni (Web3Forms → posta dello sviluppatore, etichetta «HORIZON App/Segnalazioni»),
+// su una riga «HORIZON-PISTA {…}» o «HORIZON-CAMPI {…}» che tools/piste_piloti.py legge. Senza rete restano in coda.
+PH.anonId=function(){ let a=lsGet('ia517p_anon',null); if(!a){ a=Array.from(crypto.getRandomValues(new Uint8Array(4)),b=>b.toString(16).padStart(2,'0')).join('').toUpperCase(); lsSet('ia517p_anon',a); } return a; };
+PH.condividi=async function(tipo,dati,testo){
+  const rep={kind:tipo==='PISTA'?'Pista rilevata':'Campi usati',text:testo,reply:'',t:Date.now(),
+    diag:'HORIZON-'+tipo+' '+JSON.stringify(Object.assign({v:1,dev:PH.anonId(),app:PH.version().version},dati))};
+  try{ await PH.sendReport(rep); return true; }catch(e){ PH.reports.push(rep); lsSet('ia517p_reports',PH.reports); return false; } };
+// le domande sulla condivisione non si fanno mai in volo: aspettano l'aereo fermo a terra e nessun'altra domanda aperta
+PH.domande=[];
+PH.aTerra=function(fn){ PH.domande.push(fn); PH.domandeVia(); };
+PH.domandeVia=function(){ if(PH.domande.length && !PROMPT && !PH_air() && (+S.gs||0)<15) PH.domande.shift()(); };
+setInterval(()=>{ try{ PH.domandeVia(); }catch(e){} },5000);
+PH.pistaChiedi=function(u,rw,kind,near,mid){ PH.aTerra(()=>
+  ask(`CONDIVIDI LA PISTA ${rw.le}/${rw.he} CON GLI ALTRI PILOTI? (ANONIMO)`,async()=>{
+    const d={campo:near?near.id:null,sigla:near?near.short:null,nome:near?near.name:null,lat:+mid.lat.toFixed(5),lon:+mid.lon.toFixed(5),
+      le:rw.le,he:rw.he,hdg:rw.hdg,len:rw.len,elev:u.elevFt,da:kind==='DECOLLO'?'d':'a'};
+    const ok=await PH.condividi('PISTA',d,`Pista ${rw.le}/${rw.he} · ${rw.len} m${near?' · '+near.short:''}`);
+    const L=lsGet('ia517p_piste_inviate',[])||[]; L.push({t:Date.now(),le:rw.le,he:rw.he,campo:d.campo}); lsSet('ia517p_piste_inviate',L.slice(-100));
+    toast(ok?'PISTA CONDIVISA, GRAZIE':'PISTA IN CODA: PARTE CON LA RETE'); },30));
+};
+// consenso al conteggio: chiesto una volta al primo campo, poi si cambia in Impostazioni › Condivisione anonima
+PH.contaOk=()=>lsGet('ia517p_conta',null);
+PH.contaCampo=function(tipo){
+  if(PH.demo||PH.sim||!S.gpsReal) return;
+  const f=FIELDS.filter(x=>x.kind!=='wp').map(x=>({x,d:distBrg(S,x).d})).sort((a,b)=>a.d-b.d)[0];
+  if(!f||f.d>1500) return;
+  const segna=()=>{ const C=lsGet('ia517p_conta_dati',null)||{dal:Date.now(),campi:{}}; const c=C.campi[f.x.id]||(C.campi[f.x.id]={d:0,a:0}); c[tipo]++; lsSet('ia517p_conta_dati',C); };
+  const ok=PH.contaOk();
+  if(ok===true) segna();
+  else if(ok===null && !PH.contaChiesto){ PH.contaChiesto=1;
+    PH.aTerra(()=>ask('CONTEGGIO ANONIMO DEI CAMPI USATI? AIUTA A MIGLIORARE LE MAPPE',()=>{ lsSet('ia517p_conta',true); segna(); },30,()=>{ PH.contaChiesto=0; lsSet('ia517p_conta',false); })); }
+};
+// una volta alla settimana, a terra e con la rete, il conteggio parte in una sola mail
+PH.contaInvia=async function(){
+  if(PH.contaOk()!==true || !navigator.onLine || PH.flight) return;
+  const C=lsGet('ia517p_conta_dati',null); if(!C||!Object.keys(C.campi).length||Date.now()-C.dal<7*864e5) return;
+  const n=Object.values(C.campi).reduce((s,c)=>s+c.d+c.a,0);
+  await PH.condividi('CAMPI',{dal:new Date(C.dal).toISOString().slice(0,10),al:new Date().toISOString().slice(0,10),campi:C.campi},`Campi usati: ${Object.keys(C.campi).length} campi, ${n} movimenti`);
+  lsSet('ia517p_conta_dati',null);
+};
+setTimeout(()=>{ try{ PH.contaInvia(); }catch(e){} },20000); setInterval(()=>{ try{ PH.contaInvia(); }catch(e){} },3600e3);
 PH.recState=null;                          // {fase:'rec'|'invio'|'ok'|'file'|'err', fine, testo}: resta anche se si cambia pagina
 PH.recStart=function(sec){ if(PH.rec) return;
   PH.rec={t0:performance.now(),end:performance.now()+sec*1000,rows:[],
@@ -2947,6 +2991,7 @@ PH.status=function(){
     [PH.altCal?'ok':'warn','Quota GPS',PH.altCal?`tarata a ${PH.altCal.field}`:'geoide '+PH.geoid+' m, non tarata'],
     [PH.dem.size?'ok':'warn','Terreno (DEM)',PH.dem.size?`${PH.dem.size} riquadri in memoria`:'non ancora scaricato'],
     [navigator.onLine?'ok':'warn','Internet',navigator.onLine?'sì':'no: si vola con i dati salvati'],
+    ['ok','Campi volo',`${BASE_FIELDS.length} · piste dai piloti ${PISTE_PILOTI.n}${PISTE_PILOTI.data?' · aggiornate il '+PISTE_PILOTI.data:''}`],
     ['ok','Dati salvati',`${USER_FIELDS.length} campi tuoi · ${ROUTES.length} rotte`],
   ];
   return {version:'telefono',rows,fields:USER_FIELDS.length,routes:ROUTES.length,
@@ -3114,6 +3159,10 @@ PH.renderImp=function(){
   const box=el('phImpBody'), on=v=>v?'checked':'';
   box.innerHTML=`
   <section><h3>Stato</h3><div id="phImpStat"></div></section>
+  <section><h3>Condivisione anonima</h3>
+    <p class="ph-sub">Le piste che l'app rileva ai decolli e agli atterraggi, se scegli di condividerle, vanno in un archivio comune: una pista vista uguale da almeno 3 telefoni entra nelle mappe di tutti, le altre dopo il controllo dello sviluppatore. Il conteggio dei campi usati dice quali sono i più frequentati. Si manda solo il campo, la pista e un codice casuale del telefono: niente nome, niente tracce, niente orari dei voli.</p>
+    <label class="ph-chk"><input type="checkbox" id="phContaOn" ${PH.contaOk()===true?'checked':''}> Conteggio anonimo dei campi usati (decolli e atterraggi, inviato una volta alla settimana)</label>
+    <p class="ph-sub">Piste condivise da questo telefono: ${(lsGet('ia517p_piste_inviate',[])||[]).length}. Le piste si condividono una per una: l'app lo chiede dopo averle salvate.</p></section>
   <section><h3>Registrazione dei sensori</h3>
     <p class="ph-sub">Se l'orizzonte fa qualcosa di strano: tocca il pulsante, torna su VOLO e ripeti il movimento per 20 secondi. Alla fine l'app avvisa a voce e a schermo e manda i dati grezzi del telefono per posta allo sviluppatore, che può rifare la stessa prova al computer. Se l'invio non riesce si apre la condivisione: scegli Gmail. Non contengono la posizione.</p>
     <div class="ph-btns"><button class="ph-btn" id="phRecGo">Registra 20 s e invia</button></div><p class="ph-sub" id="phRecMsg"></p></section>
@@ -3182,6 +3231,7 @@ PH.renderImp=function(){
   <section><h3>Avvertenza</h3><p class="ph-sub">Strumento sperimentale per la consapevolezza della situazione, non certificato. Assetto dai sensori del telefono, velocità e quota dal GPS: nessuna velocità indicata vera, nessun altimetro barometrico. In volo valgono gli strumenti di bordo, la vista fuori, la manica a vento e la radio.</p></section>`;
   const stat=()=>{ const s=PH.status(); el('phImpStat').innerHTML=s.rows.map(([c,a,b])=>`<div class="ph-row"><span><i class="dot ${c}"></i>${a}</span><small>${b}</small></div>`).join(''); };
   if(el('phRecGo')) el('phRecGo').onclick=()=>PH.recStart(20);
+  if(el('phContaOn')) el('phContaOn').onchange=e=>{ lsSet('ia517p_conta',e.target.checked); toast(e.target.checked?'CONTEGGIO CAMPI ATTIVO':'CONTEGGIO CAMPI SPENTO'); };
   PH.recUi();
   stat(); clearInterval(PH.impT); PH.impT=setInterval(()=>{ if(el('phImp').hidden) clearInterval(PH.impT); else { stat(); PH.recUi(); } },1000);
   el('phSrc').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.srcPref=b.dataset.s; lsSet('ia517p_src',PH.srcPref);
