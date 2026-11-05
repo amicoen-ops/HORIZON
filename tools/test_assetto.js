@@ -115,5 +115,43 @@ const P = [
   ['Aereo, virata coordinata a sinistra 30°, virata dal GPS', { V: 32, aereo: -30, senzaGiro: true, atteso: { roll: -30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
 ];
 let tutti = true; for (const [n, o] of P) tutti = prova(n, o) && tutti;
+
+// ---- registrazioni vere (Impostazioni › Registra 20 s e invia), in tools/registrazioni ----
+// Si rigiocano nel codice vero con il riconoscimento degli assi acceso. Riferimento: l'assetto dal solo accelerometro
+// mediato su 1 s (il telefono è fermo o quasi). Dopo 9 s la stima deve stargli entro 8° di beccheggio e 15° di rollio.
+// Controprova: gli stessi dati con beta e gamma rimessi in ordine non devono far cambiare l'ordine degli assi.
+function registrazione(file, rimetti) {
+  const righe = fs.readFileSync(file, 'utf8').split('\n');
+  const mont = JSON.parse((righe.find(l => /^# montaggio /.test(l)) || '# montaggio null').slice(12));
+  const dati = righe.filter(l => l && l[0] !== '#').map(l => l.split(' ').map(Number));
+  const ctx = { D2R, R2D, clamp, angDiff, wrap360, performance, PH: {}, S: {}, LIVE: {} }, app = load(ctx), log = [];
+  S = { gpsReal: true, gs: 4, roll: 0, hdg: 0, trk: null }; LIVE = {};
+  PH = { M: mont || VERTICALE, accSign: 1, aAvg: [0, 0, 0], mCount: 0, mT0: 0, demo: false, scrAng: () => 0, accCheck: () => {}, smooth: 3, tas: null, dvdt: 0,
+    trkRate: 0, trkRateT: -1e9, slipF: 0, hdg: 0, magInUse: () => false, mag: {}, act: m => log.push(m), vario: { predict() {} },
+    ahrs: new app.PhMahony(), ahrsInit: false, attF: null };
+  for (const k of ['GPERM', 'gyroRaw', 'gyroLearn']) PH[k] = app.giro[k];
+  PH.gmap = { p: 0, s: 1, fixed: false }; PH.gdet = { A: null, w: null, E: new Float64Array(12), n: 0, tt: 0 };
+  PH.toBody = app.toBody; PH.onMotion = app.onMotion; app.bind(PH, S, LIVE);
+  const acc = [];                                          // assetto dal solo accelerometro, mediato su 1 s
+  let peggio = { roll: 0, pitch: 0 };
+  for (const r of dati) {
+    T = r[0]; const g = rimetti ? [r[5], r[7], r[6]] : [r[5], r[6], r[7]];
+    PH.onMotion({ accelerationIncludingGravity: { x: r[2], y: r[3], z: r[4] }, rotationRate: { alpha: g[0], beta: g[1], gamma: g[2] }, interval: 0.016, timeStamp: T });
+    const fb = PH.toBody([r[2], r[3], r[4]]).map(x => x / G);
+    acc.push([T, Math.atan2(-fb[1], -fb[2]) * R2D, Math.atan2(fb[0], Math.hypot(fb[1], fb[2])) * R2D]);
+    while (acc.length && T - acc[0][0] > 1000) acc.shift();
+    if (T > 9000) { const ro = acc.reduce((s, x) => s + x[1], 0) / acc.length, pi = acc.reduce((s, x) => s + x[2], 0) / acc.length;
+      peggio.roll = Math.max(peggio.roll, Math.abs(angDiff(S.roll, ro))); peggio.pitch = Math.max(peggio.pitch, Math.abs(S.pitch - pi)); }
+  }
+  const cambi = log.filter(m => /giroscopio: assi/.test(m));
+  const ok = peggio.pitch <= 8 && peggio.roll <= 15 && (rimetti ? cambi.length === 0 : true);
+  console.log(`${ok ? 'OK  ' : 'FAIL'} ${(path.basename(file) + (rimetti ? ' (assi rimessi in ordine)' : '')).padEnd(58)} scarto max dall'accelerometro dopo 9 s: rollio ${peggio.roll.toFixed(1)}° · beccheggio ${peggio.pitch.toFixed(1)}° · ${cambi.length ? cambi.join(', ') : 'assi invariati'}`);
+  return ok;
+}
+const dirReg = path.join(__dirname, 'registrazioni');
+if (fs.existsSync(dirReg)) for (const f of fs.readdirSync(dirReg).filter(f => f.endsWith('.txt')).sort()) {
+  tutti = registrazione(path.join(dirReg, f), false) && tutti;
+  if (/scambiati/.test(fs.readFileSync(path.join(dirReg, f), 'utf8').slice(0, 400))) tutti = registrazione(path.join(dirReg, f), true) && tutti;
+}
 console.log(tutti ? '\nTutte le prove dell\'assetto passano.' : '\nAlmeno una prova dell\'assetto NON passa.');
 process.exit(tutti ? 0 : 1);

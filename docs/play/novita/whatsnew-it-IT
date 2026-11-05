@@ -1,1 +1,1 @@
-Nuovo in Impostazioni: «Registra 20 s e invia», manda allo sviluppatore i dati grezzi dei sensori di movimento (senza posizione) per studiare un orizzonte che sbanda. Assetto: ordine degli assi del giroscopio riconosciuto anche girando il telefono sul posto.
+Assetto: sui telefoni che danno gli assi del giroscopio in un altro ordine (come il Samsung S23 FE) l'app li riconosce in pochi secondi di rotazione: girando su sé stessi l'orizzonte non sbanda più. Registrazione dei sensori più affidabile.

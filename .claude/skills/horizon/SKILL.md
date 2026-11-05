@@ -25,6 +25,7 @@ Testi, commenti, commit e risposte all'autore: **in italiano**, frasi semplici, 
 ## Prove da fare prima di dire «provato»
 1. **Sintassi** di ogni script dentro le pagine: estrarre i `<script>` inline e compilarli con `new vm.Script(...)` in Node.
 2. **Assetto**: `node tools/test_assetto.js`. Usa il codice vero di `PhMahony`, `PH.toBody` e `PH.onMotion`; deve uscire con 0. Se tocchi l'assetto aggiungi un caso, e fai la controprova: il caso nuovo deve fallire con il codice di prima.
+   Le registrazioni vere dei telefoni (Impostazioni › «Registra 20 s e invia», arrivano per posta ad amicoen@gmail.com: un filtro di Gmail le mette nel Cestino, e da lì non si leggono finché non si tolgono) vanno in `tools/registrazioni/*.txt`, con l'intestazione `# montaggio [...]`: il test le rigioca nel codice vero.
 3. **Browser**: servire `www/` con `python3 -m http.server` e aprire `index.html` con Playwright (Chromium già installato). Per superare le condizioni d'uso: spuntare `#phTermsOk`, poi cliccare `#phTermsGo`; l'invito alla donazione si chiude con «Più tardi». Barra in basso: VOLO, PIANO, TRAFFICO, ALTRO; da ALTRO › SIMULA › «Direct to un campo» › «Avvia la simulazione» per un volo finto con avvisi veri. Controllare `pageerror` e `console.error`. Gli errori di rete verso open-meteo, opentopomap o la cartella `dati/` sono attesi in locale.
 4. La parte Java non si compila qui (manca l'SDK Android): dirlo, e lasciare la verifica alla compilazione su `main`.
 

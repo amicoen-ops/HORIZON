@@ -2257,20 +2257,20 @@ PH.resetMount=function(){ PH.M=[[0,0,-1],[1,0,0],[0,-1,0]]; PH.mountCal=false; t
 // nel mondo, quindi nel telefono ruota come da/dt = -w × a: si prova ogni ordine e segno e si tiene quello che torna, poi lo si ricorda.
 PH.GPERM=[[1,2,0],[2,1,0],[0,1,2],[0,2,1],[1,0,2],[2,0,1]];          // per x,y,z l'indice in [alpha,beta,gamma]; il primo è lo standard
 PH.gmap=lsGet('ia517p_gmap',null)||{p:0,s:1,fixed:false};
-PH.gdet={A:null,w:null,E:new Float64Array(12),n:0};
+PH.gdet={A:null,w:null,E:new Float64Array(12),n:0,tt:0};
 PH.gyroRaw=function(r){ const v=[r.alpha||0,r.beta||0,r.gamma||0], P=PH.GPERM[PH.gmap.p]||PH.GPERM[0], s=PH.gmap.s||1; return [v[P[0]]*s,v[P[1]]*s,v[P[2]]*s]; };
 PH.gyroLearn=function(a,r,dt){
   const D=PH.gdet, v=[r.alpha||0,r.beta||0,r.gamma||0].map(x=>x*D2R), k=1-Math.exp(-dt/0.05);
   if(!D.A){ D.A=a.slice(); D.w=v.slice(); return; }
   const Ap=D.A.slice(); for(let i=0;i<3;i++){ D.A[i]+=(a[i]-D.A[i])*k; D.w[i]+=(v[i]-D.w[i])*k; }
-  const g=Math.hypot(D.A[0],D.A[1],D.A[2]), wm=Math.hypot(D.w[0],D.w[1],D.w[2]); if(wm<0.6 || Math.abs(g-9.81)>2) return;
+  const g=Math.hypot(D.A[0],D.A[1],D.A[2]), wm=Math.hypot(D.w[0],D.w[1],D.w[2]); if(wm<0.35 || Math.abs(g-9.81)>2) return;
   const da=[0,1,2].map(i=>(D.A[i]-Ap[i])/dt), A=D.A;
   for(let p=0;p<6;p++) for(let sg=0;sg<2;sg++){ const P=PH.GPERM[p], s=sg?-1:1, w=[D.w[P[0]]*s,D.w[P[1]]*s,D.w[P[2]]*s];
     const pr=[-(w[1]*A[2]-w[2]*A[1]), -(w[2]*A[0]-w[0]*A[2]), -(w[0]*A[1]-w[1]*A[0])];
     D.E[p*2+sg]+=Math.hypot(da[0]-pr[0],da[1]-pr[1],da[2]-pr[2])*dt; }
-  if(++D.n<180) return;                                                  // ~3 s di rotazioni vere
+  D.tt+=dt; if(++D.n<40 || D.tt<1.2) return;                             // ~1,2 s di rotazioni vere (a 36–200 dati al secondo)
   const fam=[0,1,2,3,4,5].map(p=>[Math.min(D.E[p*2],D.E[p*2+1]),p]).sort((x,y)=>x[0]-y[0]);
-  const cp=PH.gmap.p, eCur=D.E[cp*2+(PH.gmap.s<0?1:0)], bad=fam[0][0]<0.35*eCur;   // l'ordine in uso spiega male la rotazione vista
+  const cp=PH.gmap.p, eCur=D.E[cp*2+(PH.gmap.s<0?1:0)], bad=fam[0][0]<0.6*eCur;   // l'ordine in uso spiega male la rotazione vista
   const usa=(p,s,fixed)=>{ const changed=p!==PH.gmap.p||s!==PH.gmap.s; PH.gmap={p,s,fixed}; lsSet('ia517p_gmap',PH.gmap);
     if(changed){ PH.ahrsInit=false; PH.attF=null; PH.act&&PH.act('giroscopio: assi '+(p===0?'standard':'nell\'ordine '+PH.GPERM[p].map(i=>'αβγ'[i]).join(''))+(s<0?', segno invertito':'')); } };
   if(PH.gmap.fixed){ if(bad) usa(fam[0][1],D.E[fam[0][1]*2]<=D.E[fam[0][1]*2+1]?1:-1,false); }   // riconosciuti ma smentiti: si rimette in verifica
@@ -2280,7 +2280,7 @@ PH.gyroLearn=function(a,r,dt){
   // allo stesso modo e prima non se ne sceglieva nessuno, così con gli assi sbagliati la rotazione finiva sul beccheggio
   // per tutto il tempo. Se quello in uso è chiaramente peggio, si passa al migliore e si continua a verificare.
   else if(bad && fam[0][1]!==cp) usa(fam[0][1],PH.gmap.s,false);
-  D.E.fill(0); D.n=0; };
+  D.E.fill(0); D.n=0; D.tt=0; };
 PH.gyroTxt=function(){ const g=PH.gmap; return (g.p===0?'assi standard':'assi '+PH.GPERM[g.p].map(i=>'αβγ'[i]).join(''))+(g.s<0?' invertiti':'')+(g.fixed?' (riconosciuti)':' (in verifica: gira il telefono)'); };
 // ---- registrazione dei sensori: dati grezzi di 20 s, per rifare a casa quello che il telefono ha visto ----
 // Una riga per evento: ms dall'inizio, passo di tempo usato, accelerometro x y z (m/s², come arriva), giroscopio alpha beta gamma (°/s, come arriva),
