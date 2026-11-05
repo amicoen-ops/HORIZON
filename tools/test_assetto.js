@@ -25,6 +25,7 @@ function block(startRe, endTest) {
 const code = [
   block(/^function PhMahony\(/, (l, k) => k > 0 && /^PhMahony\.prototype\.euler/.test(SRC[SRC.indexOf(l) - 2] || '')),
   block(/^PH\.toBody=/, () => true),
+  block(/^PH\.GPERM=/, (l) => /^PH\.gyroTxt=/.test(l)),
   block(/^PH\.onMotion=function/, (l) => /^};/.test(l)),
 ].join('\n');
 
@@ -36,12 +37,16 @@ let S, PH, LIVE, PhMahony;
 // il codice dell'app gira qui dentro con le sue variabili globali sostituite da quelle del banco
 const load = new Function('ctx', `
   let {D2R,R2D,clamp,angDiff,wrap360,performance}=ctx; let PH=ctx.PH, S=ctx.S, LIVE=ctx.LIVE;
+  const lsGet=(k,d)=>d, lsSet=()=>{};
   ${code}
-  return {PhMahony, onMotion: PH.onMotion, toBody: PH.toBody, bind(p,s,l){ PH=p; S=s; LIVE=l; }};`);
+  return {PhMahony, onMotion: PH.onMotion, toBody: PH.toBody, giro: PH, bind(p,s,l){ PH=p; S=s; LIVE=l; }};`);
 
 // righe = assi dell'aereo (avanti, destra, giù) espressi negli assi dello schermo
 const VERTICALE = [[0, 0, -1], [1, 0, 0], [0, -1, 0]];
 function inclinato(deg) { const a = deg * D2R, c = Math.cos(a), s = Math.sin(a); return [[0, -s, -c], [1, 0, 0], [0, -c, s]]; }
+
+// telefono che dà gli assi del giroscopio in un altro ordine (o.ordine = indici in [alpha, beta, gamma])
+function giro(o, r) { if (!o.ordine) return r; const v = [r.alpha, r.beta, r.gamma]; return { alpha: v[o.ordine[0]], beta: v[o.ordine[1]], gamma: v[o.ordine[2]] }; }
 
 function prova(nome, o) {
   const ctx = { D2R, R2D, clamp, angDiff, wrap360, performance, PH: {}, S: {}, LIVE: {} };
@@ -51,7 +56,12 @@ function prova(nome, o) {
     gyroLearn: () => {}, gyroRaw: r => [r.beta || 0, r.gamma || 0, r.alpha || 0],
     ahrs: new app.PhMahony(), ahrsInit: false, attF: null, smooth: 3, tas: null, dvdt: 0, trkRate: 0, trkRateT: -1e9, slipF: 0, hdg: 0,
     magInUse: () => false, mag: {}, act: () => {}, vario: { a: 0, predict(a) { this.a = a; } } };
-  PH.toBody = app.toBody; PH.onMotion = app.onMotion; app.bind(PH, S, LIVE);
+  PH.toBody = app.toBody; PH.onMotion = app.onMotion;
+  if (o.impara) {                                     // riconoscimento vero dell'ordine degli assi del giroscopio
+    for (const k of ['GPERM', 'gdet', 'gyroRaw', 'gyroLearn']) PH[k] = app.giro[k];
+    PH.gmap = o.gmap || { p: 0, s: 1, fixed: false }; PH.gdet = { A: null, w: null, E: new Float64Array(12), n: 0 };
+  }
+  app.bind(PH, S, LIVE);
   const Mt = o.mountTrue || o.mount || VERTICALE;
   const toScr = v => [0, 1, 2].map(j => Mt[0][j] * v[0] + Mt[1][j] * v[1] + Mt[2][j] * v[2]);
   const sc = (o.scr || 0) * D2R, c = Math.cos(sc), sn = Math.sin(sc);
@@ -60,7 +70,10 @@ function prova(nome, o) {
   for (let i = 0; i < 60 * 10; i++) {
     T = i * 1000 / 60; const t = T / 1000, inV = t > 2 && t < 7, V = o.V;
     let f, w, trk;
-    if (o.aereo) {                                       // virata coordinata: inclinato, nessuna forza laterale
+    if (o.tavolo) {                                      // fermo sul tavolo, girato a mano attorno alla verticale (±60° a 0,3 Hz)
+      const wt = 60 * D2R * 2 * Math.PI * 0.3 * Math.cos(2 * Math.PI * 0.3 * t);
+      f = [0, 0, -G]; w = [0, 0, wt]; trk = 0; S.gs = 0;
+    } else if (o.aereo) {                                       // virata coordinata: inclinato, nessuna forza laterale
       const ph = inV ? o.aereo * D2R : 0, wt = G * Math.tan(ph) / V;
       f = [0, 0, -G / Math.cos(ph)]; w = [0, wt * Math.sin(ph), wt * Math.cos(ph)]; trk = wt;
     } else {                                             // macchina: non s'inclina, forza laterale verso il centro
@@ -69,8 +82,8 @@ function prova(nome, o) {
     const fd = toRaw(toScr(f)), wd = toRaw(toScr(w)).map(x => x + 0.001);
     PH.trkRate = trk * R2D; PH.trkRateT = T; S.roll = PH.attF ? PH.attF[0] : 0;
     PH.onMotion({ accelerationIncludingGravity: { x: fd[0], y: fd[1], z: fd[2] },
-      rotationRate: o.senzaGiro ? null : { alpha: wd[2] * R2D, beta: wd[0] * R2D, gamma: wd[1] * R2D }, interval: 1 / 60, timeStamp: T });
-    if (t > 1) {
+      rotationRate: o.senzaGiro ? null : giro(o, { alpha: wd[2] * R2D, beta: wd[0] * R2D, gamma: wd[1] * R2D }), interval: 1 / 60, timeStamp: T });
+    if (t > (o.daT || 1)) {
       const r0 = o.atteso ? (inV && t > 4 ? o.atteso.roll : null) : 0;
       if (r0 != null) peggio.roll = Math.max(peggio.roll, Math.abs(S.roll - r0));
       peggio.pitch = Math.max(peggio.pitch, Math.abs(S.pitch - (o.pitch0 || 0)));
@@ -93,6 +106,9 @@ const P = [
   ['Macchina, telefono in orizzontale (schermo 90°)', { V: 15, virata: 20, scr: 90 }],
   ['Macchina, telefono in orizzontale (schermo 270°)', { V: 15, virata: 20, scr: 270 }],
   ['Macchina, telefono inclinato 30° e livellato', { V: 15, virata: 20, mount: inclinato(30) }],
+  ['Sul tavolo, girato a destra e sinistra (cambio bussola), assi standard', { V: 0, tavolo: true, impara: true }],
+  ['Sul tavolo, girato, giroscopio con assi beta e gamma scambiati', { V: 0, tavolo: true, impara: true, ordine: [0, 2, 1], daT: 6 }],
+  ['Sul tavolo, girato, assi scambiati ma salvati sbagliati come «riconosciuti»', { V: 0, tavolo: true, impara: true, ordine: [0, 2, 1], gmap: { p: 0, s: 1, fixed: true }, daT: 6 }],
   ['Aereo, virata coordinata a destra 30°, giroscopio', { V: 32, aereo: 30, atteso: { roll: 30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
   ['Aereo, virata coordinata a sinistra 30°, giroscopio', { V: 32, aereo: -30, atteso: { roll: -30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
   ['Aereo, virata coordinata a destra 30°, virata dal GPS', { V: 32, aereo: 30, senzaGiro: true, atteso: { roll: 30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],

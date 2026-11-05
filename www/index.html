@@ -2260,7 +2260,6 @@ PH.gmap=lsGet('ia517p_gmap',null)||{p:0,s:1,fixed:false};
 PH.gdet={A:null,w:null,E:new Float64Array(12),n:0};
 PH.gyroRaw=function(r){ const v=[r.alpha||0,r.beta||0,r.gamma||0], P=PH.GPERM[PH.gmap.p]||PH.GPERM[0], s=PH.gmap.s||1; return [v[P[0]]*s,v[P[1]]*s,v[P[2]]*s]; };
 PH.gyroLearn=function(a,r,dt){
-  if(PH.gmap.fixed) return;
   const D=PH.gdet, v=[r.alpha||0,r.beta||0,r.gamma||0].map(x=>x*D2R), k=1-Math.exp(-dt/0.05);
   if(!D.A){ D.A=a.slice(); D.w=v.slice(); return; }
   const Ap=D.A.slice(); for(let i=0;i<3;i++){ D.A[i]+=(a[i]-D.A[i])*k; D.w[i]+=(v[i]-D.w[i])*k; }
@@ -2271,10 +2270,16 @@ PH.gyroLearn=function(a,r,dt){
     D.E[p*2+sg]+=Math.hypot(da[0]-pr[0],da[1]-pr[1],da[2]-pr[2])*dt; }
   if(++D.n<180) return;                                                  // ~3 s di rotazioni vere
   const fam=[0,1,2,3,4,5].map(p=>[Math.min(D.E[p*2],D.E[p*2+1]),p]).sort((x,y)=>x[0]-y[0]);
-  if(fam[0][0]<0.7*fam[1][0]){ const p=fam[0][1], e0=D.E[p*2], e1=D.E[p*2+1], sOk=Math.min(e0,e1)<0.85*Math.max(e0,e1);
-    const s=sOk?(e0<=e1?1:-1):(PH.gmap.p===p?PH.gmap.s:1), changed=p!==PH.gmap.p||s!==PH.gmap.s;
-    PH.gmap={p,s,fixed:sOk}; lsSet('ia517p_gmap',PH.gmap);
-    if(changed){ PH.ahrsInit=false; PH.attF=null; PH.act&&PH.act('giroscopio: assi '+(p===0?'standard':'nell\'ordine '+PH.GPERM[p].map(i=>'αβγ'[i]).join(''))+(s<0?', segno invertito':'')); } }
+  const cp=PH.gmap.p, eCur=D.E[cp*2+(PH.gmap.s<0?1:0)], bad=fam[0][0]<0.35*eCur;   // l'ordine in uso spiega male la rotazione vista
+  const usa=(p,s,fixed)=>{ const changed=p!==PH.gmap.p||s!==PH.gmap.s; PH.gmap={p,s,fixed}; lsSet('ia517p_gmap',PH.gmap);
+    if(changed){ PH.ahrsInit=false; PH.attF=null; PH.act&&PH.act('giroscopio: assi '+(p===0?'standard':'nell\'ordine '+PH.GPERM[p].map(i=>'αβγ'[i]).join(''))+(s<0?', segno invertito':'')); } };
+  if(PH.gmap.fixed){ if(bad) usa(fam[0][1],D.E[fam[0][1]*2]<=D.E[fam[0][1]*2+1]?1:-1,false); }   // riconosciuti ma smentiti: si rimette in verifica
+  else if(fam[0][0]<0.7*fam[1][0]){ const p=fam[0][1], e0=D.E[p*2], e1=D.E[p*2+1], sOk=Math.min(e0,e1)<0.85*Math.max(e0,e1);
+    usa(p,sOk?(e0<=e1?1:-1):(PH.gmap.p===p?PH.gmap.s:1),sOk); }
+  // rotazione su un asse solo (per esempio il telefono girato sul tavolo attorno alla verticale): due ordini la spiegano
+  // allo stesso modo e prima non se ne sceglieva nessuno, così con gli assi sbagliati la rotazione finiva sul beccheggio
+  // per tutto il tempo. Se quello in uso è chiaramente peggio, si passa al migliore e si continua a verificare.
+  else if(bad && fam[0][1]!==cp) usa(fam[0][1],PH.gmap.s,false);
   D.E.fill(0); D.n=0; };
 PH.gyroTxt=function(){ const g=PH.gmap; return (g.p===0?'assi standard':'assi '+PH.GPERM[g.p].map(i=>'αβγ'[i]).join(''))+(g.s<0?' invertiti':'')+(g.fixed?' (riconosciuti)':' (in verifica: gira il telefono)'); };
 // ---- sensori di movimento ----
