@@ -76,6 +76,7 @@ PH.sqOpen=function(){
   <div class="ph-imp">
     ${me?`<section><h3>Il mio nominativo</h3><div class="ph-row ph-col"><b>${esc(me)}</b><small>«${esc(PH.sqFon(me))}» · abbreviato «${esc(PH.sqFonBreve(me))}», solo dopo che l'ente l'ha usato</small>
       <small>Primo contatto con un ente: «Pisa Radar, ${esc(PH.sqFon(me))}${/^vds/.test(PH.ac&&PH.ac.cat||'')?', ultralight':''}». Poi tipo, provenienza e destinazione, posizione e quota.</small></div></section>`:''}
+    <section><h3>Frequenza della squadriglia</h3><div class="ph-row"><span><b>${esc(PH.sqFreq?PH.sqFreq():'131.100')}</b> · in volo tra noi</span><button class="ph-btn" type="button" id="hzSqFq">Frequenze</button></div></section>
     <section><h3>In volo adesso</h3>${iv.length?iv.map(({e,m})=>`<div class="ph-row ph-col"><b style="color:#6dff8f">${esc(m.nome||m.reg)} · ${esc(m.reg)}</b><small>${(e.d/1000).toFixed(1).replace('.',',')} km · ore ${PH.trfClock(e)} · ${PH.trfDz(e)} · ${Math.round(e.t.kmh)} km/h · radio «${esc(radio(m))}»</small></div>`).join(''):
       `<p class="ph-sub">${PH.SQ.length?'Nessuno della squadriglia ricevuto nel traffico in questo momento.':'Aggiungi gli aerei che volano con te: in volo li riconosci col nome.'}</p>`}</section>
     <section><h3>Aerei (${PH.SQ.length})</h3>
@@ -86,6 +87,7 @@ PH.sqOpen=function(){
   </div>`;
   document.body.appendChild(d);
   document.getElementById('hzSqB').onclick=()=>d.remove();
+  document.getElementById('hzSqFq').onclick=()=>{ d.remove(); PH.freqOpen&&PH.freqOpen(); };
   document.getElementById('hzSqNew').onclick=()=>scheda({id:'sq-'+Date.now().toString(36),reg:'',nome:'',radio:'',tipo:'',hex:'',note:''},true);
   d.querySelectorAll('[data-sq]').forEach(b=>b.onclick=()=>scheda(PH.SQ.find(x=>x.id===b.dataset.sq),false));
   document.getElementById('hzSqExp').onclick=()=>PH.download('HORIZON_squadriglia.json',JSON.stringify({horizon:'squadriglia',v:1,list:PH.SQ},null,2),'application/json');

@@ -13,6 +13,11 @@ const N=s=>String(s||'').toUpperCase().replace(/[^0-9A-Z]/g,'');
 const KEY='ia517p_radiocall';
 PH.radioOn=lsGet(KEY,true);
 const mhz=v=>Number(v).toFixed(3);
+// frequenza della squadriglia (in volo tra noi): di partenza 131.100, si cambia in ALTRO › FREQUENZE
+PH.sqFreq=function(v){
+  if(v!==undefined){ const x=parseFloat(String(v).replace(',','.')); if(!(x>=118&&x<=136.975)) return null; lsSet('ia517p_sq_freq',mhz(x)); return mhz(x); }
+  return lsGet('ia517p_sq_freq','131.100');
+};
 
 // ---- frequenze di un campo: prima quella delle note del Piano, poi OurAirports ----
 const BLIND=/^(CTAF|UNIC|A\/A|A\/G|MULTI|RADIO|RDO)/, SERV=/^(AFIS|INFO)/, TWR=/^TWR/, FIS=/^(FIC|FIS)/;
@@ -118,6 +123,9 @@ PH.freqOpen=function(){
       +(st&&st.tipo!=='twr'?`<p class="ph-sub">Nel circuito: «${esc(st.nome)}», a ogni lato (ingresso sottovento, base, finale). Prima ascolta e verifica la pista in uso.</p>`:'')
       +(st&&st.tipo==='twr'?`<p class="ph-sub">Campo con torre: si entra solo con l'autorizzazione.</p>`:'')
       :'<p class="ph-sub">Nessuna destinazione. Con un Direct To o una rotta qui compare la frequenza del campo d\'arrivo.</p>'}</section>
+    <section><h3>Squadriglia</h3>
+      <div class="ph-row"><span><b id="hzSqFv">${esc(PH.sqFreq())}</b> · in volo tra noi</span><small><input id="hzSqF" type="text" inputmode="decimal" value="${esc(PH.sqFreq())}" style="width:6.5em" aria-label="Frequenza della squadriglia"></small></div>
+      <p class="ph-sub">Per parlare tra voi in volo. Nel circuito torna sulla frequenza del campo.</p></section>
     <section><h3>Informazioni di volo (FIS)</h3>${fis.length?fis.slice(0,4).map(x=>riga(x.v)).join('')+'<p class="ph-sub">In spazio G puoi ascoltarle o chiamarle per il traffico e il meteo: la frequenza giusta dipende dal settore, guarda la carta.</p>':'<p class="ph-sub">Nessuna frequenza FIS nei dati vicino a te: guarda la carta del settore.</p>'}</section>
     <section><h3>Campi vicini</h3>${vic.length?vic.filter(x=>!dest||x.f.id!==dest.id).map(x=>sez(x.f,x.d)).join(''):'<p class="ph-sub">Nessun campo con frequenza nei dati entro 40 km (o posizione non ancora nota).</p>'}</section>
     <section><h3>Emergenza</h3>${riga(['EMERG','Emergenza, ascoltata da tutti gli enti',121.5])}
@@ -129,6 +137,7 @@ PH.freqOpen=function(){
   document.body.appendChild(d);
   document.getElementById('hzFreqB').onclick=()=>d.remove();
   document.getElementById('hzFreqOn').onchange=e=>PH.radioSet(e.target.checked);
+  document.getElementById('hzSqF').onchange=e=>{ const v=PH.sqFreq(e.target.value); if(v){ toast('SQUADRIGLIA SU '+v); e.target.value=v; document.getElementById('hzSqFv').textContent=v; } else { toast('FREQUENZA NON VALIDA (118.000–136.975)'); e.target.value=PH.sqFreq(); } };
   PH.act&&PH.act('frequenze');
 };
 PH.radioSet=function(v){ PH.radioOn=!!v; lsSet(KEY,PH.radioOn); const c=document.getElementById('phRadioOn'); if(c) c.checked=PH.radioOn; tick(); };
