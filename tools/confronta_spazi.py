@@ -14,6 +14,7 @@ Le quote AGL e FL non si convertono: si confrontano solo se hanno lo stesso rife
 import math, re, sys, collections
 
 NM = 1852.0
+AYMAP = {'R': 'R', 'P': 'P', 'Q': 'Q', 'D': 'Q', 'DANGER': 'Q', 'RESTRICTED': 'R', 'PROHIBITED': 'P', 'TRA': 'R', 'TSA': 'R', 'OFR': 'OFR', 'ASRA': 'SPORT', 'GLIDING_SECTOR': 'GSEC', 'TMZ': 'TMZ', 'RMZ': 'RMZ'}
 
 
 def coord(s):
@@ -45,7 +46,7 @@ def parse(path):
     out, cur, center, d = [], None, None, 1
 
     def push():
-        if cur and len(cur['pts']) >= 3: out.append(cur)
+        if cur and len(cur['pts']) >= 3 and not cur.get('skip'): out.append(cur)
 
     def arc(c, r_m, a1, a2, dirn):
         span = ((a2 - a1) % 360) if dirn > 0 else -((a1 - a2) % 360)
@@ -67,6 +68,11 @@ def parse(path):
         if k == 'AC':
             push(); cur = {'cls': v.upper(), 'name': '', 'lo': ('SFC', 0), 'hi': ('UNL', 99999), 'pts': []}; d = 1; continue
         if not cur: continue
+        if k == 'AY':
+            t = v.upper()
+            if t in ('FIR', 'UIR'): cur['pts'] = []; cur['skip'] = True
+            elif AYMAP.get(t) and cur['cls'] in ('UNC', 'UNCLASSIFIED', ''): cur['cls'] = AYMAP[t]
+            continue
         if k == 'AN': cur['name'] = v
         elif k == 'AL': cur['lo'] = alt(v)
         elif k == 'AH': cur['hi'] = alt(v)
@@ -101,6 +107,9 @@ def parse(path):
 
 def norm(n):
     n = n.upper()
+    n = re.sub(r"\b\d{3}\.\d{1,3}\b", " ", n)
+    n = re.sub(r"\bZONE\s*(\d+)", r"Z\1", n)
+    n = re.sub(r"\bLI[A-Z]{2}\b", " ", n)
     n = re.sub(r"\(.*?\)", " ", n)
     n = re.sub(r"\b(ATZ|CTR|TMA|CTA|TIZ|TIA|AREA|ZONE|ZONA|SECTOR|SETTORE|PARCO|PARK|RMZ|TMZ)\b", " ", n)
     return re.sub(r"[^A-Z0-9]+", "", n)
@@ -140,8 +149,9 @@ def abbina(A, B):
             if not compat(a, b): continue
             d = km(a['c'], b['c']); r = max(a['km2'], b['km2']) / max(1e-3, min(a['km2'], b['km2']))
             same = a['key'] and a['key'] == b['key']
+            vz = sum(abs(x[1] - y[1]) / 1000 for x, y in ((a['lo'], b['lo']), (a['hi'], b['hi'])) if x[0] == y[0])
             if (d < 5 and r < 2.5) or (same and d < 25):
-                s = d + (0 if same else 3) + math.log(r)
+                s = d + (0 if same else 3) + math.log(r) + vz
                 if s < bd: best, bd = j, s
         if best is not None: usati.add(best); coppie.append((i, best))
     return coppie, usati
