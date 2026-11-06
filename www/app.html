@@ -973,7 +973,7 @@ function routeFromPlan(){
 function notesForInstrument(){
   const out={};
   for(const [id,n] of Object.entries(NOTES)){ if(!n) continue;
-    out[id]={elevFt:n.elevFt??null,pref:n.pref||null,side:n.side||{},maxTail:n.maxTail??null,warn:n.warn||{},text:[n.text,n.obst,n.freq&&('freq '+n.freq)].filter(Boolean).join(' · ').slice(0,300)}; }
+    out[id]={elevFt:n.elevFt??null,pref:n.pref||null,side:n.side||{},maxTail:n.maxTail??null,warn:n.warn||{},freq:n.freq||null,text:[n.text,n.obst,n.freq&&('freq '+n.freq)].filter(Boolean).join(' · ').slice(0,300)}; }
   return out;
 }
 async function sendPlan(){
