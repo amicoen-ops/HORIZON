@@ -155,6 +155,12 @@ const G=[
     <li><b>Diario di volo</b>: i voli si registrano da soli dal decollo all'atterraggio; esporti in KML.</li>
     <li><b>Condivisione anonima</b>: piste rilevate e conteggio dei campi usati, sempre col tuo consenso.</li>
     <li><b>Stato</b>: cosa funziona e cosa no, con i numeri (frequenza dei sensori, assi del giroscopio, campi e piste).</li></ul>`},
+  {id:'radio',t:'Promemoria radio',h:`
+    <p><b>Marche</b>: alfabeto ICAO, cifre una per una. Per esteso al primo contatto e prima di impegnare la pista; abbreviate (prima lettera e ultime due) solo dopo che le ha usate l'ente. Con un ente di controllo dopo le marche si dice «ultralight». La Squadriglia scrive il nominativo da sola.</p>
+    <p><b>Messaggio</b>: chi chiamo, chi sono, dove sono (posizione e quota QNH), cosa intendo fare. Readback di autorizzazioni, istruzioni per la pista, QNH e squawk, chiudendo con le marche.</p>
+    <p><b>Emergenza</b>: «MAYDAY» tre volte (pericolo) o «PAN PAN» tre volte (urgenza), poi ente, marche, natura del problema, intenzioni, posizione, quota e prua. Frequenza di emergenza 121.500. Squawk 7700 emergenza, 7600 avaria radio, 7500 interferenza illecita.</p>
+    <p><b>Spazi</b>: in Italia FIR di classe G fino a FL195; ATZ C o D dentro un CTR, G se non controllata; CTR C o D (Malpensa A); TMA A. Fa sempre fede l'AIP.</p>
+    <p class="ph-sub">Dal materiale del corso di fonia aeronautica: è un promemoria, non sostituisce il corso né le pubblicazioni ufficiali.</p>`},
   {id:'aiuto',t:'Segnalazioni, aggiornamenti e licenza',h:`
     <p>Info › Segnala un problema: arriva per posta all'autore, con i dati tecnici se lasci la spunta (mai la posizione); senza rete resta in coda.</p>
     <p>Aggiornamenti: dal Play Store, oppure da Info nella versione scaricata da GitHub. Su iPhone e iPad: Safari › Condividi › Aggiungi alla schermata Home.</p>
