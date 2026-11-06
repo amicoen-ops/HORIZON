@@ -3955,6 +3955,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.93","All'avvio, a terra, la scheda «Prima del volo»: internet, terreno, spazi aerei, GPS, velivolo e LIVELLA con un segno verde, giallo o rosso, e la check list del tuo velivolo da spuntare fino a «Prima del decollo». Check list a fasi nella scheda del velivolo (esempio generico e P92), richiamabile anche in volo da ALTRO › CHECK LIST. Mai sopra lo strumento in volo."],
   ["1.0.91","Avvisi gialli a bandierina: i messaggi informativi si aprono dal bordo per 3 secondi e lasciano una linguetta; toccandola si riaprono, spariscono quando la condizione finisce. Rossi e gialli di terreno restano al centro finché il pericolo c'è."],
   ["1.0.90","App gratuita: niente prova a tempo e niente blocchi. Sul Play Store c'è «Offrimi un caffè» per chi vuole contribuire. Crediti del traffico e testi allineati."],
   ["1.0.89","Nuova pagina ALTRO › SQUADRIGLIA: marche, nome e nominativo radio degli aerei che volano con te (l'alfabeto ICAO lo scrive l'app). In volo, se trasmettono, li vedi col nome in verde; il pericolo resta giallo e rosso. Lista da esportare agli amici."],
@@ -4194,7 +4195,7 @@ PH.terms=function(){
     <div class="ph-btns"><button class="ph-btn pri" id="phTermsGo" disabled>Accetto e continuo</button></div></section></div>`;
   document.body.appendChild(d);
   el('phTermsOk').onchange=e=>{ el('phTermsGo').disabled=!e.target.checked; };
-  el('phTermsGo').onclick=()=>{ lsSet('ia517p_terms',{v:PH_INFO.termsVersion,t:Date.now(),ver:PH.version().version}); d.remove(); setTimeout(()=>PH.donateNag(),1200); };
+  el('phTermsGo').onclick=()=>{ lsSet('ia517p_terms',{v:PH_INFO.termsVersion,t:Date.now(),ver:PH.version().version}); d.remove(); setTimeout(()=>PH.preflight?PH.preflight():PH.donateNag(),1200); };
 };
 
 PH.renderInfo=function(){
@@ -4297,7 +4298,7 @@ PH.renderInfo=function(){
 PH.paid=()=>{ try{ return !!(window.IA517_LIC && IA517_LIC.enforced()); }catch(e){ return false; } };
 PH.donateNag=function(){
   if(PH.version().channel==='play' || PH.paid() || lsGet('ia517p_donated',false)) return;
-  const n=PH.launchN||0; if(n<1 || n>5 || document.getElementById('phNag') || document.getElementById('phTerms')) return;
+  const n=PH.launchN||0; if(n<1 || n>5 || document.getElementById('phNag') || document.getElementById('phTerms') || document.getElementById('phPre')) return;
   if(PH.flight || PH.sim || (S.gpsReal && S.gs>25)) return;          // mai sopra lo strumento in volo o in movimento
   const d=document.createElement('div'); d.className='ph-sheet ph-terms'; d.id='phNag';
   d.innerHTML=`<div class="ph-imp"><section class="ph-donate"><h3>Ti piace HORIZON?</h3>
@@ -4315,7 +4316,7 @@ PH.donateNag=function(){
 // avvio: avvertenze, storico versioni, controllo aggiornamenti a ogni avvio, coda segnalazioni
 (function(){
   PH.versionHistory(); PH.launchN=(lsGet('ia517p_launches',0)|0)+1; lsSet('ia517p_launches',PH.launchN);
-  PH.terms(); if(!document.getElementById('phTerms')) setTimeout(()=>PH.donateNag(),2500);
+  PH.terms(); if(!document.getElementById('phTerms')) setTimeout(()=>PH.preflight?PH.preflight():PH.donateNag(),1500);   // prima del volo, poi l'invito
   setTimeout(()=>PH.checkUpdate(false),4000);                        // controllo della versione a ogni avvio
   addEventListener('online',()=>{ const u=lsGet('ia517p_update',null); if(!u||u.state==='offline'||u.state==='errore') PH.checkUpdate(false); });
   setTimeout(()=>PH.flushReports(),5000);
@@ -4335,6 +4336,8 @@ PH.AC_SCHEMA=[
     {k:'model',l:'Modello',t:'text',ph:'Avid Flyer'},
     {k:'cat',l:'Categoria (decide le regole degli spazi aerei)',t:'sel',o:[['vds_basico','VDS basico'],['vds_avanzato','VDS avanzato'],['vfr','Aviazione generale VFR']]},
     {k:'notes',l:'Note (hangar, frequenze, promemoria)',t:'area'}]},
+  {g:'Check list prima del volo',h:'I controlli del tuo velivolo, una voce per riga; una riga che inizia con # è il titolo di una fase (# Prima del decollo). All\'avvio, a terra, spunti quelle prima del decollo; tutte si richiamano da ALTRO › CHECK LIST, anche in volo. Adattala al tuo manuale.',f:[
+    {k:'chk',l:'Controlli (una voce per riga)',t:'area',rows:12}]},
   {g:'Velocità (km/h, indicate)',h:'Le trovi nel manuale di volo (POH). Colorano la scala di velocità: bianco VS0–VFE, verde VS1–VNO, giallo VNO–VNE, rosso VNE.',f:[
     {k:'vs0',l:'VS0 · stallo in atterraggio (flap giù)',n:[20,250]},
     {k:'vs1',l:'VS1 · stallo pulito',n:[20,250]},
@@ -4401,6 +4404,45 @@ PH.AC_DEF={id:'ac-default',reg:'I-XXXX',model:'ULM',cat:'vds_basico',notes:'',
 PH.AC_NEW={reg:'',model:'',cat:'vds_avanzato',notes:'',vs0:55,vs1:65,vfe:110,va:130,vno:180,vne:220,vx:85,vy:95,vglide:95,vapp:100,vcirc:115,vcruise:160,
   roc:800,rod:800,glide:10,todist:300,ldist:300,xwind:25,hcFt:1000,ceil:12000,fuelType:'mogas',fuelCap:80,fuelUnus:2,burn:16,res:30,taxi:2,
   empty:300,emptyArm:'',mtow:600,seats:'2',pilotArm:'',paxArm:'',fuelArm:'',bagMax:20,bagArm:'',cgFwd:'',cgAft:'',xpdr:'s',radio:'1',elt:'1',chute:'0'};
+// check list di partenza: si adatta nella scheda del velivolo
+PH.CHK_DEF=['# Controlli esterni',
+  'Documenti a bordo: attestato, libretto, assicurazione',
+  'Carburante: quantità a vista, tappi chiusi, spurgo',
+  'Olio (e miscela per i 2 tempi) e liquido di raffreddamento',
+  'Elica e ogiva: integre, ben serrate; cofano e attacchi motore',
+  'Superfici di comando: libere e nel verso giusto; cerniere, copiglie, cavi',
+  'Struttura, ala e montanti: nessun danno',
+  'Carrello: pneumatici, freni, ruotino o ruota di coda',
+  'Tubo di Pitot e prese statiche liberi',
+  '# Prima dell\'avviamento',
+  'Cinture allacciate, tettuccio/portiere chiusi, oggetti fissati',
+  'Comandi liberi, freno di parcheggio inserito',
+  'Rubinetto carburante aperto, interruttori come da manuale',
+  'Paracadute balistico: sicura tolta',
+  '# Avviamento',
+  'Zona elica libera («Libera!»)',
+  'Avviamento, pressione olio entro 10 s',
+  'Radio, transponder, QNH impostati',
+  '# Prima del decollo',
+  'Prova motore: magneti, giri, temperature e pressioni',
+  'Flap in posizione di decollo, trim',
+  'Comandi liberi, cinture, tettuccio chiuso',
+  'Vento, pista e circuito; traffico',
+  '# Prima dell\'atterraggio',
+  'Carburante sufficiente, rubinetto aperto',
+  'Flap e velocità di avvicinamento',
+  'Cinture strette, freni liberi',
+  '# Dopo l\'atterraggio',
+  'Flap su, transponder in attesa',
+  'Spegnimento: motore al minimo, magneti spenti, interruttori spenti',
+  'Paracadute: sicura inserita'].join('\n');
+// check list del velivolo a fasi: le righe che iniziano con # sono i titoli delle fasi
+PH.acChkPh=function(a){ const out=[]; let cur=null;
+  for(const l of String((a&&a.chk)||PH.CHK_DEF).split('\n')){ const x=l.trim(); if(!x) continue;
+    if(x[0]==='#'){ cur={t:x.replace(/^#+\s*/,'')||'Controlli',items:[]}; out.push(cur); }
+    else { if(!cur){ cur={t:'Controlli',items:[]}; out.push(cur); } cur.items.push(x); } }
+  return out.filter(f=>f.items.length); };
+PH.acChk=a=>PH.acChkPh(a).flatMap(f=>f.items);
 PH.acs=lsGet('ia517p_aircraft',null)||[Object.assign({},PH.wasInstalled?PH.AC_LEGACY:PH.AC_DEF)];
 PH.acId=lsGet('ia517p_acid',PH.acs[0].id);
 PH.ac=PH.acs.find(a=>a.id===PH.acId)||PH.acs[0];
@@ -4468,16 +4510,16 @@ PH.acSectionWire=function(){
 PH.acEdit=function(a,isNew){
   const e=x=>String(x??'').replace(/[<&>"]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[c]));
   const d=document.createElement('div'); d.className='ph-sheet'; d.id='phAcEd';
-  const fld=f=>{ const v=a[f.k]??'';
+  const fld=f=>{ const v=a[f.k]??(f.k==='chk'?PH.CHK_DEF:'');
     if(f.t==='sel') return `<label class="ph-fld">${e(f.l)}<select data-k="${f.k}">${f.o.map(([k2,l])=>`<option value="${k2}" ${String(v)===k2?'selected':''}>${e(l)}</option>`).join('')}</select></label>`;
-    if(f.t==='area') return `<label class="ph-fld" style="grid-column:1/-1">${e(f.l)}<textarea data-k="${f.k}" rows="2">${e(v)}</textarea></label>`;
+    if(f.t==='area') return `<label class="ph-fld" style="grid-column:1/-1">${e(f.l)}<textarea data-k="${f.k}" rows="${f.rows||2}">${e(v)}</textarea></label>`;
     if(f.t==='text') return `<label class="ph-fld">${e(f.l)}<input data-k="${f.k}" type="text" value="${e(v)}" placeholder="${e(f.ph||'')}" autocapitalize="characters"></label>`;
     return `<label class="ph-fld">${e(f.l)}${f.opt?' <small>(facoltativo)</small>':''}<input data-k="${f.k}" type="number" inputmode="decimal" step="${f.step||1}" min="${f.n[0]}" max="${f.n[1]}" value="${e(v)}"></label>`; };
   d.innerHTML=`<div class="ph-sheet-h"><button type="button" id="phAcBack">◀ Indietro</button><b>${isNew?'Nuovo velivolo':'Velivolo '+e(a.reg)}</b></div>
     <div class="ph-imp">${PH.AC_SCHEMA.map(g=>`<section><h3>${e(g.g)}</h3>${g.h?`<p class="ph-sub">${e(g.h)}</p>`:''}<div class="ph-acgrid">${g.f.map(fld).join('')}</div></section>`).join('')}
       <section><p class="ph-sub" id="phAcWarn"></p>
       <div class="ph-btns"><button class="ph-btn pri" type="button" id="phAcOk">Salva${isNew?'':' e usa'}</button>${!isNew&&PH.acs.length>1?'<button class="ph-btn" type="button" id="phAcDel">Elimina</button>':''}</div></section></div>`;
-  document.body.appendChild(d);
+  document.body.appendChild(d); try{ PH.acEditHook&&PH.acEditHook(d,a); }catch(e){}
   const read=()=>{ const b=Object.assign({},a); d.querySelectorAll('[data-k]').forEach(i=>{ b[i.dataset.k]=i.tagName==='INPUT'&&i.type==='number'?(i.value===''?'':+i.value):i.value; }); b.reg=String(b.reg||'').trim().toUpperCase(); return b; };
   const warn=()=>{ const w=PH.acCheck(read()); el('phAcWarn').innerHTML=w.length?'<b>Da controllare:</b><br>'+w.map(e).join('<br>'):'Dati coerenti.'; };
   d.querySelectorAll('[data-k]').forEach(i=>i.addEventListener('input',warn)); warn();

@@ -59,7 +59,7 @@ function profilo(c){ const r5=x=>Math.round(x/5)*5;
     roc:c.roc,rod:700,glide:c.gl,todist:c.vs1<60?150:250,ldist:c.vs1<60?150:250,xwind:c.vs1<60?15:20,hcFt:c.vs1<60?700:1000,ceil:c.mtow>500?12000:10000,
     fuelType:'mogas',fuelCap:c.fuel,fuelUnus:2,burn:c.burn,res:30,taxi:1.5,
     empty:c.empty,emptyArm:'',mtow:c.mtow,seats:'2',pilotArm:'',paxArm:'',fuelArm:'',bagMax:15,bagArm:'',cgFwd:'',cgAft:'',
-    xpdr:'no',radio:'1',elt:'0',chute:'0'}; }
+    xpdr:'no',radio:'1',elt:'0',chute:'0',chk:PH.CHK_DEF}; }
 PH.AC_CATALOGO=C;
 PH.acDaCatalogo=function(i){ const c=C[i]; if(!c) return;
   const a=Object.assign({},PH.AC_NEW,profilo(c),{id:'ac-'+Date.now().toString(36),reg:''});
@@ -81,6 +81,13 @@ const G=[
     <li>Prima di partire apri <b>PIANO</b>: rotta, meteo, NOTAM e spazi aerei; con internet scarica anche terreno e mappe della zona.</li>
     <li>Prova tutto a terra con ALTRO › <b>SIMULA</b>.</li></ol>
     <p>HORIZON è un aiuto alla consapevolezza: non sostituisce gli strumenti di bordo, le carte ufficiali e il giudizio del pilota.</p>`},
+  {id:'prima',t:'Prima del volo',h:`
+    <p>A ogni avvio, a terra, l'app mostra «Prima del volo»: per ogni punto un segno verde (a posto), giallo (in corso) o rosso (da fare).</p>
+    <ul><li>Apri l'app a terra qualche minuto prima del decollo, con la rete: scarica terreno e spazi aerei e i sensori si assestano.</li>
+    <li>Spazi aerei caricati (PIANO › Briefing), GPS col fix, il tuo velivolo, LIVELLA col telefono montato e l'aereo fermo.</li>
+    <li><b>Check list del velivolo</b>, a fasi: all'avvio spunti quelle a terra fino a «Prima del decollo»; tutte si richiamano da <b>ALTRO › CHECK LIST</b>, anche in volo (prima dell'atterraggio, dopo l'atterraggio). Le spunte valgono per il giorno. Si scrivono nella scheda del velivolo (Impostazioni › Velivoli › Modifica › Check list), una voce per riga, e una riga che inizia con # è il titolo di una fase; ci sono un esempio generico e uno per il P92 (Rotax 912) da adattare al proprio manuale.</li>
+    <li>Se l'orizzonte si ferma o fa cose strane: guarda fuori e gli strumenti di bordo; a terra segnala da Info con i dati tecnici.</li></ul>
+    <p>Non compare mai in volo. Si può togliere dall'avvio e riaprire da Info › Guida e tour › «Prima del volo».</p>`},
   {id:'barra',t:'Barra in basso e menu ALTRO',h:`
     <p><b>VOLO</b>: lo strumento. <b>PIANO</b>: rotte, campi, meteo, NOTAM, spazi aerei. <b>✈ TRAFFICO</b>: aerei intorno. <b>☰ ALTRO</b>: Impostazioni, Simula, Profilo (verticale: terreno e quota lungo la rotta), Carburante, Info.</p>
     <p>I tasti ◀ OK ▶ fanno da <b>manopola</b>: OK apre il menu (DIRECT TO, rotte salvate, QNH…), ◀ ▶ scorrono, OK tenuto premuto o PAGINA cambia pagina (orizzonte, mappa).</p>`},
@@ -207,11 +214,105 @@ PH.guidaOpen=function(sez){
   if(sez) setTimeout(()=>apri(sez),50);
   PH.act&&PH.act('guida'+(sez?' '+sez:''));
 };
+
+// ---------------- PRIMA DEL VOLO: all'avvio, solo a terra ----------------
+// Le istruzioni che contano prima di ogni volo, con lo stato vero di ogni punto (aggiornato ogni secondo).
+// Mai sopra lo strumento in volo: non compare se l'aereo si muove, e se parte si chiude da sola.
+PH.preflightOff=()=>lsGet('ia517p_pre_off',false)===true;
+function preRows(){
+  const ok='<i class="hz-ok">✓</i>', wt='<i class="hz-wt">…</i>', no='<i class="hz-no">!</i>';
+  let asp=null; try{ asp=document.getElementById('phAppFrame').contentWindow.eval('typeof ASP_SRC!=="undefined"?ASP_SRC:null'); }catch(e){}
+  const fx=PH.lastFix, age=fx?(Date.now()-fx.t)/1000:1e9, gps=!PH.demo&&S.gpsReal&&age<5;
+  const dem=PH.dem?PH.dem.size:0, net=navigator.onLine, reg=PH.ac&&PH.ac.reg||'', gen=!reg||/XXXX/i.test(reg);
+  return [
+    [ok,'Apri l\'app a terra, qualche minuto prima del decollo','così scarica quello che serve e i sensori si assestano.'],
+    [net?ok:no,'Internet',net?'collegato: terreno, spazi aerei, meteo e traffico si aggiornano.':'senza rete si usano i dati già scaricati. Il traffico da internet non arriva.'],
+    [dem>20?ok:(net?wt:no),'Terreno',dem>20?`${dem} riquadri in memoria (TAWS e colori del terreno).`:(net?'si sta scaricando: aspetta qualche secondo.':'non scaricato: TAWS senza terreno.')],
+    [asp&&asp.real?ok:no,'Spazi aerei',asp&&asp.real?`${asp.name||'caricati'}${asp.count?' · '+asp.count+' spazi':''}.`:'non caricati: PIANO › Briefing › «Scarica gli spazi aerei». Senza, nessun avviso di zona.'],
+    [gps?ok:wt,'GPS',gps?`fix · ±${Math.round(fx.acc||0)} m.`:'all\'aperto il primo fix arriva in pochi secondi.'],
+    [gen?no:ok,'Velivolo',gen?'profilo generico: Impostazioni › Velivoli (o dal catalogo), con le tue marche.':`${reg}${PH.ac.model?' · '+PH.ac.model:''}.`],
+    [PH.mountCal?ok:no,'LIVELLA',PH.mountCal?'montaggio misurato.':'telefono montato e aereo fermo: premi LIVELLA (accanto a GPS · ASSETTO · TERRENO · NET).'],
+    [ok,'Se l\'orizzonte si ferma o fa cose strane','guarda fuori e gli strumenti di bordo; a terra: Info › Segnala con i dati tecnici, ci dice quanto è durato.'],
+  ]; }
+PH.preflight=function(manual){
+  if(document.getElementById('phPre')) return;
+  if(!manual && (PH.preflightOff() || document.getElementById('phTerms'))){ PH.donateNag&&PH.donateNag(); return; }
+  if(!manual && (PH.flight || PH.sim || (S.gpsReal && S.gs>25))) return;     // riaperta in volo: niente
+  const d=document.createElement('div'); d.className='ph-sheet ph-terms'; d.id='phPre';
+  d.innerHTML=`<div class="ph-imp"><section><h3>Prima del volo</h3><div id="hzPreL"></div>
+    <h3 style="margin-top:14px">Check list · ${esc((PH.ac&&PH.ac.reg)||'velivolo')}</h3><div id="hzPreC">${chkHtml(PH.chkPre())}</div>
+    <p class="ph-sub">Le altre fasi (dopo il decollo, atterraggio) si richiamano da ALTRO › CHECK LIST. La lista si cambia in Impostazioni › Velivoli › Modifica.</p>
+    <div class="ph-btns"><button class="ph-btn pri" type="button" id="hzPreOk">Pronto</button>${PH.mountCal?'':'<button class="ph-btn" type="button" id="hzPreLv">Livella ora</button>'}<button class="ph-btn" type="button" id="hzPreAsp">Spazi aerei</button></div>
+    <label class="ph-chk"><input type="checkbox" id="hzPreOff" ${PH.preflightOff()?'checked':''}> Non mostrare all'avvio (resta in Info › Guida e tour)</label></section></div>`;
+  document.body.appendChild(d);
+  const draw=()=>{ const L=document.getElementById('hzPreL'); if(!L) return; L.innerHTML=preRows().map(([i,t,x])=>`<div class="hz-pre">${i}<span><b>${esc(t)}</b><small>${esc(x)}</small></span></div>`).join(''); };
+  draw(); const tm=setInterval(()=>{ if(!document.getElementById('phPre')){ clearInterval(tm); return; }
+    if(!manual && (PH.flight || (S.gpsReal && S.gs>25))){ close(); return; } draw(); },1000);
+  const close=()=>{ clearInterval(tm); d.remove(); if(!manual) setTimeout(()=>PH.donateNag&&PH.donateNag(),800); };
+  chkWire(document.getElementById('hzPreC'));
+  document.getElementById('hzPreOk').onclick=()=>{ const c=[...d.querySelectorAll('[data-ck]')], n=c.filter(x=>x.checked).length; PH.act&&PH.act(`check list ${n}/${c.length}`); close(); };
+  const lv=document.getElementById('hzPreLv'); if(lv) lv.onclick=()=>{ close(); const b=document.getElementById('phLvl'); if(b) b.click(); };
+  document.getElementById('hzPreAsp').onclick=()=>{ close(); PH.show('piano'); };
+  document.getElementById('hzPreOff').onchange=e=>{ lsSet('ia517p_pre_off',e.target.checked); };
+  PH.act&&PH.act('prima del volo'+(manual?' (da Info)':''));
+};
+
+// ---------------- CHECK LIST del velivolo: a fasi, richiamabile da ALTRO › CHECK LIST ----------------
+// Le spunte valgono per il giorno e per il velivolo: si ritrovano riaprendo la pagina (anche in volo) e dopo un riavvio.
+PH.CHK_P92=['# Controlli esterni','Documenti, peso e centraggio','Carburante: quantità a vista, spurgo serbatoi e filtro, tappi chiusi',
+  'Olio Rotax 912 (asta, dopo aver girato l\'elica), liquido di raffreddamento','Elica, ogiva, cofano, scarico','Ala e montanti, flap, alettoni: cerniere e cavi',
+  'Impennaggi, stabilatore e trim tab','Carrello: pneumatici, freni, ruotino e ammortizzatore','Pitot e prese statiche liberi, tubo pitot senza copertura',
+  '# Prima dell\'avviamento','Cinture e portiere chiuse','Freno di parcheggio inserito','Rubinetto carburante aperto','Interruttori generali e strumenti',
+  '# Avviamento','Starter (choke) se freddo, manetta al minimo','Zona elica libera, magneti ON, avviamento','Pressione olio entro 10 s, giri 2000–2500 per scaldare',
+  'Radio, transponder, QNH','# Prima del decollo','Temperatura olio sopra 50 °C','Prova magneti a 4000 giri (caduta max e differenza da manuale)',
+  'Minimo regolare, carburatore','Flap a decollo, trim neutro','Comandi liberi, cinture, portiere','Paracadute: sicura tolta','Vento, pista libera, luci e transponder',
+  '# Dopo il decollo','Flap su a velocità sicura, temperature e pressioni','# Prima dell\'atterraggio','Carburante e rubinetto','Flap e velocità di avvicinamento',
+  'Cinture strette, freni liberi','# Dopo l\'atterraggio','Flap su, transponder in attesa, pista liberata',
+  'Spegnimento: minimo 1 min, magneti OFF, interruttori OFF','Paracadute: sicura inserita, freno di parcheggio'].join('\n');
+const oggi=()=>new Date().toISOString().slice(0,10);
+const chkKey=()=>(PH.ac&&PH.ac.id||'ac')+'|'+oggi();
+const chkGet=()=>{ const st=lsGet('ia517p_chk_state',null); return new Set(st&&st.k===chkKey()?st.done:[]); };
+const chkSet=d=>lsSet('ia517p_chk_state',{k:chkKey(),done:[...d]});
+// html di una o più fasi, con le spunte del giorno
+function chkHtml(fasi){ const done=chkGet();
+  return fasi.map(f=>{ const n=f.items.filter(x=>done.has(f.t+'|'+x)).length;
+    return `<section class="hz-fase"><h3>${esc(f.t)} <small>${n}/${f.items.length}${n===f.items.length?' ✓':''}</small></h3>${f.items.map(x=>`<label class="ph-chk hz-chk"><input type="checkbox" data-ck="${esc(f.t+'|'+x)}" ${done.has(f.t+'|'+x)?'checked':''}> ${esc(x)}</label>`).join('')}</section>`; }).join(''); }
+function chkWire(box,onChange){ box.querySelectorAll('[data-ck]').forEach(c=>c.onchange=()=>{ const d=chkGet(); if(c.checked) d.add(c.dataset.ck); else d.delete(c.dataset.ck); chkSet(d);
+  const sec=c.closest('.hz-fase'), all=sec.querySelectorAll('[data-ck]'), n=[...all].filter(x=>x.checked).length; sec.querySelector('h3 small').textContent=`${n}/${all.length}${n===all.length?' ✓':''}`; onChange&&onChange(); }); }
+PH.chkPre=()=>{ const f=PH.acChkPh(PH.ac), i=f.findIndex(x=>/decollo/i.test(x.t)&&!/dopo/i.test(x.t)); return i>=0?f.slice(0,i+1):f; };   // a terra: fino a «prima del decollo»
+PH.chkOpen=function(fase){
+  let d=document.getElementById('hzChk'); if(d) d.remove();
+  const fasi=PH.acChkPh(PH.ac);
+  d=document.createElement('div'); d.className='ph-sheet'; d.id='hzChk';
+  d.innerHTML=`<div class="ph-sheet-h"><button type="button" id="hzChkB">◀ Strumento</button><b>✔ Check list · ${esc((PH.ac&&PH.ac.reg)||'')}</b></div>
+  <div class="ph-imp"><section><div class="hz-idx">${fasi.map((f,i)=>`<a href="#" data-f="${i}">${esc(f.t)}</a>`).join('')}</div></section>
+  <div id="hzChkL">${chkHtml(fasi)}</div>
+  <section><div class="ph-btns"><button class="ph-btn" type="button" id="hzChkZ">Azzera le spunte</button><button class="ph-btn" type="button" id="hzChkE">Modifica la check list</button></div>
+  <p class="ph-sub">Le spunte valgono per oggi e per questo velivolo. È un promemoria: vale sempre il manuale di volo del tuo aereo.</p></section></div>`;
+  document.body.appendChild(d);
+  const L=document.getElementById('hzChkL'); chkWire(L);
+  d.querySelectorAll('[data-f]').forEach(a=>a.onclick=ev=>{ ev.preventDefault(); const s=L.querySelectorAll('.hz-fase')[+a.dataset.f]; s&&s.scrollIntoView({behavior:'smooth',block:'start'}); });
+  document.getElementById('hzChkB').onclick=()=>d.remove();
+  document.getElementById('hzChkZ').onclick=()=>{ chkSet(new Set()); PH.chkOpen(); };
+  document.getElementById('hzChkE').onclick=()=>{ d.remove(); PH.acEdit(PH.ac); };
+  if(fase!=null) setTimeout(()=>{ const s=L.querySelectorAll('.hz-fase')[fase]; s&&s.scrollIntoView({block:'start'}); },50);
+  PH.act&&PH.act('check list');
+};
+// scheda del velivolo: esempi da cui partire
+PH.acEditHook=function(d){ const ta=d.querySelector('[data-k=chk]'); if(!ta) return;
+  const w=document.createElement('div'); w.className='ph-btns';
+  w.innerHTML='<button class="ph-btn" type="button" data-ex="g">Esempio generico</button><button class="ph-btn" type="button" data-ex="p">Esempio P92 (Rotax 912)</button>';
+  ta.closest('label').after(w);
+  w.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>{ if(ta.value.trim()&&!confirm('Sostituire la check list con l\'esempio?')) return; ta.value=b.dataset.ex==='p'?PH.CHK_P92:PH.CHK_DEF; ta.dispatchEvent(new Event('input')); }); };
+// tasto di richiamo nel menu ALTRO
+{ const g=document.querySelector('#phMore .ph-more-g'), x=g&&g.querySelector('[data-x]');
+  if(g){ const b=document.createElement('button'); b.type='button'; b.id='hzChkBtn'; b.innerHTML='<i>✔</i>CHECK LIST';
+    b.onclick=ev=>{ ev.stopPropagation(); PH.moreOpen(false); PH.chkOpen(); }; g.insertBefore(b,x||null); } }
 // sezione da mettere in testa a Info
 PH.guidaInfoHtml=function(){ return `<section><h3>Guida e tour</h3><p class="ph-sub">Come funziona ogni pagina e ogni impostazione, un tour guidato dei comandi e il catalogo dei velivoli da configurare con un tocco.</p>
-  <div class="ph-btns"><button class="ph-btn pri" type="button" id="hzInfoG">Apri la guida</button><button class="ph-btn" type="button" id="hzInfoT">▶ Tour guidato</button><button class="ph-btn" type="button" id="hzInfoC">Catalogo velivoli</button></div></section>`; };
+  <div class="ph-btns"><button class="ph-btn pri" type="button" id="hzInfoG">Apri la guida</button><button class="ph-btn" type="button" id="hzInfoT">▶ Tour guidato</button><button class="ph-btn" type="button" id="hzInfoC">Catalogo velivoli</button><button class="ph-btn" type="button" id="hzInfoP">Prima del volo</button></div></section>`; };
 PH.guidaInfoWire=function(){ const g=document.getElementById('hzInfoG'); if(!g) return;
-  g.onclick=()=>PH.guidaOpen(); document.getElementById('hzInfoT').onclick=()=>PH.tourStart(); document.getElementById('hzInfoC').onclick=()=>PH.guidaOpen('catalogo'); };
+  g.onclick=()=>PH.guidaOpen(); document.getElementById('hzInfoT').onclick=()=>PH.tourStart(); document.getElementById('hzInfoC').onclick=()=>PH.guidaOpen('catalogo'); document.getElementById('hzInfoP').onclick=()=>PH.preflight(true); };
 
 // stile
 const css=document.createElement('style'); css.textContent=`
@@ -231,6 +332,10 @@ const css=document.createElement('style'); css.textContent=`
 .hz-gt{font-size:15px;line-height:1.45} .hz-gt li{margin:4px 0} .hz-gt a{color:#7fdcff}
 .hz-cat{display:grid;gap:8px}
 .hz-catb{text-align:left;padding:10px 12px;border-radius:12px;border:2px solid #3a4a5a;background:#1b2530;color:#eef3f8;display:flex;flex-direction:column;gap:2px;min-height:56px}
-.hz-catb b{font-size:16px} .hz-catb small{opacity:.75;font-size:12.5px} .hz-catb:active{background:#2a3846}`;
+.hz-pre{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #243140}
+.hz-pre i{font-style:normal;font:800 16px system-ui;min-width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+.hz-pre .hz-ok{background:#1f5a32;color:#8dffb0} .hz-pre .hz-wt{background:#4a4220;color:#ffe08a} .hz-pre .hz-no{background:#5a1f25;color:#ffb3b8}
+.hz-pre span{display:flex;flex-direction:column;gap:2px} .hz-pre small{opacity:.8;font-size:13.5px;line-height:1.35}
+.hz-chk{padding:6px 0;line-height:1.35} .hz-fase h3 small{opacity:.7;font-weight:600} #phMore .ph-more-g button.x{grid-column:1/-1} .hz-catb b{font-size:16px} .hz-catb small{opacity:.75;font-size:12.5px} .hz-catb:active{background:#2a3846}`;
 document.head.appendChild(css);
 })();
