@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "40 3 * * *"          # ogni notte: copia aggiornata degli spazi aerei d'Italia (openAIP)
+    - cron: "40 3 * * *"          # ogni notte: copia aggiornata degli spazi aerei d'Italia (openAIP, e open flightmaps di riserva)
   workflow_dispatch:
 
 permissions:
@@ -40,6 +40,12 @@ jobs:
           for cc in it fr ch at si; do
             curl -sSfL --max-time 120 -o sito/dati/${cc}_asp_v2.txt https://storage.openaip.net/openaip-system-exports/${cc}_asp_v2.txt || echo "openAIP $cc non raggiungibile"
           done
+          # spazi aerei di riserva da open flightmaps (OFMA General Users' License): Italia e fascia alpina, per quando openAIP non risponde
+          python3 tools/ofm_openair.py sito/dati/ofm_it.txt --solo-italia ofm_li.txt || echo "open flightmaps non raggiungibile"
+          # confronto dettagliato openAIP / open flightmaps (solo Italia): sul sito e nel riepilogo di questa corsa
+          if [ -s sito/dati/it_asp_v2.txt ] && [ -s ofm_li.txt ]; then
+            python3 tools/confronta_spazi.py sito/dati/it_asp_v2.txt ofm_li.txt --nomi openAIP "open flightmaps" --md sito/dati/confronto_spazi.md && cat sito/dati/confronto_spazi.md >> "$GITHUB_STEP_SUMMARY" || echo "confronto non riuscito"
+          fi
           # campi con carburante (openAIP): letti dall'app una volta al giorno per gli alternati con rifornimento
           mkdir -p oa
           for cc in it fr ch at si; do curl -sSfL --max-time 120 -o oa/${cc}_apt.json https://storage.openaip.net/openaip-system-exports/${cc}_apt.json || echo "openAIP campi $cc non raggiungibili"; done
