@@ -3006,7 +3006,7 @@ PH.status=function(){
   const age=t=>t?Math.round((Date.now()-t)/100)/10:null, fx=PH.lastFix;
   const rows=[
     ['ok','Velivolo',PH.ac?PH.acLabel(PH.ac)+` · VNE ${PH.ac.vne} km/h`:'—'],
-    [PH.demo?'warn':(fx&&age(fx.t)<5?'ok':'bad'),'GPS del telefono',PH.demo?'volo dimostrativo':(fx?`±${Math.round(fx.acc)} m · ${age(fx.t)<2?'adesso':age(fx.t)+' s fa'}`:(PH.gpsDenied?'permesso negato':'nessun fix'))],
+    [PH.demo?'warn':(fx&&age(fx.t)<5?'ok':'bad'),'GPS del telefono',PH.demo?'volo dimostrativo':(fx?`±${Math.round(fx.acc)} m${PH.stato&&PH.stato.satU!=null?` · ${PH.stato.satU} satelliti usati su ${PH.stato.satV}${PH.stato.cn0!=null?' · segnale '+PH.stato.cn0+' dB-Hz':''}`:''} · ${age(fx.t)<2?'adesso':age(fx.t)+' s fa'}`:(PH.gpsDenied?'permesso negato':'nessun fix'))],
     [PH.glo.port?(PH.glo.fix&&Date.now()-PH.glo.fix.recv<3000?'ok':'warn'):(PH.glo.want?'bad':'warn'),'Garmin GLO 2',
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
     ['ok','Posizione in uso',PH.demo?'simulata':(PH.src==='glo'?'Garmin GLO 2':(PH.src==='phone'?'GPS del telefono':'nessuna'))+' · scelta '+{auto:'automatica',phone:'solo telefono',glo:'solo GLO 2'}[PH.srcPref]],
@@ -3110,7 +3110,7 @@ PH.info=function(g){
   const st=el('phStat'); if(st){
     const gpsOk=S.gpsReal&&!lost('gps'), attOk=!lost('att');
     st.innerHTML=PH.sim?`<i class="w">SIMULAZIONE</i> ${String(PH.sim.name).replace(/</g,'')} · ×${PH.sim.warp} · tocca per fermare`:PH.demo?'<i class="w">DEMO</i> volo dimostrativo':
-      `<i class="${gpsOk?'o':'b'}">${PH.src==='glo'?'GLO 2':'GPS'}</i><i class="${attOk?'o':'b'}">ASSETTO</i><i class="${PH.dem.size?'o':'w'}">TERRENO</i>${PH.statoHtml?PH.statoHtml():`<i class="${navigator.onLine?'o':'w'}">NET</i>`}`;
+      `${(()=>{ const g=PH.gpsQ?PH.gpsQ():{c:gpsOk?'o':'b',n:null}; return `<i class="${g.c}">${PH.src==='glo'?'GLO 2':'GPS'}${g.n!=null?' '+g.n:''}</i>`; })()}<i class="${attOk?'o':'b'}">ASSETTO</i><i class="${PH.dem.size?'o':'w'}">TERRENO</i>${PH.statoHtml?PH.statoHtml():`<i class="${navigator.onLine?'o':'w'}">NET</i>`}`;
   }
   if(S.gpsReal && !lost('att')) PH.seenAll=true;             // dopo il primo fix le perdite le segnalano le bandierine rosse
   const wait=el('phWait'); if(wait) wait.hidden=PH.demo || PH.seenAll || PH.waitClosed || !menuEl.hidden || PH.sim;
@@ -3963,6 +3963,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.100","Riga di stato: accanto a GPS il numero dei satelliti usati (GLO 2 o GPS del telefono). Verde con 7 o più satelliti e posizione entro 15 m, giallo con pochi satelliti o posizione imprecisa, rosso senza posizione. In Impostazioni anche satelliti visti e segnale."],
   ["1.0.99","Radio nel circuito: un banner sopra la barra in basso fa scorrere la chiamata da leggere col PTT, prima del sottovento, in virata base e in virata finale (si accende e si spegne in Impostazioni › Radio). Nuova pagina ALTRO › FREQUENZE: campo d'arrivo, FIS del settore, campi vicini, emergenza. La frequenza scritta nelle note del campo vale prima delle altre."],
   ["1.0.98","Guida: nuovo «Promemoria radio» (marche, struttura del messaggio, MAYDAY e PAN PAN, 121.500, squawk 7700/7600/7500, classi degli spazi italiani). Squadriglia: il nominativo abbreviato si usa solo dopo l'ente; primo contatto con «ultralight»."],
   ["1.0.97","Spazi aerei da due fonti: openAIP unito a open flightmaps. Dove lo stesso spazio c'è in tutte e due vale il limite più restrittivo (base più bassa, tetto più alto, classe più severa); gli spazi che ci sono in una sola fonte si aggiungono. Si spegne in PIANO › Briefing."],
@@ -4566,6 +4567,7 @@ PH.statoPoll=async function(){
       const r=await PH.native.stato.get();
       st.batt=r.batt!=null?+r.batt:null; st.carica=!!r.carica; st.tempC=r.tempC!=null?+r.tempC:null;
       st.rete=r.rete||null; st.gen=r.gen||null; st.pct=r.pct!=null?+r.pct:null; st.internet=r.internet!==false;
+      st.satU=r.satUsati!=null?+r.satUsati:null; st.satV=r.satVisti!=null?+r.satVisti:null; st.cn0=r.cn0!=null?+r.cn0:null;
     } else {
       if(navigator.getBattery){ if(!st.bm) st.bm=await navigator.getBattery(); st.batt=Math.round(st.bm.level*100); st.carica=!!st.bm.charging; }
       const c=navigator.connection; st.rete=c&&c.type==='wifi'?'WIFI':(c&&c.type==='cellular'?'CELL':null);
@@ -4574,6 +4576,17 @@ PH.statoPoll=async function(){
     st.t=Date.now();
   }catch(e){ st.err=String(e&&e.message||e); }
   finally{ st.busy=false; }
+};
+// qualità del GPS per l'etichetta della riga di stato: verde buono, giallo pochi satelliti o posizione imprecisa,
+// rosso senza fix (come prima). Satelliti: dal GLO 2 (NMEA) o dal telefono (plugin StatoTelefono, solo APK).
+PH.GPS_Q={satOk:7,hdopMax:2.5,accMax:15};
+PH.gpsQ=function(){
+  if(!(S.gpsReal&&!lost('gps'))) return {c:'b',n:null};
+  const st=PH.stato, glo=PH.src==='glo', q=PH.GPS_Q;
+  const n=glo?(S.sats!=null&&isFinite(S.sats)?S.sats:null):(st.satU!=null&&Date.now()-st.t<12000?st.satU:null);
+  const hd=glo&&S.hdop!=null&&isFinite(S.hdop)?S.hdop:null;
+  const ok=!(n!=null&&n<q.satOk) && !(hd!=null&&hd>q.hdopMax) && !(PH.acc!=null&&PH.acc>q.accMax);
+  return {c:ok?'o':'w',n};
 };
 // le etichette della riga di stato, al posto di NET
 PH.statoHtml=function(){

@@ -5,10 +5,15 @@ package it.amicoen.horizon;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.location.GnssStatus;
+import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.os.BatteryManager;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.telephony.CellInfo;
 import android.telephony.CellSignalStrength;
 import android.telephony.CellSignalStrengthGsm;
@@ -29,9 +34,45 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  * Stato del telefono per la riga di stato: batteria (percentuale, in carica, temperatura) e rete
  * (WIFI o cellulare, generazione 2G/3G/4G/5G, segnale in percentuale).
  * Nessun permesso in più: la potenza del segnale e il tipo di cella vengono da getSignalStrength() (Android 9+).
+ * Satelliti del GPS del telefono (GnssStatus): quanti usati nel fix, quanti visti e il segnale medio (C/N0 in dB-Hz)
+ * di quelli usati. Servono solo il permesso della posizione, già chiesto dall'app; senza, restano assenti.
  */
 @CapacitorPlugin(name = "StatoTelefono")
 public class StatoTelefonoPlugin extends Plugin {
+
+    private volatile int satUsati = -1, satVisti = -1;
+    private volatile double cn0 = -1;
+    private volatile long gnssT = 0;
+    private GnssStatus.Callback gnssCb;
+
+    private final GnssStatus.Callback cb = new GnssStatus.Callback() {
+        @Override public void onSatelliteStatusChanged(GnssStatus s) {
+            int u = 0, n = s.getSatelliteCount(); double c = 0;
+            for (int i = 0; i < n; i++) if (s.usedInFix(i)) { u++; c += s.getCn0DbHz(i); }
+            satUsati = u; satVisti = n; cn0 = u > 0 ? c / u : -1; gnssT = SystemClock.elapsedRealtime();
+        }
+        @Override public void onStopped() { satUsati = -1; satVisti = -1; cn0 = -1; gnssT = 0; }
+    };
+
+    // si registra quando il permesso della posizione c'è (al primo avvio arriva dopo): si riprova a ogni get()
+    private void gnss() {
+        if (gnssCb != null) return;
+        try {
+            LocationManager lm = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
+            if (lm != null && lm.registerGnssStatusCallback(cb, new Handler(Looper.getMainLooper()))) gnssCb = cb;
+        } catch (SecurityException ignored) {
+        } catch (Exception ignored) { }
+    }
+
+    @Override public void load() { gnss(); }
+
+    @Override protected void handleOnDestroy() {
+        try {
+            LocationManager lm = (LocationManager) getContext().getSystemService(Context.LOCATION_SERVICE);
+            if (lm != null && gnssCb != null) lm.unregisterGnssStatusCallback(gnssCb);
+        } catch (Exception ignored) { }
+        gnssCb = null;
+    }
 
     private static int pct(int v, int lo, int hi) {
         if (v == Integer.MAX_VALUE || v == CellInfo.UNAVAILABLE) return -1;
@@ -88,6 +129,12 @@ public class StatoTelefonoPlugin extends Plugin {
                 r.put("livello", ss.getLevel());
             }
         } catch (Exception ignored) { }
+        // satelliti del GPS del telefono (solo se aggiornati negli ultimi 10 s)
+        gnss();
+        if (gnssT > 0 && SystemClock.elapsedRealtime() - gnssT < 10000) {
+            r.put("satUsati", satUsati); r.put("satVisti", satVisti);
+            if (cn0 >= 0) r.put("cn0", Math.round(cn0 * 10) / 10.0);
+        }
         call.resolve(r);
     }
 }
