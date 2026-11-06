@@ -1272,6 +1272,44 @@ addEventListener('online',()=>fetchModel(false));
     flush(); return out.join('\n'); };
   { const lb=clsLabel; clsLabel=function(a){ return {FMC:'Area FMC',SPORT:'Attività sportive',OFR:'Sorvolo limitato',UNC:'Non classificato',GSEC:'Settore alianti'}[a.cls]||lb(a); }; }
   const base=parseOpenAir; parseOpenAir=function(text){ return base(norm(String(text||''))); };
+// ---------------- unione openAIP + open flightmaps: dove si sovrappongono vale la più restrittiva ----------------
+// Si fa sul telefono (le licenze delle due fonti non permettono di pubblicare un database unito).
+// Stesso spazio nelle due fonti: base più bassa, tetto più alto, classe più restrittiva; se i riferimenti delle quote
+// sono diversi (AGL e MSL) restano tutti e due, così vale il limite più severo. Gli spazi di una sola fonte restano.
+const ASP_RANK=['P','R','OFR','A','B','C','CTR','D','TMZ','RMZ','Q','E','F','G','W','SPORT','GSEC','FMC','UNC'];
+const aspRank=c=>{ const i=ASP_RANK.indexOf(c); return i<0?ASP_RANK.length:i; };
+function aspGeo(a){ if(a._c) return; let la=0,lo=0; for(const p of a.pts){ la+=p.lat; lo+=p.lon; } a._c={lat:la/a.pts.length,lon:lo/a.pts.length};
+  const cl=Math.cos(a._c.lat*D2R); let A=0; for(let i=0;i<a.pts.length;i++){ const p=a.pts[i], q=a.pts[(i+1)%a.pts.length];
+    A+=(p.lon*111.32*cl)*(q.lat*110.54)-(q.lon*111.32*cl)*(p.lat*110.54); } a._km2=Math.abs(A)/2;
+  a._key=String(a.name||'').toUpperCase().replace(/\b\d{3}\.\d{1,3}\b/g,' ').replace(/\bZONE\s*(\d+)/g,'Z$1').replace(/\bLI[A-Z]{2}\b/g,' ').replace(/\(.*?\)/g,' ')
+    .replace(/\b(ATZ|CTR|TMA|CTA|TIZ|TIA|AREA|ZONE|ZONA|SECTOR|SETTORE|PARCO|PARK|RMZ|TMZ)\b/g,' ').replace(/[^A-Z0-9]+/g,''); }
+const aspCompat=(x,y)=>x===y||[['R','Q','P','OFR'],['D','CTR'],['C','D','E'],['A','CTR'],['TMZ','RMZ']].some(g=>g.includes(x)&&g.includes(y));
+function aspMerge(A,B){
+  A.forEach(aspGeo); B.forEach(aspGeo);
+  const grid=new Map(), k=(la,lo)=>Math.round(la*4)+','+Math.round(lo*4);
+  A.forEach((a,i)=>{ const key=k(a._c.lat,a._c.lon); (grid.get(key)||grid.set(key,[]).get(key)).push(i); });
+  const used=new Set(), out=A.map(a=>Object.assign({},a,{src:'openAIP'})); let uniti=0, aggiunti=0, doppi=0;
+  for(const b of B){ let best=-1, bs=1e9; const gx=Math.round(b._c.lat*4), gy=Math.round(b._c.lon*4);
+    for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(const i of (grid.get((gx+dx)+','+(gy+dy))||[])){ if(used.has(i)) continue; const a=A[i];
+      if(!aspCompat(a.cls,b.cls)) continue;
+      const d=dist(a._c,b._c).d/1000, r=Math.max(a._km2,b._km2)/Math.max(1e-3,Math.min(a._km2,b._km2)), same=a._key&&a._key===b._key;
+      if(!((d<5&&r<2.5)||(same&&d<25))) continue;
+      const vz=[[a.lo,b.lo],[a.hi,b.hi]].reduce((t,[x,y])=>t+(x.ref===y.ref?Math.abs(x.ft-y.ft)/1000:0),0);
+      const sc=d+(same?0:3)+Math.log(r)+vz; if(sc<bs){ bs=sc; best=i; } }
+    if(best<0){ out.push(Object.assign({},b,{src:'open flightmaps'})); aggiunti++; continue; }
+    used.add(best); const m=out[best];
+    if(m.lo.ref===b.lo.ref && m.hi.ref===b.hi.ref){
+      if(b.lo.ft<m.lo.ft) m.lo=b.lo; if(b.hi.ft>m.hi.ft) m.hi=b.hi;
+      if(aspRank(b.cls)<aspRank(m.cls)) m.cls=b.cls; m.src='openAIP + open flightmaps'; uniti++; }
+    else { out.push(Object.assign({},b,{src:'open flightmaps'})); doppi++; } }
+  out.forEach(a=>{ delete a._c; delete a._km2; delete a._key; });
+  return {list:out,uniti,aggiunti,doppi}; }
+// copia di open flightmaps salvata in IndexedDB (localStorage non basta per tutte e due le fonti)
+const aspDB={ open(){ return new Promise((ok,ko)=>{ try{ const r=indexedDB.open('horizon-asp',1); r.onupgradeneeded=()=>r.result.createObjectStore('t'); r.onsuccess=()=>ok(r.result); r.onerror=()=>ko(r.error); }catch(e){ ko(e); } }); },
+  async get(k){ try{ const db=await this.open(); return await new Promise(ok=>{ const q=db.transaction('t').objectStore('t').get(k); q.onsuccess=()=>ok(q.result||null); q.onerror=()=>ok(null); }); }catch(e){ return null; } },
+  async set(k,v){ try{ const db=await this.open(); await new Promise(ok=>{ const tx=db.transaction('t','readwrite'); tx.objectStore('t').put(v,k); tx.oncomplete=ok; tx.onerror=ok; }); }catch(e){} } };
+window.IA517_aspMerge=aspMerge; window.IA517_aspDB=aspDB;
+
   // gli spazi salvati sono stati letti all'avvio prima di questa correzione: si rileggono
   const st=store.get('ia517_openair',null);
   if(st && st.text && ASP_SRC.real){ const l=parseOpenAir(st.text); if(l.length){ ASP=l; ASP_SRC.count=l.length; } }
@@ -1301,13 +1339,14 @@ addEventListener('online',()=>fetchModel(false));
       <div class="fld"><label for="aspUrl">Oppure l'indirizzo di un file OpenAir</label><input id="aspUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://…" value="${esc(saved().kind==='url'?saved().url||'':'')}"></div>
       <div class="sub" style="margin-top:6px">Fonte di riserva: <b>open flightmaps</b> (Italia e Alpi vicine), usata da sola se openAIP non risponde. Puoi anche sceglierla tu.</div>
       <div class="btnrow"><button class="btn" type="button" id="ofmGo">Usa open flightmaps</button></div>
+      <label class="sub" style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="ofmMerge" ${store.get('ia517_unisci_ofm',true)!==false?'checked':''}> Unisci openAIP e open flightmaps: dove si sovrappongono vale il limite più restrittivo (consigliato)</label>
       <div class="btnrow"><button class="btn" type="button" id="aspUrlGo">Scarica da questo indirizzo</button><a class="btn" style="display:inline-flex;align-items:center;text-decoration:none" href="https://www.openaip.net/data/airspaces" target="_blank" rel="noopener">Apri openAIP</a></div>
     </details>`;
   row.after(box);
   const msg=h=>{ $('oaipMsg').innerHTML=h; };
   const show=()=>{ const s=saved(), a=airac(Date.now());
     if(!s.t){ msg('Scarica una volta con internet: poi restano sul telefono e si aggiornano da soli a ogni ciclo AIRAC (ogni 28 giorni).'); return; }
-    msg(`In uso: <b>${esc(s.src||s.name)}</b> · ${s.count||ASP.length} spazi · scaricati il ${new Date(s.t).toLocaleDateString('it-IT')} (AIRAC ${airac(s.t).code})`+
+    msg(`In uso: <b>${esc(ASP_SRC.name||s.src||s.name)}</b> · ${ASP.length||s.count} spazi · scaricati il ${new Date(s.t).toLocaleDateString('it-IT')} (AIRAC ${airac(s.t).code})`+(mergeInfo?`<br>${esc(mergeInfo)}.`:'')+
         (s.t<a.start?` · <span class="warn">è iniziato il ciclo ${a.code}: li riscarico appena c'è rete</span>`:''));
   };
   const get=async(url,headers)=>{ const H=PHONE&&parent.IA517&&parent.IA517.http; if(H) return H(url,headers);
@@ -1367,7 +1406,9 @@ addEventListener('online',()=>fetchModel(false));
           if(!quiet) msg('Italia scaricata. Scarico le Alpi vicine (Francia, Svizzera, Austria, Slovenia)…');
           const extra=await alpsNear(), txt=r.text+(extra.text?'\n'+extra.text:'');
           const n=use(txt,'openAIP · Italia'+(extra.names.length?' e Alpi vicine ('+extra.names.join(', ')+')':''),{kind:'openaip'});
-          if(!quiet) toast(`${n} spazi aerei da openAIP`); return; }
+          if(!quiet) toast(`${n} spazi aerei da openAIP`);
+          if(mergeOn()){ if(!quiet) msg('openAIP in uso. Unisco open flightmaps (dove si sovrappongono vale il più restrittivo)…'); await ofmStore(); await applyMerge(); }
+          return; }
         why='file openAIP: risposta '+r.status; }catch(e){ why='file openAIP: '+(e&&e.message||e); }
     }
     if(await ofm(quiet,true)) return;                                     // 2) riserva: open flightmaps, copia notturna sul sito di HORIZON
@@ -1379,9 +1420,21 @@ addEventListener('online',()=>fetchModel(false));
   }
   // open flightmaps (OFMA General Users' License, uso anche commerciale con citazione): Italia e fascia alpina, copia notturna
   // preparata da tools/ofm_openair.py sul sito di HORIZON. Fonte di riserva quando openAIP non risponde, o scelta a mano.
+  const ofmUrls=()=>{ let web=''; try{ web=parent.eval('PH_INFO.web')||''; }catch(e){} return NATIVE?[web+'dati/ofm_it.txt']:['dati/ofm_it.txt']; };
+  // copia di open flightmaps per l'unione: in IndexedDB, rinnovata a ogni ciclo AIRAC
+  async function ofmStore(){ for(const u of ofmUrls()){ try{ const r=await get(u+'?chk='+Date.now()); if(r.status===200 && /^\s*(\*|AC\s)/m.test(r.text||'')){
+      const m=String(r.text).match(/AIRAC\s+([\d/]+)/); await window.IA517_aspDB.set('ofm',{text:r.text,t:Date.now(),airac:m?m[1]:''}); return true; } }catch(e){} } return false; }
+  let mergeInfo='';
+  const mergeOn=()=>store.get('ia517_unisci_ofm',true)!==false;
+  async function applyMerge(){ const s=saved(); mergeInfo='';
+    if(!s.text || s.kind==='ofm' || !mergeOn() || !window.IA517_aspMerge) return false;
+    const o=await window.IA517_aspDB.get('ofm'); if(!o||!o.text) return false;
+    const r=window.IA517_aspMerge(parseOpenAir(s.text),parseOpenAir(o.text)); if(!r.list.length) return false;
+    ASP=r.list; ASP_SRC={real:true,name:(s.src||s.name)+' + open flightmaps'+(o.airac?' (AIRAC '+o.airac+')':''),count:ASP.length};
+    mergeInfo=`unione con open flightmaps: ${r.uniti} spazi in comune (tenuti i limiti più restrittivi), ${r.aggiunti} solo in open flightmaps aggiunti, ${r.doppi} con quote di riferimento diverse tenuti tutti e due`;
+    update(); show(); return true; }
   async function ofm(quiet,riserva){
-    let web=''; try{ web=parent.eval('PH_INFO.web')||''; }catch(e){}
-    const urls=NATIVE?[web+'dati/ofm_it.txt']:['dati/ofm_it.txt'];
+    const urls=ofmUrls();
     if(!quiet&&!riserva) msg('Scarico da open flightmaps…');
     for(const u of urls){ try{ const r=await get(u+'?chk='+Date.now()); if(r.status===200 && /^\s*(\*|AC\s)/m.test(r.text||'')){
         const m=String(r.text).match(/AIRAC\s+([\d/]+)/), n=use(r.text,'open flightmaps · Italia e Alpi vicine'+(m?' (AIRAC '+m[1]+')':'')+(riserva?' · riserva: openAIP non risponde':''),{kind:'ofm'});
@@ -1400,7 +1453,13 @@ addEventListener('online',()=>fetchModel(false));
   $('oaipKey').addEventListener('change',e=>store.set('ia517_openaip_key',e.target.value.trim()));
   $('aspUrlGo').onclick=()=>byUrl($('aspUrl').value,false);
   $('ofmGo').onclick=()=>ofm(false,false);
+  $('ofmMerge').onchange=async e=>{ store.set('ia517_unisci_ofm',e.target.checked);
+    if(e.target.checked){ if(!(await window.IA517_aspDB.get('ofm'))) await ofmStore(); if(await applyMerge()) toast('Unione con open flightmaps attiva'); }
+    else { const s=saved(); if(s.text){ ASP=parseOpenAir(s.text); ASP_SRC={real:true,name:s.src||s.name,count:ASP.length}; mergeInfo=''; update(); show(); } } };
   show();
+  // all'avvio: unione con la copia di open flightmaps salvata; se manca o è di un ciclo AIRAC vecchio, se ne scarica una nuova
+  setTimeout(async()=>{ if(!mergeOn() || saved().kind==='ofm' || !saved().text) return;
+    const o=await window.IA517_aspDB.get('ofm'); if((!o || o.t<airac(Date.now()).start) && navigator.onLine) await ofmStore(); await applyMerge(); },1500);
   // all'avvio: se è iniziato un ciclo AIRAC nuovo rispetto all'ultimo scarico, si riscarica in silenzio dalla stessa fonte
   const s=saved();
   if(s.t && s.t<airac(Date.now()).start){ if(s.kind==='openaip'||(s.kind==='ofm'&&/riserva/.test(s.src||''))) setTimeout(()=>openaip(true),6000); else if(s.kind==='ofm') setTimeout(()=>ofm(true,false),6000); else if(s.kind==='url'&&s.url) setTimeout(()=>byUrl(s.url,true),6000); }
