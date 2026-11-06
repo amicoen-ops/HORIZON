@@ -123,7 +123,7 @@ const G=[
     <p>In PIANO › Rotte salvate: <b>Apri</b> per modificarla, <b>Vola</b> per mandarla allo strumento (a terra parte subito, in volo chiede conferma). Sullo strumento: OK › ROTTE SALVATE. Fino a 100 punti per rotta.</p>`},
   {id:'meteo',t:'Meteo, NOTAM e spazi aerei',h:`
     <p>Meteo della rotta alle quote (vento e temperatura da 1000 a 700 hPa all'ora in cui passi), METAR e TAF, avvisi per nubi basse, visibilità, pioggia, temporali, ghiaccio, raffiche e vento al traverso all'arrivo.</p>
-    <p>Spazi aerei da openAIP (Briefing › Scarica gli spazi aerei) o da un file OpenAir tuo. In volo l'app avvisa se sei dentro una zona adesso, tra 30 secondi o tra un minuto, giudicandola secondo il tuo tipo di volo.</p>`},
+    <p>Spazi aerei da openAIP (Briefing › Scarica gli spazi aerei) <b>uniti a open flightmaps</b>: dove lo stesso spazio c'è in tutte e due le fonti vale il limite più restrittivo, e gli spazi di una sola fonte si aggiungono. Se openAIP non risponde si usa solo open flightmaps. Oppure un file OpenAir tuo. Fa sempre fede l'AIP. In volo l'app avvisa se sei dentro una zona adesso, tra 30 secondi o tra un minuto, giudicandola secondo il tuo tipo di volo.</p>`},
   {id:'taws',t:'Avvisi di terreno (TAWS)',h:`
     <p>Ogni secondo l'app prevede dove sarai nei prossimi 60 s con il vario attuale. <b>«TERRENO! CABRA»</b> se entro 30 s saresti a meno di 100 ft dal terreno; <b>«ATTENZIONE TERRENO»</b> sotto 300 ft. Tace vicino alla destinazione in circuito e senza GPS. Serve il terreno scaricato (si scarica da solo con internet).</p>`},
   {id:'traffico',t:'Traffico',h:`
