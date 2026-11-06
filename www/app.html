@@ -648,7 +648,8 @@ function parseAltOA(s){
   if(/^(SFC|GND)/.test(s)||/^0+\s*$/.test(s)) return {ft:0,ref:'AGL',txt:'SFC'};
   if(/^UNL/.test(s)) return {ft:99999,ref:'MSL',txt:'UNL'};
   let m=s.match(/^FL\s*(\d+)/); if(m) return {ft:+m[1]*100,ref:'MSL',txt:'FL'+(+m[1])};
-  m=s.match(/^(\d+)\s*(FT|F|M)?\s*(AGL|AGND|GND|SFC|AMSL|MSL|ALT)?/);
+  m=s.match(/^(\d+)\s*FL\b/); if(m) return {ft:+m[1]*100,ref:'MSL',txt:'FL'+(+m[1])};            // open flightmaps: «45 fl msl»
+  m=s.match(/^(\d+)\s*(FT|F|M(?!SL))?\s*(AGL|AGND|GND|SFC|AMSL|MSL|ALT)?/);   // «3500MSL»: la M è di MSL, non metri (open flightmaps)
   if(m){ let v=+m[1]; if(m[2]==='M') v=Math.round(v/0.3048); const agl=/AGL|AGND|GND|SFC/.test(m[3]||''); return {ft:v,ref:agl?'AGL':'MSL',txt:`${v} ft ${agl?'AGL':'AMSL'}`}; }
   return {ft:0,ref:'MSL',txt:s};
 }
@@ -1298,6 +1299,8 @@ addEventListener('online',()=>fetchModel(false));
       <div class="sub" style="margin-top:6px">Non serve niente: l'app scarica il file dell'Italia che openAIP pubblica ogni notte (circa 1,5 MB, 1500 spazi). Solo se quel file non rispondesse, prova l'API di openAIP con la tua chiave gratuita: account su openaip.net › Profilo › API Clients › crea una chiave, e incollala qui.</div>
       <div class="fld"><label for="oaipKey">Chiave API openAIP (facoltativa)</label><input id="oaipKey" type="text" autocomplete="off" spellcheck="false" value="${esc(keyGet())}" placeholder="incolla la chiave"></div>
       <div class="fld"><label for="aspUrl">Oppure l'indirizzo di un file OpenAir</label><input id="aspUrl" type="text" inputmode="url" autocomplete="off" placeholder="https://…" value="${esc(saved().kind==='url'?saved().url||'':'')}"></div>
+      <div class="sub" style="margin-top:6px">Fonte di riserva: <b>open flightmaps</b> (Italia e Alpi vicine), usata da sola se openAIP non risponde. Puoi anche sceglierla tu.</div>
+      <div class="btnrow"><button class="btn" type="button" id="ofmGo">Usa open flightmaps</button></div>
       <div class="btnrow"><button class="btn" type="button" id="aspUrlGo">Scarica da questo indirizzo</button><a class="btn" style="display:inline-flex;align-items:center;text-decoration:none" href="https://www.openaip.net/data/airspaces" target="_blank" rel="noopener">Apri openAIP</a></div>
     </details>`;
   row.after(box);
@@ -1367,11 +1370,24 @@ addEventListener('online',()=>fetchModel(false));
           if(!quiet) toast(`${n} spazi aerei da openAIP`); return; }
         why='file openAIP: risposta '+r.status; }catch(e){ why='file openAIP: '+(e&&e.message||e); }
     }
+    if(await ofm(quiet,true)) return;                                     // 2) riserva: open flightmaps, copia notturna sul sito di HORIZON
     const key=($('oaipKey')&&$('oaipKey').value.trim())||keyGet();
     if(key){ try{ const n=use(await viaApi(key),'openAIP · Italia (API)',{kind:'openaip'}); if(!quiet) toast(`${n} spazi aerei d'Italia da openAIP`); return; }
              catch(e){ why=String(e&&e.message||e); } }
     else why+=(why?' · ':'')+'controlla la connessione e riprova';
     msg(`<span class="warn">Non riuscito: ${esc(why)}.</span>${NATIVE?'':' Dal browser openAIP può non permettere la lettura diretta: usa l\'app installata, oppure scarica il file e usa «Carica file OpenAir».'}`);
+  }
+  // open flightmaps (OFMA General Users' License, uso anche commerciale con citazione): Italia e fascia alpina, copia notturna
+  // preparata da tools/ofm_openair.py sul sito di HORIZON. Fonte di riserva quando openAIP non risponde, o scelta a mano.
+  async function ofm(quiet,riserva){
+    let web=''; try{ web=parent.eval('PH_INFO.web')||''; }catch(e){}
+    const urls=NATIVE?[web+'dati/ofm_it.txt']:['dati/ofm_it.txt'];
+    if(!quiet&&!riserva) msg('Scarico da open flightmaps…');
+    for(const u of urls){ try{ const r=await get(u+'?chk='+Date.now()); if(r.status===200 && /^\s*(\*|AC\s)/m.test(r.text||'')){
+        const m=String(r.text).match(/AIRAC\s+([\d/]+)/), n=use(r.text,'open flightmaps · Italia e Alpi vicine'+(m?' (AIRAC '+m[1]+')':'')+(riserva?' · riserva: openAIP non risponde':''),{kind:'ofm'});
+        if(!quiet) toast(`${n} spazi aerei da open flightmaps${riserva?' (openAIP non risponde)':''}`); return true; } }catch(e){} }
+    if(!quiet&&!riserva) msg('<span class="warn">open flightmaps non raggiungibile: riprova con la rete.</span>');
+    return false;
   }
   async function byUrl(url,quiet){
     url=String(url||'').trim(); if(!/^https:\/\//i.test(url)){ if(!quiet) msg('<span class="warn">Serve un indirizzo sicuro che inizia con https://</span>'); return; }
@@ -1383,10 +1399,11 @@ addEventListener('online',()=>fetchModel(false));
   $('oaipGo').onclick=()=>openaip(false);
   $('oaipKey').addEventListener('change',e=>store.set('ia517_openaip_key',e.target.value.trim()));
   $('aspUrlGo').onclick=()=>byUrl($('aspUrl').value,false);
+  $('ofmGo').onclick=()=>ofm(false,false);
   show();
   // all'avvio: se è iniziato un ciclo AIRAC nuovo rispetto all'ultimo scarico, si riscarica in silenzio dalla stessa fonte
   const s=saved();
-  if(s.t && s.t<airac(Date.now()).start){ if(s.kind==='openaip') setTimeout(()=>openaip(true),6000); else if(s.kind==='url'&&s.url) setTimeout(()=>byUrl(s.url,true),6000); }
+  if(s.t && s.t<airac(Date.now()).start){ if(s.kind==='openaip'||(s.kind==='ofm'&&/riserva/.test(s.src||''))) setTimeout(()=>openaip(true),6000); else if(s.kind==='ofm') setTimeout(()=>ofm(true,false),6000); else if(s.kind==='url'&&s.url) setTimeout(()=>byUrl(s.url,true),6000); }
 })();
 
 // ---------------- Desk Aeronautico: collegamenti rapidi (NOTAM, meteo, briefing) ----------------

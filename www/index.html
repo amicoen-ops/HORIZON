@@ -3956,6 +3956,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.95","Spazi aerei di riserva da open flightmaps (Italia e Alpi vicine): se openAIP non risponde l'app li prende da lì, oppure li scegli tu in PIANO › Briefing. Corretto il lettore delle quote: «3500msl» era letto come 3500 metri."],
   ["1.0.94","Il vettore di traiettoria (il tondo verde con le alette al centro dell'orizzonte) sparisce anche quando il GPS non è aggiornato, come le barre di guida: mai su dati vecchi. Spiegato nella guida e nel tour."],
   ["1.0.93","All'avvio, a terra, la scheda «Prima del volo»: internet, terreno, spazi aerei, GPS, velivolo e LIVELLA con un segno verde, giallo o rosso, e la check list del tuo velivolo da spuntare fino a «Prima del decollo». Check list a fasi nella scheda del velivolo (esempio generico e P92), richiamabile anche in volo da ALTRO › CHECK LIST. Mai sopra lo strumento in volo."],
   ["1.0.91","Avvisi gialli a bandierina: i messaggi informativi si aprono dal bordo per 3 secondi e lasciano una linguetta; toccandola si riaprono, spariscono quando la condizione finisce. Rossi e gialli di terreno restano al centro finché il pericolo c'è."],
@@ -4253,7 +4254,7 @@ PH.renderInfo=function(){
     <div class="ph-cred">
       <p><b>Campi e piste</b>: OurAirports (pubblico dominio) e note del pilota.</p>
       <p><b>Mappe</b>: © OpenStreetMap contributors (ODbL); OpenTopoMap (CC BY-SA); World Imagery © Esri, Vantor, Earthstar Geographics; IGM 1:25.000 e ortofoto AGEA dal Geoportale Nazionale (CC BY-SA).</p>
-      <p><b>Spazi aerei</b>: openAIP (CC BY-NC 4.0, www.openaip.net), quando li scarichi da lì; oppure il file OpenAir che carichi tu.</p>
+      <p><b>Spazi aerei</b>: openAIP (CC BY-NC 4.0, www.openaip.net), quando li scarichi da lì; di riserva open flightmaps: <i>Contains information from the open flightmaps database</i> (OFMA General Users' License, www.openflightmaps.org; errori nei dati a info@openflightmaps.org); oppure il file OpenAir che carichi tu.</p>
       <p><b>Terreno</b>: Terrain Tiles su AWS Open Data (Mapzen, da SRTM, EU-DEM e altre fonti pubbliche).</p>
       <p><b>Meteo</b>: Open-Meteo (CC BY 4.0); METAR e TAF da aviationweather.gov (NOAA).</p>
       <p><b>Traffico</b>: Open Glider Network (ODbL, www.glidernet.org); adsb.lol (ODbL 1.0, www.adsb.lol).</p>
