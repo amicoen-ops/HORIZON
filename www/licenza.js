@@ -1,6 +1,8 @@
 // HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 // =====================================================================================
+//  L'abbonamento è rinviato: con abbonamento:false l'app è gratuita ovunque e sul Play Store c'è «Offrimi un caffè».
+//  Quando si riaccende (abbonamento:true) valgono queste regole.
 //  Licenza d'uso: 30 giorni di prova, poi
 //   · Google Play: abbonamento annuale nell'app (Play Billing), su tutti i telefoni dell'account Google
 //   · APK e web: abbonamento annuale su Polar.sh, stesso prezzo del Play Store (chiave alla mail di chi paga),
@@ -11,6 +13,8 @@
 'use strict';
 if(window.top!==window) return;                 // nella pagina del piano (dentro lo strumento) non serve
 const CFG={
+  abbonamento:false,                             // rinviato: nessuna prova e nessun blocco, tutto gratuito
+  playCaffe:'caffe',                             // prodotto a consumo della Play Console per «Offrimi un caffè»
   polarOrg:'__POLAR_ORG__',                      // Organization ID di Polar (vuoto: licenza non ancora attiva su APK e web)
   polarApi:'https://api.polar.sh',                      // https://api.polar.sh oppure https://sandbox-api.polar.sh
   checkout:'__POLAR_CHECKOUT__',                 // link di pagamento del prodotto su Polar
@@ -30,7 +34,7 @@ const L={ cfg:CFG, state:null, dev:null, native:null, play:false, ready:false, b
 window.IA517_LIC=L;
 L.channel=()=>((window.IA517_BUILD||{}).channel)||'web';
 // la licenza si applica: sul Play Store sempre (quando c'è il modulo di Google), su APK e web quando c'è il negozio Polar
-L.enforced=()=>L.channel()==='play'?!!L.play:set(CFG.polarOrg);
+L.enforced=()=>{ if(!CFG.abbonamento) return false; return L.channel()==='play'?!!L.play:set(CFG.polarOrg); };
 
 async function sha(s){ const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
 const b32='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -50,7 +54,8 @@ L.init=async function(){
   // orologio portato indietro: si tiene l'ora più avanti mai vista
   const seen=Math.max(ls.get(KS,0),(await idb.get('seen'))||0); L.clockBack=seen-now>DAY; ls.set(KS,Math.max(seen,now)); idb.set('seen',Math.max(seen,now));
   L.state=ls.get(K,null)||await idb.get('lic')||null;
-  if(L.channel()==='play' && L.native && L.native.billingStart){ try{ const r=await L.native.billingStart({product:CFG.playProduct,basePlan:CFG.playBasePlan}); L.play=!!r.ok; L.playPrice=r.price||CFG.price; }catch(e){ L.play=false; } }
+  if(L.channel()==='play' && L.native && L.native.caffeStart){ try{ const r=await L.native.caffeStart({product:CFG.playCaffe}); L.caffePrice=r.ok?(r.price||''):''; L.caffeOk=!!r.ok; }catch(e){ L.caffeOk=false; } }
+  if(CFG.abbonamento && L.channel()==='play' && L.native && L.native.billingStart){ try{ const r=await L.native.billingStart({product:CFG.playProduct,basePlan:CFG.playBasePlan}); L.play=!!r.ok; L.playPrice=r.price||CFG.price; }catch(e){ L.play=false; } }
   L.ready=true;
   await L.refresh(false);
   L.tick(); setInterval(L.tick,60000);
@@ -174,8 +179,20 @@ L.wire=function(root){
     }catch(e){ msg({ok:false,text:String(e&&e.message||e)}); }
     finally{ L.busy=false; b.disabled=false; } }));
 };
+// ---------- Offrimi un caffè (solo Play Store) ----------
+L.caffeHtml=function(){ if(!L.caffeOk) return ''; const esc=x=>String(x).replace(/[<&>"]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[c]));
+  return `<section class="ph-donate"><h3>Ti è utile?</h3>
+    <p class="ph-sub">HORIZON è gratuita e senza pubblicità. Se vuoi contribuire alle spese puoi offrirmi un caffè: non cambia niente nell'app, è solo un grazie.</p>
+    <button class="ph-btn pri" type="button" id="phCaffe">☕ Offrimi un caffè${L.caffePrice?' · '+esc(L.caffePrice):''}</button>
+    <p class="ph-sub" id="phCaffeMsg" aria-live="polite"></p></section>`; };
+L.caffeWire=function(){ const b=document.getElementById('phCaffe'), m=document.getElementById('phCaffeMsg'); if(!b) return;
+  b.onclick=async()=>{ if(L.busy) return; L.busy=true; b.disabled=true; m.textContent='';
+    try{ const r=await L.native.caffeBuy(); m.textContent=r&&r.thanks?'Grazie del caffè!':(r&&r.pending?'Pagamento in attesa: grazie!':(r&&r.cancelled?'':'Acquisto non completato.')); }
+    catch(e){ m.textContent=String(e&&e.message||e); }
+    finally{ L.busy=false; b.disabled=false; } }; };
 // riquadro per Info
 L.infoHtml=function(){
+  if(!CFG.abbonamento) return '';                 // niente da attivare: il riquadro torna con l'abbonamento
   const st=L.status();
   const line=st.code==='free'?'Versione completa, senza licenza da attivare.':(st.code==='ok'?(L.state.kind==='play'?`Abbonamento attivo (Google Play)${L.state.autoRenew===false?', disdetto: vale fino alla fine del periodo pagato':', si rinnova ogni anno'}. <a href="${L.manageUrl()}" target="_blank" rel="noopener">Gestisci o disdici</a>`:`Licenza attiva su questo dispositivo (${L.dev})${L.state.mail?' · '+L.state.mail:''}.`):
     (st.code==='trial'?`Prova: ancora <b>${st.left}</b> ${st.left===1?'giorno':'giorni'}.`:(st.code==='wait'?'…':'Licenza da attivare.')));

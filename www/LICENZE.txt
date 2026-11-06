@@ -63,7 +63,9 @@ di usare il Software o i dati che mostra.
 
 5. DONAZIONI
 
-Una donazione è un contributo volontario. Non acquista il Software, non dà
+L'app è gratuita.
+Una donazione, anche fatta come «Offrimi un caffè» su Google Play, è un
+contributo volontario. Non acquista il Software, non dà
 diritti in più rispetto a questa licenza e non obbliga l'autore a fornire
 assistenza o aggiornamenti.
 

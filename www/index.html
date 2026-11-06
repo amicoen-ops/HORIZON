@@ -4219,13 +4219,13 @@ PH.renderInfo=function(){
       <p><b>Privacy</b>: niente account, pubblicità o strumenti di analisi; posizione, rotte e diario restano sul telefono, salvo ciò che scegli di condividere. Informativa completa: <a href="https://github.com/amicoen-ops/HORIZON/blob/main/PRIVACY.md" target="_blank" rel="noopener">PRIVACY.md</a>.</p>
     </div>
   </section>
-  ${b.channel==='play'||PH.paid()?'':`<section class="ph-donate"><h3>Ti è utile?</h3>
+  ${b.channel==='play'?(window.IA517_LIC?IA517_LIC.caffeHtml():''):PH.paid()?'':`<section class="ph-donate"><h3>Ti è utile?</h3>
     <p class="ph-sub">L'app è gratuita e senza pubblicità. Se vuoi contribuire alle spese (servizi, hardware per le prove), puoi offrire un caffè o quello che preferisci.</p>
     <a class="ph-btn ph-paypal" href="${PH_INFO.paypal}" target="_blank" rel="noopener">♥ Dona con PayPal</a>
   </section>`}`;
   el('phLicDet').ontoggle=async e=>{ const pre=el('phLicTxt'); if(!e.target.open || pre.dataset.ok) return;
     try{ const r=await fetch('LICENZE.txt'); pre.textContent=(await r.text()).replace(/([a-zà-ù0-9,;:'")])\n(?=[^\n\s])/g,'$1 ').replace(/([a-zà-ù0-9,;:'")])\n {2,}(?![a-z]\) )/g,'$1 '); pre.style.whiteSpace='pre-wrap'; pre.dataset.ok=1; }catch(_){ pre.textContent='Testo non disponibile: lo trovi nel file LICENSE del repository amicoen-ops/strumento-i-a517.'; } };
-  try{ window.IA517_LIC&&IA517_LIC.infoWire(); }catch(e){}
+  try{ window.IA517_LIC&&(IA517_LIC.infoWire(),IA517_LIC.caffeWire()); }catch(e){}
   try{ PH.guidaInfoWire&&PH.guidaInfoWire(); }catch(e){}
   el('phWebCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText(PH_INFO.web); toast('LINK COPIATO'); }catch(e){ prompt('Copia il link:',PH_INFO.web); } };
   el('phWebShare').onclick=async()=>{ const d={title:'HORIZON · strumento di volo',text:'HORIZON, strumento di volo per telefono, tablet e browser',url:PH_INFO.web};
@@ -4261,7 +4261,7 @@ PH.donateNag=function(){
   if(PH.flight || PH.sim || (S.gpsReal && S.gs>25)) return;          // mai sopra lo strumento in volo o in movimento
   const d=document.createElement('div'); d.className='ph-sheet ph-terms'; d.id='phNag';
   d.innerHTML=`<div class="ph-imp"><section class="ph-donate"><h3>Ti piace HORIZON?</h3>
-    <p>L'app è gratuita e senza pubblicità: è nata per volare più sicuri con quello che abbiamo in tasca.</p>
+    <p>L'app è gratuita e senza pubblicità: è nata per dare più consapevolezza in volo con quello che abbiamo in tasca.</p>
     <p class="ph-sub">Se ti è utile, puoi contribuire alle spese (servizi, hardware per le prove, tempo) con un caffè o quello che preferisci. Non cambia niente nell'app: è solo un grazie.</p>
     <a class="ph-btn ph-paypal" id="phNagPay" href="${PH_INFO.paypal}" target="_blank" rel="noopener">♥ Dona con PayPal</a>
     <div class="ph-btns" style="justify-content:center"><button class="ph-btn" id="phNagLater">Più tardi</button><button class="ph-btn" id="phNagDone">Ho già donato</button></div>

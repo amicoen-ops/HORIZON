@@ -147,7 +147,7 @@ const G=[
   {id:'aiuto',t:'Segnalazioni, aggiornamenti e licenza',h:`
     <p>Info › Segnala un problema: arriva per posta all'autore, con i dati tecnici se lasci la spunta (mai la posizione); senza rete resta in coda.</p>
     <p>Aggiornamenti: dal Play Store, oppure da Info nella versione scaricata da GitHub. Su iPhone e iPad: Safari › Condividi › Aggiungi alla schermata Home.</p>
-    <p>Abbonamento annuale sul Play Store con 30 giorni di prova; in volo l'app non si blocca mai.</p>`},
+    <p>HORIZON è gratuita e senza pubblicità. Se ti è utile puoi offrire un caffè dalla pagina Info: è solo un grazie e non cambia niente nell'app.</p>`},
 ];
 
 // ---------------- tour guidato ----------------

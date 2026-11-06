@@ -3,7 +3,7 @@
 Orizzonte sintetico, mappa mobile, rotte disegnate a dito, profilo verticale, circuito e atterraggio, piano di volo e meteo per ultraleggeri (VDS) e aerei VFR, su telefono, tablet e browser.
 HORIZON nasce dallo strumento da 80 mm costruito per un Avid Flyer; oggi gestisce più velivoli, ognuno con il suo profilo: velocità e archi, prestazioni, carburante, pesi e centraggio, equipaggiamento.
 
-- **Android**: Google Play Store (30 giorni di prova, poi abbonamento annuale) oppure APK dalle [Release](https://github.com/amicoen-ops/HORIZON/releases).
+- **Android**: Google Play Store oppure APK dalle [Release](https://github.com/amicoen-ops/HORIZON/releases).
 - **iPhone, iPad e computer**: [amicoen-ops.github.io/HORIZON](https://amicoen-ops.github.io/HORIZON/) — su iPhone Safari › Condividi › *Aggiungi alla schermata Home*.
 - **Requisiti**: **Android 14** o più recente (consigliata l'ultima versione disponibile); su iPhone e iPad l'ultima versione di iOS/iPadOS.
 
@@ -20,9 +20,9 @@ HORIZON nasce dallo strumento da 80 mm costruito per un Avid Flyer; oggi gestisc
 
 ## Struttura del repository
 - `www/` — le pagine dell'app (generate da `build_android.py` e copiate con `tools/prepare_www.py`).
-- `android/` — progetto Capacitor; moduli nativi in `android/app/src/main/java/it/amicoen/horizon/` (GLO 2, bussola, licenza e Google Play Billing).
+- `android/` — progetto Capacitor; moduli nativi in `android/app/src/main/java/it/amicoen/horizon/` (GLO 2, bussola, firma dell'app e Google Play Billing).
 - `.github/workflows/` — compilazione di APK e AAB, collaudo su emulatore Android, pubblicazione del sito.
-- `docs/play/` — scheda del Play Store, immagini e guida alla pubblicazione e all'abbonamento.
+- `docs/play/` — scheda del Play Store, immagini e guida alla pubblicazione e a «Offrimi un caffè».
 - `tools/` — script di collaudo, campi da OurAirports, manuale PDF.
 
 ## Compilazione
@@ -38,7 +38,7 @@ Ogni push su `main` avvia GitHub Actions: l'APK e l'AAB per il Play Store finisc
 ## Licenza
 © 2026 Enrico D'Amico. **Tutti i diritti riservati**: non è software libero né open source.
 
-- **Puoi** installare e usare l'app ufficiale (Play Store, Release o sito) per uso personale e non commerciale, alle condizioni di prova e abbonamento indicate nell'app.
+- **Puoi** installare e usare l'app ufficiale (Play Store, Release o sito) per uso personale e non commerciale, alle condizioni indicate nell'app. L'app è gratuita: chi vuole può offrire un caffè da Google Play o donare con PayPal.
 - **Serve il permesso scritto** dell'autore (amicoen@gmail.com) per copiare, modificare, ridistribuire, vendere o riusare il codice.
 
 Testo completo in [LICENSE](LICENSE); componenti di terze parti in [NOTE-TERZE-PARTI](NOTE-TERZE-PARTI); privacy in [PRIVACY.md](PRIVACY.md).

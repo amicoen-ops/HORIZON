@@ -10,7 +10,7 @@
    - Nome: «HORIZON · strumento di volo».
    - Lingua predefinita: italiano.
    - ID dell'app (pacchetto): **it.amicoen.horizon** — lo assegna il primo file .aab caricato e non si cambia più.
-   - Tipo: app, gratuita (si scarica gratis; dopo 30 giorni di prova serve l'abbonamento, vedi il capitolo 6).
+   - Tipo: app, gratuita (con «Offrimi un caffè» facoltativo, vedi il capitolo 6).
 3. **Firma dell'app**
    - Accetta *Firma dell'app di Google Play*, che è la scelta proposta.
    - Il file .aab che compila GitHub è già firmato con la nostra chiave. Per Google quella diventa la *chiave di caricamento*.
@@ -31,15 +31,15 @@
 Ogni aggiornamento successivo: nella release nuova su GitHub prendi il file .aab e caricalo in Play Console, in *Produzione › Crea nuova release*.
 
 **Attenzione: le due versioni non si aggiornano a vicenda.**
-- **APK da GitHub**: firmato con la nostra chiave, con donazione e aggiornamenti automatici.
-- **App del Play Store**: firmata da Google, senza donazione e aggiornata dal Play Store.
+- **APK da GitHub**: firmato con la nostra chiave, con donazione PayPal e aggiornamenti automatici.
+- **App del Play Store**: firmata da Google, con «Offrimi un caffè» e aggiornata dal Play Store.
 
 Android non installa l'una sopra l'altra. Per passare da una all'altra:
 1. esporta rotte e diario;
 2. disinstalla quella che hai;
 3. installa l'altra.
 
-## 2. Perché la versione Play Store non ha la donazione
+## 2. Perché la versione Play Store non ha PayPal
 
 Le regole sui pagamenti di Google Play non permettono di chiedere donazioni dentro l'app, se non per enti non profit riconosciuti. Nel settembre 2026 Google ha bloccato gli aggiornamenti di AnkiDroid per un link di donazione. Proibiscono anche gli aggiornamenti scaricati fuori dal Play Store.
 
@@ -48,9 +48,9 @@ Per questo la versione per il Play Store (`channel: play`):
 - non controlla gli aggiornamenti su GitHub: si aggiorna con il sistema di Google (Play In-App Updates, libreria `app-update`), che propone «Aggiorna ora» all'avvio;
 - non ha il permesso `REQUEST_INSTALL_PACKAGES` (installare app): lo aggiunge la compilazione solo all'APK di GitHub, e la compilazione del Play Store controlla che non ci sia.
 
-Tutto il resto è identico. La donazione resta nell'APK di GitHub.
+Tutto il resto è identico. PayPal resta nell'APK di GitHub e nella versione web.
 
-Se un domani vuoi una donazione anche nel Play Store, l'unica strada ammessa è il sistema di pagamento di Google: per esempio un acquisto «Offrimi un caffè» dentro l'app, su cui Google trattiene il 15%. Si può aggiungere.
+Nel Play Store la strada ammessa è il sistema di pagamento di Google: «Offrimi un caffè» è un acquisto dentro l'app, su cui Google trattiene il 15%.
 
 ## 3. Scheda dello Store
 
@@ -103,12 +103,12 @@ Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sost
 
 **Annunci:** no, l'app non contiene annunci.
 
-**Dettagli di accesso:** sì (abbonamento), nessuna credenziale: istruzioni in inglese sulla prova di 30 giorni.
+**Dettagli di accesso:** nessuna credenziale, tutte le funzioni sono libere.
 
 **Classificazione dei contenuti** (questionario IARC):
 - categoria «Utilità, produttività, comunicazione o altro»;
 - risposta «no» a violenza, sesso, linguaggio, droghe, gioco d'azzardo, contenuti generati dagli utenti condivisi;
-- «sì» ad acquisto di beni digitali (abbonamento), «no» a loot box;
+- «sì» ad acquisto di beni digitali («Offrimi un caffè»), «no» a loot box;
 - risultato atteso: PEGI 3.
 
 **Pubblico di destinazione:** 18 anni e oltre. Non è rivolta ai bambini.
@@ -151,7 +151,25 @@ Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sost
 | `tablet-1-orizzonte-e-mappa.png` | Schermata per tablet da 10 pollici (2560 × 1600) |
 
 
-## 6. Abbonamento annuale da 30 € (licenza d'uso)
+## 6. Offrimi un caffè
+
+L'app è gratuita. Nella versione Play Store, in Info › «Ti è utile?», c'è il tasto «Offrimi un caffè»: non sblocca niente e si può ripetere. Se il prodotto non esiste nella Play Console il riquadro non compare.
+
+Passi nella Play Console (una volta sola):
+1. **Profilo pagamenti**: Play Console › Impostazioni › Profilo pagamenti › crea o collega il profilo commerciante.
+2. Monetizzazione › Prodotti › **Prodotti in-app** › Crea prodotto:
+   - ID prodotto: **`caffe`** (esattamente così)
+   - Nome: «Offrimi un caffè»
+   - Descrizione: «Un grazie allo sviluppatore. Non sblocca nessuna funzione.»
+   - Prezzo: a tua scelta → **Attiva**.
+3. Impostazioni › **Test delle licenze**: aggiungi la tua Gmail e quelle dei tester, così l'acquisto di prova non costa niente.
+
+Commissione di Google: 15%. Per la dichiarazione dei guadagni senti il tuo commercialista.
+
+## 7. Abbonamento annuale (rinviato)
+
+Per ora non va creato. Il codice resta nell'app, spento da `abbonamento:false` in `www/licenza.js`. Le note qui sotto servono solo se un domani lo riattivi.
+
 
 Come funziona nell'app (versione Play Store):
 - 30 giorni di prova senza carta dal primo avvio; avvisi negli ultimi 7 giorni.

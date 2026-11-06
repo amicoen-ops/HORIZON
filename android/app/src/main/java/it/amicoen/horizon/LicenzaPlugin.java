@@ -14,6 +14,7 @@ import com.android.billingclient.api.BillingClient;
 import com.android.billingclient.api.BillingClientStateListener;
 import com.android.billingclient.api.BillingFlowParams;
 import com.android.billingclient.api.BillingResult;
+import com.android.billingclient.api.ConsumeParams;
 import com.android.billingclient.api.PendingPurchasesParams;
 import com.android.billingclient.api.ProductDetails;
 import com.android.billingclient.api.Purchase;
@@ -35,7 +36,8 @@ import java.util.List;
 
 /**
  * Licenza: dati del dispositivo, controllo della firma dell'app e abbonamento con Google Play (Play Billing).
- * L'abbonamento "licenza_annuale" (piano base annuale, rinnovo automatico) vale su tutti i telefoni dell'account Google.
+ * L'abbonamento "licenza_annuale" (piano base annuale, rinnovo automatico) vale su tutti i telefoni dell'account Google: per ora è rinviato.
+ * "Offrimi un caffè" è un prodotto a consumo: si può comprare più volte e non sblocca niente.
  */
 @CapacitorPlugin(name = "Licenza")
 public class LicenzaPlugin extends Plugin implements PurchasesUpdatedListener {
@@ -55,6 +57,8 @@ public class LicenzaPlugin extends Plugin implements PurchasesUpdatedListener {
     private PluginCall buyCall;
     private String basePlan = "annuale";
     private String offerToken;
+    private ProductDetails caffe;
+    private PluginCall caffeCall;
 
     @PluginMethod
     public void info(PluginCall call) {
@@ -169,8 +173,97 @@ public class LicenzaPlugin extends Plugin implements PurchasesUpdatedListener {
         }
     }
 
+    // ---------- Offrimi un caffè ----------
+    @PluginMethod
+    public void caffeStart(PluginCall call) {
+        String pid = call.getString("product", "caffe");
+        if (billing == null) {
+            billing = BillingClient.newBuilder(getContext())
+                .setListener(this)
+                .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+                .build();
+        }
+        if (billing.isReady()) { queryCaffe(pid, call); return; }
+        billing.startConnection(new BillingClientStateListener() {
+            @Override public void onBillingSetupFinished(BillingResult res) {
+                if (res.getResponseCode() == BillingClient.BillingResponseCode.OK) queryCaffe(pid, call);
+                else { JSObject r = new JSObject(); r.put("ok", false); r.put("error", res.getDebugMessage()); r.put("code", res.getResponseCode()); call.resolve(r); }
+            }
+            @Override public void onBillingServiceDisconnected() { }
+        });
+    }
+
+    private void queryCaffe(String pid, PluginCall call) {
+        QueryProductDetailsParams q = QueryProductDetailsParams.newBuilder()
+            .setProductList(Collections.singletonList(QueryProductDetailsParams.Product.newBuilder()
+                .setProductId(pid).setProductType(BillingClient.ProductType.INAPP).build()))
+            .build();
+        billing.queryProductDetailsAsync(q, (res, result) -> {
+            JSObject r = new JSObject();
+            List<ProductDetails> list = result.getProductDetailsList();
+            if (res.getResponseCode() == BillingClient.BillingResponseCode.OK && list != null && !list.isEmpty()) {
+                caffe = list.get(0);
+                ProductDetails.OneTimePurchaseOfferDetails o = caffe.getOneTimePurchaseOfferDetails();
+                r.put("ok", o != null);
+                if (o != null) r.put("price", o.getFormattedPrice());
+                consumaRimasti();
+            } else {
+                r.put("ok", false); r.put("error", "prodotto non trovato: " + res.getDebugMessage()); r.put("code", res.getResponseCode());
+            }
+            call.resolve(r);
+        });
+    }
+
+    /** Un caffè pagato ma non consumato (app chiusa a metà) bloccherebbe il successivo: si consuma all'avvio. */
+    private void consumaRimasti() {
+        billing.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build(), (res, list) -> {
+            if (res.getResponseCode() != BillingClient.BillingResponseCode.OK || list == null) return;
+            JSObject ignora = new JSObject();
+            for (Purchase p : list) consumaCaffe(p, ignora);
+        });
+    }
+
+    @PluginMethod
+    public void caffeBuy(PluginCall call) {
+        if (billing == null || !billing.isReady() || caffe == null) { call.reject("Google Play non è pronto: riprova tra poco"); return; }
+        caffeCall = call;
+        BillingFlowParams p = BillingFlowParams.newBuilder()
+            .setProductDetailsParamsList(Collections.singletonList(
+                BillingFlowParams.ProductDetailsParams.newBuilder().setProductDetails(caffe).build()))
+            .build();
+        BillingResult res = billing.launchBillingFlow(getActivity(), p);
+        if (res.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+            caffeCall = null;
+            call.reject("Acquisto non avviato: " + res.getDebugMessage());
+        }
+    }
+
+    private boolean isCaffe(Purchase p) { return caffe != null && p.getProducts().contains(caffe.getProductId()); }
+
+    private void consumaCaffe(Purchase p, JSObject r) {
+        if (!isCaffe(p)) return;
+        if (p.getPurchaseState() == Purchase.PurchaseState.PENDING) { r.put("pending", true); return; }
+        if (p.getPurchaseState() != Purchase.PurchaseState.PURCHASED) return;
+        if (!verify(p.getOriginalJson(), p.getSignature())) { r.put("badSignature", true); return; }
+        billing.consumeAsync(ConsumeParams.newBuilder().setPurchaseToken(p.getPurchaseToken()).build(), (cr, token) -> { });
+        r.put("thanks", true);
+    }
+
     @Override
     public void onPurchasesUpdated(BillingResult res, List<Purchase> purchases) {
+        boolean diCaffe = false;
+        if (purchases != null) for (Purchase p : purchases) if (isCaffe(p)) diCaffe = true;
+        if (caffeCall != null || diCaffe) {
+            PluginCall cc = caffeCall; caffeCall = null;
+            JSObject cr = new JSObject();
+            if (res.getResponseCode() == BillingClient.BillingResponseCode.OK && purchases != null) {
+                for (Purchase p : purchases) consumaCaffe(p, cr);
+            } else if (res.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
+                cr.put("cancelled", true);
+            }
+            if (cc != null) cc.resolve(cr);
+            return;
+        }
         PluginCall call = buyCall; buyCall = null;
         JSObject r = new JSObject(); r.put("checked", true); r.put("owned", false);
         if (res.getResponseCode() == BillingClient.BillingResponseCode.OK && purchases != null) {

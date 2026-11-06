@@ -57,9 +57,9 @@ Testi, commenti, commit e risposte all'autore: **in italiano**, frasi semplici, 
 - Al traffico da internet va solo la zona arrotondata a 0,1°, mai la posizione esatta.
 
 ## Licenza e vendita
-- Per ora si vende solo sul **Play Store**: abbonamento annuale da 30 € (`licenza_annuale` / `annuale`), 30 giorni di prova, in volo l'app non si blocca mai.
-- La licenza Polar per APK e web è spenta finché `polarOrg` in `licenza.js` resta un segnaposto. I testi dicono comunque 30 €/anno.
-- Niente inviti alla donazione nella versione Play, né quando la licenza a pagamento è attiva.
+- **L'app è gratuita**: l'abbonamento è rinviato (`abbonamento:false` in `licenza.js`; il codice resta, spento). Sul Play Store c'è «Offrimi un caffè», prodotto a consumo `caffe`; su APK e web PayPal.
+- La licenza Polar per APK e web resta spenta finché `polarOrg` in `licenza.js` è un segnaposto.
+- Nella versione Play niente PayPal né inviti all'avvio: solo il tasto in Info, con Google Play Billing.
 
 ## Git
 - Commit in italiano: titolo che dice cosa cambia per il pilota, poi il perché.

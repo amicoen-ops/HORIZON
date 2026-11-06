@@ -1,6 +1,6 @@
 # Informativa sulla privacy — HORIZON · strumento di volo
 
-Ultimo aggiornamento: 3 novembre 2026
+Ultimo aggiornamento: 6 novembre 2026
 
 Titolare: Enrico D'Amico, amicoen@gmail.com
 
@@ -38,12 +38,12 @@ Per funzionare l'app chiede dati a servizi esterni. Ogni richiesta porta solo qu
 
 Ognuno di questi servizi tratta le richieste secondo la propria informativa.
 
-## Abbonamento e licenza
+## Donazioni
 
-- **Versione Play Store** — L'abbonamento annuale si acquista con il sistema di pagamento di Google Play. Il pagamento lo gestisce Google: l'app non vede né conserva carta, nome o indirizzo. A ogni avvio l'app chiede a Google Play solo se l'abbonamento è attivo, e salva sul telefono lo stato e la data dell'ultimo controllo. Il trattamento dei dati di pagamento segue l'informativa di Google (https://policies.google.com/privacy).
-- **Versione APK da GitHub e versione web** — L'abbonamento annuale si paga su Polar (polar.sh). Se attivi la chiave, l'app manda a Polar la chiave di licenza e un identificativo casuale del dispositivo, creato dall'app, per contare i dispositivi attivati. L'email con cui paghi la tratta Polar secondo la propria informativa.
+L'app è gratuita.
 
-Dati di prova: i 30 giorni di prova si contano sul telefono e non escono dal telefono.
+- **Versione Play Store** — «Offrimi un caffè» si paga con il sistema di pagamento di Google Play. Il pagamento lo gestisce Google: l'app non vede né conserva carta, nome o indirizzo. Il trattamento dei dati di pagamento segue l'informativa di Google (https://policies.google.com/privacy).
+- **Versione APK da GitHub e versione web** — La donazione si fa su PayPal, che si apre fuori dall'app e tratta i dati secondo la propria informativa.
 
 ## Bluetooth e permessi
 
@@ -71,6 +71,6 @@ Network requests go to map, terrain and weather services, and contain only the a
 If you say yes, the app also shares runways it detected (runway position, direction, length and elevation, never your track) and, once a week, how many take-offs and landings you made at each airfield (airfield codes and counts only). Both carry a random 8-character code created by the app, used only to count how many different phones saw the same runway. A runway is added to everyone's maps when at least 3 phones saw it, or after the developer checks it. You can turn the airfield count off in Settings › Condivisione anonima.
 
 Location is used only while the app is open. Bluetooth is used only to connect the external GPS you choose.
-**Subscription.** On Google Play the yearly subscription is paid through Google Play billing; the app never sees payment details and only asks Google Play whether the subscription is active. In the GitHub APK and web version the yearly subscription is paid on Polar (polar.sh); activating the key sends the licence key and a random device identifier to Polar. The 30-day trial is counted on the device.
+**Donations.** The app is free. On Google Play the optional "Buy me a coffee" is paid through Google Play billing, and the app never sees payment details. In the GitHub APK and web version donations go through PayPal, outside the app.
 
 Contact: amicoen@gmail.com
