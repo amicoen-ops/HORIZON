@@ -3955,6 +3955,26 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.91","Avvisi gialli a bandierina: i messaggi informativi si aprono dal bordo per 3 secondi e lasciano una linguetta; toccandola si riaprono, spariscono quando la condizione finisce. Rossi e gialli di terreno restano al centro finché il pericolo c'è."],
+  ["1.0.90","App gratuita: niente prova a tempo e niente blocchi. Sul Play Store c'è «Offrimi un caffè» per chi vuole contribuire. Crediti del traffico e testi allineati."],
+  ["1.0.89","Nuova pagina ALTRO › SQUADRIGLIA: marche, nome e nominativo radio degli aerei che volano con te (l'alfabeto ICAO lo scrive l'app). In volo, se trasmettono, li vedi col nome in verde; il pericolo resta giallo e rosso. Lista da esportare agli amici."],
+  ["1.0.86-88","Catalogo velivoli più ricco, tutti VDS basico: Fly Synthesis Storch CL col 582, Rans S-12, Pipistrel Virus, Jodel D18 col Jabiru, Fisher Super Koala, oltre ad Avid Flyer, Land Africa, P92, Kitfox, Groppo Trail e altri."],
+  ["1.0.85","Guida in ALTRO › INFO › Guida e tour: tutte le funzioni spiegate, con ricerca, e un tour guidato dei comandi. Catalogo velivoli: un tocco e la scheda è compilata, da controllare col manuale e salvare."],
+  ["1.0.84","Calcola rotta porta i punti sopra i campi vicini, per avere sempre dove atterrare. Rotte fino a 100 punti allo strumento (prima 40). Ricalcolando non restano più R1, R2… doppi."],
+  ["1.0.83","Calcola rotta con molti meno punti: una tratta si spezza solo se la quota supererebbe il limite VDS di oltre 500 ft; le tratte appena sopra sono segnalate in arancione."],
+  ["1.0.82","Calcola rotta e DIRECT TO evitano il mare e preferiscono pianure e fondovalle dove si può atterrare; il mare solo se non c'è altra strada (isole), il più corto possibile. Sul mare il terreno vale 0 m: niente più quote negative né TAWS muto sul mare."],
+  ["1.0.81","Piste dei piloti: dopo aver salvato una pista nuova, a terra l'app chiede se condividerla in forma anonima; vista da 3 telefoni entra nelle mappe di tutti. Conteggio anonimo dei campi usati, con consenso. Mai domande in volo."],
+  ["1.0.80","Campi volo di tutta Italia (isole comprese) e di tutta la Francia: quasi 2000. DIRECT TO mostra i 250 più vicini, la ricerca per nome li trova tutti."],
+  ["1.0.79","Mappa: il tasto per tornare sull'aereo è solo l'icona ⌖; tasti + e − più piccoli e allineati a destra."],
+  ["1.0.78","DIRECT TO calcola da solo rotta e quota migliore, intorno a CTR e zone vietate per il tuo tipo di volo, invece della linea diritta. Segno del giroscopio stabile."],
+  ["1.0.74-77","Assetto: gli assi del giroscopio si riconoscono da soli anche girando sul posto e con telefoni rumorosi (Samsung S23 FE). Nuova registrazione dei sensori (Impostazioni › Registra 20 s e invia), che finisce e parte anche tornando su VOLO."],
+  ["1.0.71-73","Sicurezza: niente debug, solo HTTPS, niente backup dei dati. Orizzonte che beccheggiava in virata (anche in macchina) corretto. Versioni ai tester su Google Play in automatico."],
+  ["1.0.70","Circuito disegnato nel Piano al campo di arrivo; in simulazione la protezione dal terreno segue il circuito."],
+  ["1.0.68-69","Assetto: passo di tempo del giroscopio misurato davvero (niente cabra/picchia muovendo il telefono) e ordine degli assi riconosciuto da solo. Niente riquadri VENTO e DIRECT TO vuoti."],
+  ["1.0.66-67","Terreno: campi spianati alla quota vera, niente colline finte; vista 3D stabile a terra e in volo."],
+  ["1.0.63-65","Quote VDS basico secondo il DPR 133/2010 art. 9, mai oltre la tangenza del velivolo. Piano: quota tratta per tratta, salita graduale in valle, ridiscesa dopo la cresta. Simulazione mai sotto il terreno."],
+  ["1.0.59-62","Profilo e destinazione di partenza generici (I-XXXX); traffico OGN solo via HTTPS; licenza valida anche installando dal Play Store."],
+  ["1.0.58","Al traffico da internet va solo la zona arrotondata a 0,1° (circa 10 km), mai la posizione esatta. Informativa sulla privacy aggiornata."],
   ['1.0.57',"Vista sintetica: se la quota GPS è sotto il terreno (a terra o al chiuso, dove il GPS sbaglia la quota anche di 100 m) la vista parte dal terreno, e il cielo non è più coperto dalle montagne."],
   ['1.0.56',"Barra in basso più leggibile in volo: quattro tasti grandi e ad alto contrasto, VOLO, PIANO, ✈ TRAFFICO e ☰ ALTRO. ALTRO apre una griglia di tasti grandi (Impostazioni, Simula, Profilo, Carburante, Info) che resta aperta finché non scegli o chiudi. In orizzontale la barra resta sempre visibile in fondo."],
   ['1.0.55',"iPhone e iPad (browser): orizzonte corretto. Safari dà l'accelerometro con il segno opposto e il verso dello schermo in orizzontale al contrario di Android; ora l'app li corregge e riconosce da sola il segno con il telefono dritto. In Impostazioni › Stato, alla riga Sensori di movimento, si vedono il verso dello schermo e se è in uso il segno iOS."],
@@ -4208,7 +4228,7 @@ PH.renderInfo=function(){
     <div class="ph-row ph-col"><b style="word-break:break-all">${PH_INFO.web}</b></div>
     <div class="ph-btns"><a class="ph-btn pri" href="${PH_INFO.web}" target="_blank" rel="noopener">Apri</a><button class="ph-btn" id="phWebCopy">Copia il link</button><button class="ph-btn" id="phWebShare">Condividi</button></div>
   </section>
-  <section><h3>Novità della versione ${PH_CHANGES[0][0]}</h3><div class="ph-row ph-col"><small>${PH_CHANGES[0][1]}</small></div>
+  <section><h3>Novità della ${PH_CHANGES[0][0]}</h3><div class="ph-row ph-col"><small>${PH_CHANGES[0][1]}</small></div>
     <details class="ph-hist"><summary>Versioni precedenti (${PH_CHANGES.length-1})</summary>${PH_CHANGES.slice(1).map(([v,t])=>`<div class="ph-row ph-col"><b>${v}</b><small>${t}</small></div>`).join('')}</details></section>
   <section><h3>Segnala un problema o un'idea</h3>
     <p class="ph-sub">Arriva per posta all'autore. Se sei in volo o senza rete resta in coda e parte da sola.</p>

@@ -23,6 +23,10 @@ def shot(name):
         f.write(subprocess.run(["adb", "exec-out", "screencap", "-p"], capture_output=True, timeout=60).stdout)
 
 
+def gap():                                                     # blocco più lungo in ms; se la WebView non risponde arriva il testo dell'errore
+    v = ev("__gap")
+    return round(v) if isinstance(v, (int, float)) else (v or 0)
+
 def alive():
     return adb("shell", "pidof", PKG) != ""
 
@@ -96,11 +100,11 @@ if ws:
         if i%2==0: adb("shell","input","swipe",str(x),str(y),str(x),str(y),"1100")      # tocco lungo fermo
         else:      adb("shell","input","swipe",str(x),str(y),str(x+4),str(y+3),"2200")  # tocco lungo, poi il dito scivola a fine pressione
         time.sleep(3)
-        log(f"tocco lungo {i+1}", [ev("PAGE"), ev("ZOOMS[zi]"), alive(), round(ev("__gap") or 0)])
+        log(f"tocco lungo {i+1}", [ev("PAGE"), ev("ZOOMS[zi]"), alive(), gap()])
         if i in (0,3): shot(f"07{'ab'[i//3]}_pagina_{ev('PAGE')}")
     for i in range(6):
         ev("document.getElementById('phPage').click(),1"); time.sleep(2)
-        log(f"pulsante PAGINA {i+1}", [ev("PAGE"), alive(), round(ev("__gap") or 0)])
+        log(f"pulsante PAGINA {i+1}", [ev("PAGE"), alive(), gap()])
     log("scatola nera", ev("JSON.stringify(PH.trail.slice(-12))"))
     log("openAIP (download vero)", ev("""(async()=>{ PH.show('piano'); await new Promise(r=>setTimeout(r,4000));
         const w=document.getElementById('phAppFrame').contentWindow, d=w.document;
@@ -180,7 +184,7 @@ if ws:
     ev("PH.setDemo(false),1"); time.sleep(2)
     for i in range(4):
         ev("document.getElementById('phPage').click(),1"); time.sleep(3)
-        log(f"senza demo, PAGINA {i+1}", [ev("PAGE"), alive(), round(ev("__gap") or 0)])
+        log(f"senza demo, PAGINA {i+1}", [ev("PAGE"), alive(), gap()])
     log("memoria", ev("performance.memory?Math.round(performance.memory.usedJSHeapSize/1e6)+' MB':'n.d.'"))
 
 # orizzontale (tablet)
