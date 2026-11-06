@@ -1735,7 +1735,7 @@ function setNotes(n){
   if(!n||typeof n!=='object') return;
   for(const [id,v] of Object.entries(n)){ if(!v||typeof v!=='object') continue;
     FIELD_INFO[id]=Object.assign({},BASE_INFO[id]||{},FIELD_INFO[id]||{},v.pref?{pref:v.pref}:{},v.maxTail!=null?{maxTail:v.maxTail}:{},
-      v.side?{side:v.side}:{},v.warn?{warn:v.warn}:{});
+      v.side?{side:v.side}:{},v.warn?{warn:v.warn}:{},v.freq?{freq:String(v.freq).slice(0,12)}:{});
     if(v.elevFt!=null){ ELEV_CONFIRMED[id]=v.elevFt; const f=FIELDS.find(x=>x.id===id); if(f) f.elev=v.elevFt*FT2M; } }
   lsSet('ia517_notes',n);
   relinkNav();
@@ -3247,6 +3247,11 @@ PH.renderImp=function(){
     <div class="ph-btns"><button class="ph-btn" id="phVoiceTest">Prova la voce</button><button class="ph-btn" id="phFull">Schermo intero</button></div>
     <p class="ph-sub">Spazi aerei: si usano quelli del file OpenAir caricato nel Piano (Briefing). Con i soli esempi non c'è nessun avviso.</p>
   </section>
+  <section><h3>Radio</h3>
+    <label class="ph-chk"><input type="checkbox" id="phRadioOn" ${on(PH.radioOn!==false)}> Chiamata radio da leggere nel circuito (banner che scorre sopra la barra in basso)</label>
+    <p class="ph-sub">Prima del sottovento, in virata base e in virata finale. Non compare se nel velivolo la radio è «No». Prima di chiamare ascolta e verifica la pista in uso.</p>
+    <div class="ph-btns"><button class="ph-btn" id="phFreqGo">Frequenze utili adesso</button></div>
+  </section>
   <section><h3>Volo dimostrativo</h3>
     <p class="ph-sub">Simula un volo attorno alla Carolina, per provare menu, rotte e circuito a casa. Con il dimostrativo acceso i sensori sono ignorati.</p>
     <div class="ph-btns"><button class="ph-btn ${PH.demo?'':'pri'}" id="phDemo">${PH.demo?'Torna ai sensori del telefono':'Avvia volo dimostrativo'}</button></div>
@@ -3314,6 +3319,8 @@ PH.renderImp=function(){
     if((PH.base==='igm'||PH.base==='orto') && !(PH.wmsLayers&&PH.wmsLayers[PH.base])) PH.wmsDiscover(PH.base); });
   el('phSplit').onchange=e=>{ PH.splitOn=e.target.checked; lsSet('ia517p_split',PH.splitOn); PH.layout(); };
   el('phVoice').onchange=e=>{ PH.voice=e.target.checked; lsSet('ia517p_voice',PH.voice); };
+  el('phRadioOn').onchange=e=>{ if(PH.radioSet) PH.radioSet(e.target.checked); };
+  el('phFreqGo').onclick=()=>{ if(PH.freqOpen) PH.freqOpen(); };
   el('phVib').onchange=e=>{ PH.vib=e.target.checked; lsSet('ia517p_vib',PH.vib); };
   el('phWake').onchange=e=>{ PH.wakeOn=e.target.checked; lsSet('ia517p_wake',PH.wakeOn); if(PH.wakeOn) PH.wakeLock(); else if(PH.wake) PH.wake.release(); };
   el('phVoiceTest').onclick=()=>PH.say('Carolina, pista 3 6, circuito sinistro, 800 piedi',true);
@@ -3956,6 +3963,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.99","Radio nel circuito: un banner sopra la barra in basso fa scorrere la chiamata da leggere col PTT, prima del sottovento, in virata base e in virata finale (si accende e si spegne in Impostazioni › Radio). Nuova pagina ALTRO › FREQUENZE: campo d'arrivo, FIS del settore, campi vicini, emergenza. La frequenza scritta nelle note del campo vale prima delle altre."],
   ["1.0.98","Guida: nuovo «Promemoria radio» (marche, struttura del messaggio, MAYDAY e PAN PAN, 121.500, squawk 7700/7600/7500, classi degli spazi italiani). Squadriglia: il nominativo abbreviato si usa solo dopo l'ente; primo contatto con «ultralight»."],
   ["1.0.97","Spazi aerei da due fonti: openAIP unito a open flightmaps. Dove lo stesso spazio c'è in tutte e due vale il limite più restrittivo (base più bassa, tetto più alto, classe più severa); gli spazi che ci sono in una sola fonte si aggiungono. Si spegne in PIANO › Briefing."],
   ["1.0.95","Spazi aerei di riserva da open flightmaps (Italia e Alpi vicine): se openAIP non risponde l'app li prende da lì, oppure li scegli tu in PIANO › Briefing. Corretto il lettore delle quote: «3500msl» era letto come 3500 metri."],
@@ -4953,4 +4961,6 @@ requestAnimationFrame(frame);
 
 <script src="guida.js"></script>
 <script src="squadriglia.js"></script>
+<script src="frequenze.js"></script>
+<script src="radio.js"></script>
 </body></html>
