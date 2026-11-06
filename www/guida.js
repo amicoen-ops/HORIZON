@@ -94,7 +94,11 @@ const G=[
   {id:'strumento',t:'Lo strumento: orizzonte e dati',h:`
     <p>Orizzonte artificiale dai sensori del telefono (giroscopio e accelerometro, con la velocità del GPS in virata). Ai lati velocità e quota, sotto prua e traccia; nelle schede GS, quota, vario, traccia, vento, destinazione, tempo di volo e tramonto.</p>
     <p><b>Bandierine rosse</b>: un dato vecchio non resta mai congelato. Assetto oltre 0,7 s, velocità e quota oltre 2,5 s, GPS oltre 3,5 s → bandierina rossa al posto del valore.</p>
-    <p>La riga <b>GPS · ASSETTO · TERRENO · NET</b> dice cosa funziona: verde bene, giallo parziale, rosso assente.</p>`},
+    <p>La riga <b>GPS · ASSETTO · TERRENO · NET</b> dice cosa funziona: verde bene, giallo parziale, rosso assente.</p>
+    <p><b>Il tondo verde con le alette</b> al centro è il <b>vettore di traiettoria</b>: dove sta andando davvero l'aereo, non dove punta il muso (il simbolo giallo e nero). In verticale viene da vario e velocità al suolo del GPS: sull'orizzonte = quota costante, sopra = salita, sotto = discesa. In orizzontale si sposta della deriva del vento (traccia GPS rispetto alla prua).</p>
+    <ul><li><b>In avvicinamento</b> tieni il tondo sulla soglia: è dove arrivi se non cambi niente.</li>
+    <li><b>Davanti a una cresta</b>: se il tondo è sotto la cresta, così non la passi.</li>
+    <li>Senza GPS aggiornato o senza assetto il tondo sparisce, non resta mai su dati vecchi.</li></ul>`},
   {id:'montaggio',t:'Montaggio e LIVELLA',h:`
     <p>Il telefono può stare in verticale o in orizzontale, schermo verso il pilota. LIVELLA misura come è montato:</p>
     <ul><li><b>a terra</b>: aereo fermo, con l'assetto a terra del tuo velivolo (Impostazioni › Montaggio del telefono, di solito 10-12° per un biciclo);</li>
@@ -161,6 +165,7 @@ const G=[
 // ogni passo: elemento da evidenziare (il primo visibile tra i selettori), titolo e testo
 const T=[
   {s:['#pfd'],t:'Lo strumento',x:'Orizzonte, velocità, quota e prua. Un dato vecchio diventa una bandierina rossa, mai un valore congelato.'},
+  {s:['#pfd'],t:'Il tondo verde',x:'Il vettore di traiettoria: dove va davvero l\'aereo. Sull\'orizzonte quota costante, sopra sali, sotto scendi; di lato la deriva del vento. In avvicinamento tienilo sulla soglia.'},
   {s:['#phStat'],t:'Cosa funziona',x:'GPS · ASSETTO · TERRENO · NET: verde bene, giallo parziale, rosso assente.'},
   {s:['#phLvl'],t:'LIVELLA',x:'Dopo aver montato il telefono, ad aereo fermo o in volo livellato. Chiede conferma.'},
   {s:['.ph-ctl'],t:'La manopola',x:'OK apre il menu: DIRECT TO, rotte salvate, QNH. ◀ ▶ scorrono. PAGINA passa dall\'orizzonte alla mappa.'},

@@ -88,6 +88,10 @@ if ws:
     step("02_accetto", "(()=>{const c=document.getElementById('phTermsOk'); if(!c) return 'già accettate'; c.click(); document.getElementById('phTermsGo').click(); return 'ok';})()")
     time.sleep(20)
     step("03_volo_gps", "JSON.stringify({fix:PH.lastFix||null, err:__err})", pause=2)
+    # scheda «Prima del volo» all'avvio: se ne registra lo stato (ok / in corso / da fare per ogni punto), poi si chiude
+    # come farebbe il pilota, così i tocchi sullo strumento arrivano allo strumento
+    step("03b_prima_del_volo", "(()=>{const d=document.getElementById('phPre'); if(!d) return 'non mostrata'; const r=[...d.querySelectorAll('.hz-pre')].map(x=>x.querySelector('i').className.replace('hz-','')+' '+x.querySelector('b').textContent); const c=d.querySelectorAll('[data-ck]').length; document.getElementById('hzPreOk').click(); return JSON.stringify({punti:r,checklist:c});})()", pause=3)
+    step("03c_chiudi_inviti", "(()=>{const n=document.getElementById('phNag'); if(n){ n.remove(); return 'invito chiuso'; } return 'nessuno';})()")
     step("04_impostazioni", "PH.show('imp'),'ok'")
     step("05_piano", "PH.show('piano'),'ok'", pause=8)
     step("06_info", "PH.show('info'),'ok'", pause=4)

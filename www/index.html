@@ -1208,6 +1208,7 @@ function aircraftSymbol(){
   ctx.restore();
 }
 function fpMarker(pitch){
+  if(lost('gps')) return;                                   // senza GPS fresco vario e velocità sono vecchi: niente vettore, mai un dato congelato
   const V=Math.max(8,S.gs!=null?S.gs:S.ias)/3.6, gamma=Math.atan2(S.vs,V);
   const yf=F*Math.tan(pitch-gamma), xf=S.trk!=null?clamp(angDiff(S.trk,S.hdg),-20,20)*D2R*F:-S.slip*R*0.22;
   if(Math.abs(yf)>R*0.72) return;
@@ -3955,6 +3956,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.94","Il vettore di traiettoria (il tondo verde con le alette al centro dell'orizzonte) sparisce anche quando il GPS non è aggiornato, come le barre di guida: mai su dati vecchi. Spiegato nella guida e nel tour."],
   ["1.0.93","All'avvio, a terra, la scheda «Prima del volo»: internet, terreno, spazi aerei, GPS, velivolo e LIVELLA con un segno verde, giallo o rosso, e la check list del tuo velivolo da spuntare fino a «Prima del decollo». Check list a fasi nella scheda del velivolo (esempio generico e P92), richiamabile anche in volo da ALTRO › CHECK LIST. Mai sopra lo strumento in volo."],
   ["1.0.91","Avvisi gialli a bandierina: i messaggi informativi si aprono dal bordo per 3 secondi e lasciano una linguetta; toccandola si riaprono, spariscono quando la condizione finisce. Rossi e gialli di terreno restano al centro finché il pericolo c'è."],
   ["1.0.90","App gratuita: niente prova a tempo e niente blocchi. Sul Play Store c'è «Offrimi un caffè» per chi vuole contribuire. Crediti del traffico e testi allineati."],
