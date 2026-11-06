@@ -393,7 +393,7 @@
     (ingresso a 45°, sottovento, base, finale). Il sentiero di discesa parte al traverso della soglia: segui le barre magenta
     e il rombo sulla scala verticale (rombo sotto il centro = sei alto). Il vento lo stima da GPS e Pitot durante le virate,
     senza bussola: finché non ha virato la pista è segnata <b>non verificata</b>. Controlla sempre la manica a vento e la radio.<br>
-    <b>Dati</b>: 108 campi da OurAirports: tutto il Piemonte, tutta la Valle d'Aosta e quanto sta entro 100 km dalla Carolina, compresi altiporti (triangolo arancio) e superfici su ghiacciaio (asterisco azzurro, solo con sci). Sullo strumento arrivano dal file CUP
+    <b>Dati</b>: circa 1950 campi da OurAirports: tutta Italia, tutta la Francia e le Alpi vicine, compresi altiporti (triangolo arancio) e superfici su ghiacciaio (asterisco azzurro, solo con sci). Sullo strumento arrivano dal file CUP
     (che contiene direzione e lunghezza pista) caricato in XCSoarData. Terreno e ostacoli qui sono sintetici.
     <b>Atterraggio</b>: al contatto sulla pista la navigazione si chiude da sola e compare lo spazio di arresto stimato dalla velocità, con la pista che resta; in finale c'è già l'arresto previsto. Dopo ogni atterraggio lo strumento misura dove ti sei fermato e corregge la stima.<br>
     In simulazione il tempo scorre 4 volte più veloce in rotta e 2 volte nel circuito; il vento simulato è 350°/12 km/h.<br>
@@ -4213,9 +4213,10 @@ PH.renderInfo=function(){
       <p><b>Spazi aerei</b>: openAIP (CC BY-NC 4.0, www.openaip.net), quando li scarichi da lì; oppure il file OpenAir che carichi tu.</p>
       <p><b>Terreno</b>: Terrain Tiles su AWS Open Data (Mapzen, da SRTM, EU-DEM e altre fonti pubbliche).</p>
       <p><b>Meteo</b>: Open-Meteo (CC BY 4.0); METAR e TAF da aviationweather.gov (NOAA).</p>
-      <p><b>Librerie</b>: Capacitor e i plugin Filesystem, Share, Keep Awake, Text to Speech (MIT); AndroidX (Apache 2.0). Segnalazioni via FormSubmit.</p>
+      <p><b>Traffico</b>: Open Glider Network (ODbL, www.glidernet.org); adsb.lol (ODbL 1.0, www.adsb.lol).</p>
+      <p><b>Librerie</b>: Capacitor e i plugin Filesystem, Share, Keep Awake, Text to Speech (MIT); AndroidX (Apache 2.0). Segnalazioni via Web3Forms (FormSubmit di riserva).</p>
       <p><b>Progetto</b>: HORIZON nasce dallo strumento di volo da 80 mm costruito per un Avid Flyer; oggi funziona con qualsiasi ultraleggero o aereo VFR (profili dei velivoli in Impostazioni).</p>
-      <p><b>Privacy</b>: niente account, pubblicità o analisi; posizione e dati restano sul telefono. Informativa completa: <a href="https://github.com/amicoen-ops/HORIZON/blob/main/PRIVACY.md" target="_blank" rel="noopener">PRIVACY.md</a>.</p>
+      <p><b>Privacy</b>: niente account, pubblicità o strumenti di analisi; posizione, rotte e diario restano sul telefono, salvo ciò che scegli di condividere. Informativa completa: <a href="https://github.com/amicoen-ops/HORIZON/blob/main/PRIVACY.md" target="_blank" rel="noopener">PRIVACY.md</a>.</p>
     </div>
   </section>
   ${b.channel==='play'||PH.paid()?'':`<section class="ph-donate"><h3>Ti è utile?</h3>

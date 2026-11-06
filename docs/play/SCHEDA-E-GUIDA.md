@@ -65,7 +65,7 @@ Orizzonte, mappa, terreno e piano di volo per ULM e VDS, anche senza internet
 
 **Descrizione completa:**
 
-HORIZON · strumento di volo trasforma il telefono o il tablet in uno strumento di bordo per la consapevolezza della situazione: orizzonte sintetico, mappa mobile con il terreno, guida verso il campo, circuito e avvisi.
+HORIZON · strumento di volo è un ausilio su telefono e tablet per la consapevolezza della situazione: orizzonte sintetico, mappa mobile con il terreno, guida verso il campo, circuito e avvisi.
 
 Pensato per ULM, VDS e aviazione generale da diporto.
 
@@ -73,12 +73,12 @@ COSA FA
 • Orizzonte sintetico dai sensori del telefono, con compensazione di virata dalla velocità GPS, regolabile più o meno morbido. Funziona col telefono in verticale o in orizzontale.
 • Terreno vero (DEM) nella vista sintetica e nella mappa, con avviso vocale «TERRENO! CABRA» guardando 30–60 secondi avanti.
 • Mappa mobile con zoom da 1 a 700 km: OpenTopoMap, OpenStreetMap, satellite Esri (con chiave gratuita), tavolette IGM 1:25.000 e ortofoto del Geoportale Nazionale.
-• 342 aeroporti e aviosuperfici di tutto il Nord Italia, con piste. Ricerca scrivendo il nome; campi e piste aggiunti da te.
+• Circa 1950 aeroporti, aviosuperfici e campi volo di tutta Italia, tutta la Francia e le Alpi vicine, con piste. Ricerca scrivendo il nome; campi e piste aggiunti da te.
 • Direct to e rotte: guida, scelta della pista col vento, circuito con sottovento, base e finale, stima dello spazio di arresto.
 • Vento e velocità vera stimati dalle virate, senza Pitot.
 • Piano di volo con meteo del modello su ogni campo, METAR e TAF, NOTAM confrontati con la rotta, spazi aerei OpenAir con profilo verticale, aggiornabili a ogni ciclo AIRAC.
 • Simula: lo strumento vola da solo una rotta o un direct to, con vento e tempo accelerato, per provare la rotta a terra.
-• Diario di volo automatico, con esportazione in GPX e CSV.
+• Diario di volo automatico, con esportazione in GPX, KML e CSV.
 • GPS esterno Garmin GLO 2 via Bluetooth, oppure il GPS del telefono, con passaggio automatico.
 • Traffico in tempo reale da OGN (FLARM) e adsb.lol (ADS-B), o da SafeSky sullo stesso telefono: radar, scheda di ogni aereo, traffico sulla mappa e triangolo di pericolo sullo strumento.
 • Batteria e segnale 4G/5G sempre visibili nella riga di stato.
@@ -87,7 +87,7 @@ COSA FA
 • Funziona senza internet: terreno e mappe si scaricano prima del volo.
 
 PRIVACY
-Nessun account, nessuna pubblicità, nessuna analisi. Posizione, rotte e diario restano sul telefono.
+Nessun account, nessuna pubblicità, nessuno strumento di analisi. Posizione, rotte e diario restano sul telefono. Piste rilevate e conteggio dei campi usati escono solo se scegli di condividerli.
 
 IMPORTANTE
 Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sostituisce gli strumenti di bordo, le carte, l'AIP, i NOTAM né il meteo ufficiale. Il pilota in comando resta l'unico responsabile del volo.
@@ -116,11 +116,15 @@ Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sost
 **App di notizie:** no. **App per la salute:** no. **Servizi finanziari:** no. **App governativa:** no.
 
 **Sicurezza dei dati:**
-- *Raccoglie o condivide dati?* Sì, solo per le segnalazioni facoltative.
+- *Raccoglie o condivide dati?* Sì: traffico in tempo reale, segnalazioni e archivio delle piste, tutti facoltativi.
 - **Posizione approssimativa**: condivisa, solo se il traffico in tempo reale è acceso.
   - Va a Open Glider Network e adsb.lol arrotondata a 0,1° (circa 10 km), per ricevere gli aerei della zona: funzionalità dell'app.
   - Non conservata dall'app, facoltativa (si spegne in Impostazioni › Traffico), trasmessa cifrata.
   - La posizione precisa invece resta sul telefono; le richieste di mappe e terreno contengono solo la zona mostrata.
+- **Posizione › Posizione precisa**: condivisa solo se dici di sì a «Pista rilevata»: centro della pista, direzione, lunghezza e quota, mai la traccia di volo.
+  - Facoltativa, chiesta ogni volta. Scopo: funzionalità dell'app (piste comuni).
+  - Trasmessa cifrata.
+- **Attività nelle app › Altre azioni**: decolli e atterraggi per campo, solo se accetti «Condivisione anonima», con un codice casuale. Facoltativi.
 - **Informazioni personali › Indirizzo email**: raccolto solo se lo scrivi in una segnalazione.
   - Facoltativo, non condiviso con terzi.
   - Scopo: assistenza.
