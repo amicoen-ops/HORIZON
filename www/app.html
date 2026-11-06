@@ -373,10 +373,13 @@ function dist(a,b){ const E=(b.lon-a.lon)*111320*Math.cos((a.lat+b.lat)/2*D2R), 
 const sortedFields=()=>[...FIELDS].sort((a,b)=>a.short.localeCompare(b.short,'it'));
 
 // note dei campi: valori iniziali (Carolina come indicato dal pilota; lato della 18 da confermare)
-const DEFAULT_NOTES={'IT-0074':{elevFt:740,elevAt:'2026-10-27T15:04:00Z',pref:'36',side:{'36':'L','18':'R'},hcFt:800,maxTail:10,freq:'',obst:'Cavi in testata 18',warn:{'18':'CAVI IN TESTATA 18'},text:'Ingresso in sottovento a circa 1500 ft.'},
-  'IT-0001':{pref:'07',side:{},hcFt:800,maxTail:10,freq:'',obst:'',warn:{},text:'Pista in uso di solito: 07.'}};
+const DEFAULT_NOTES={'IT-0074':{elevFt:740,elevAt:'2026-10-27T15:04:00Z',pref:'36',side:{'36':'L','18':'R'},hcFt:800,maxTail:10,freq:'130.000',obst:'Cavi in testata 18',warn:{'18':'CAVI IN TESTATA 18'},text:'Ingresso in sottovento a circa 1500 ft.'},
+  'IT-0001':{pref:'07',side:{},hcFt:800,maxTail:10,freq:'',obst:'',warn:{},text:'Pista in uso di solito: 07.'},
+  'LIVV':{side:{'18':'R','36':'R'},hcFt:800,maxTail:10,freq:'',obst:'',warn:{},text:'Pista 18: circuito destro, ingresso dal lato Candia. Pista 36: circuito destro, lato Vische.'}};
 let NOTES=store.get('ia517_notes',null)||JSON.parse(JSON.stringify(DEFAULT_NOTES));
 if(!NOTES['IT-0001']) NOTES['IT-0001']=JSON.parse(JSON.stringify(DEFAULT_NOTES['IT-0001']));
+if(!NOTES['LIVV']) NOTES['LIVV']=JSON.parse(JSON.stringify(DEFAULT_NOTES['LIVV']));
+if(NOTES['IT-0074'] && !NOTES['IT-0074'].freq) NOTES['IT-0074'].freq='130.000';
 if(NOTES['IT-0074'] && NOTES['IT-0074'].elevFt==null){ NOTES['IT-0074'].elevFt=740; NOTES['IT-0074'].elevAt='2026-10-27T15:04:00Z'; }
 const noteOf=f=>NOTES[f.id]||null;
 

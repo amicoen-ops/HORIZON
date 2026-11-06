@@ -47,12 +47,14 @@ function provenienza(A){
   const b=distBrg(A.f,S).brg; return SETT[Math.round(b/45)%8];
 }
 function nominativi(){
-  const reg=PH.ac&&PH.ac.reg&&!/XXXX/i.test(PH.ac.reg)?PH.ac.reg:'';
-  if(!reg) return {lungo:'‹le tue marche›',breve:'‹le tue marche›',manca:true};
+  // marche del velivolo in uso; se è il profilo generico (I-XXXX), quelle del primo velivolo con le marche vere
+  const vera=a=>a&&a.reg&&!/XXXX/i.test(a.reg)&&N(a.reg).length>=4;
+  const ac=vera(PH.ac)?PH.ac:(PH.acs||[]).find(vera), reg=ac?String(ac.reg).toUpperCase():'';
+  if(!reg) return {lungo:'‹le tue marche›',breve:'‹le tue marche›',manca:true,reg:'marche in Impostazioni › Velivoli'};
   const s=N(reg), lungo=PH.sqFon?PH.sqFon(reg):s;
   // abbreviato come lo dicono i piloti nel circuito: prima lettera e ultime tre (India Cinque Uno Sette)
   const breve=PH.sqFon&&s.length>4?PH.sqFon(s[0]+s.slice(-3)):lungo;
-  return {lungo,breve};
+  return {lungo,breve,reg};
 }
 // testo del banner per la fase del circuito; null = niente da dire
 PH.radioCall=function(A){
@@ -63,9 +65,9 @@ PH.radioCall=function(A){
   const nm=nominativi(), a=st.nome, ultra=/^vds/.test(PH.ac&&PH.ac.cat||'')&&st.tipo==='afis'?', ultralight':'';
   if(!A.prov) A.prov=provenienza(A);
   const f=fq?' · '+fq:'';
-  if(A.idx<=1) return {l:'PRIMA DEL SOTTOVENTO'+f,t:`Ascolta e verifica la pista in uso (manica a vento, altri traffici).  «${a}, ${nm.lungo}${ultra}, proveniente da ${A.prov}, primo ingresso sottovento ${sx} pista ${rw}»`};
-  if(A.idx===2) return {l:'IN VIRATA BASE'+f,t:`«${a}, ${nm.breve}, base ${sxa} ${rw}»`};
-  if(A.idx===3||(A.idx===4&&performance.now()-(A.t4||(A.t4=performance.now()))<30000)) return {l:'IN VIRATA FINALE'+f,t:`«${a}, ${nm.breve}, finale ${rw}»`};
+  if(A.idx<=1) return {l:'PRIMA DEL SOTTOVENTO'+f,r:nm.reg,t:`Ascolta e verifica la pista in uso (manica a vento, altri traffici).  «${a}, ${nm.lungo}${ultra}, proveniente da ${A.prov}, primo ingresso sottovento ${sx} pista ${rw}»`};
+  if(A.idx===2) return {l:'IN VIRATA BASE'+f,r:nm.reg,t:`«${a}, ${nm.breve}, base ${sxa} ${rw}»`};
+  if(A.idx===3||(A.idx===4&&performance.now()-(A.t4||(A.t4=performance.now()))<30000)) return {l:'IN VIRATA FINALE'+f,r:nm.reg,t:`«${a}, ${nm.breve}, finale ${rw}»`};
   return null;
 };
 
@@ -73,7 +75,7 @@ PH.radioCall=function(A){
 { const st=document.createElement('style');
   st.textContent=`#hzRadio{display:flex;align-items:stretch;min-height:42px;border-radius:10px;background:#0f1d28;border:1px solid #2f6488;overflow:hidden;cursor:pointer}
   #hzRadio[hidden]{display:none}
-  #hzRadio .l{flex:none;display:flex;align-items:center;padding:0 8px;background:#1a3a52;color:#7fe0ff;font:800 11px/1.15 'Oxanium',system-ui,sans-serif;letter-spacing:.05em;max-width:34%}
+  #hzRadio .l{flex:none;display:flex;align-items:center;padding:0 8px;background:#1a3a52;color:#7fe0ff;font:800 11px/1.15 'Oxanium',system-ui,sans-serif;letter-spacing:.05em;max-width:42%}
   #hzRadio .m{flex:1;min-width:0;overflow:hidden;white-space:nowrap;display:flex;align-items:center}
   #hzRadio .m span{display:inline-block;padding-left:100%;font:700 19px 'Oxanium',system-ui,sans-serif;color:#fff;animation:hzMarq var(--d,12s) linear infinite}
   #hzRadio.p .m{white-space:normal} #hzRadio.p .m span{padding:4px 8px;animation:none;font-size:16px}
@@ -89,14 +91,15 @@ let cur='';
 function tick(){
   let c=null;
   try{ if(PH.radioOn && !(PH.ac&&PH.ac.radio==='0') && typeof NAV!=='undefined' && NAV.dest && NAV.app) c=PH.radioCall(NAV.app); }catch(e){ c=null; }
-  const k=c?c.l+'|'+c.t:'';
+  const k=c?c.l+'|'+(c.r||'')+'|'+c.t:'';
   if(k===cur) return; cur=k;
   if(!c){ box.hidden=true; return; }
-  box.querySelector('.l').textContent=c.l;
+  { const [ph,...fq]=c.l.split(' · '), sub=[fq.join(' · '),c.r].filter(Boolean).join(' · ');
+    box.querySelector('.l').innerHTML=`<span>${esc(ph)}${sub?`<b style="display:block;white-space:nowrap;color:#fff;font-size:12px;margin-top:2px">${esc(sub)}</b>`:''}</span>`; }
   const sp=box.querySelector('.m span'); sp.textContent=c.t;
   box.hidden=false;
-  // velocità di lettura: circa 70 px al secondo
-  requestAnimationFrame(()=>{ const w=sp.scrollWidth||600; sp.style.setProperty('--d',Math.max(6,w/70).toFixed(1)+'s'); });
+  // velocità di lettura: circa 45 px al secondo (da leggere ad alta voce col PTT premuto)
+  requestAnimationFrame(()=>{ const w=sp.scrollWidth||600; sp.style.setProperty('--d',Math.max(9,w/45).toFixed(1)+'s'); });
   PH.act&&PH.act('radio: '+c.l);
 }
 setInterval(tick,1000);

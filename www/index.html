@@ -496,7 +496,8 @@ function terrain(E,N){
 const FIELD_INFO={
   'IT-0074':{pref:'36',maxTail:10,side:{'36':'L','18':'R'},warn:{'18':'CAVI IN TESTATA 18'},
              cables:[{rwy:'18',beyond:120,span:260,h:15}]},         // posizione dei cavi indicativa
-  'IT-0001':{pref:'07',maxTail:10}                             // Il Falco: di solito pista 07
+  'IT-0001':{pref:'07',maxTail:10},                            // Il Falco: di solito pista 07
+  'LIVV':{side:{'18':'R','36':'R'}}                            // Moncucco: 18 destro (ingresso dal lato Candia), 36 destro (lato Vische)
 };
 const CABLES=[];
 FIELDS.forEach(f=>{ const inf=FIELD_INFO[f.id]; if(!inf||!inf.cables) return;
@@ -3963,6 +3964,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.102","Banner radio più lento e con le marche del velivolo in uso scritte accanto alla fase. Moncucco-Vische: circuito destro su tutte e due le piste (18 dal lato Candia, 36 dal lato Vische). Carolina: frequenza 130.000 nelle note del campo."],
   ["1.0.101","Frequenza della squadriglia (131.100 di partenza, si cambia in ALTRO › FREQUENZE): compare nella pagina Frequenze e nella Squadriglia."],
   ["1.0.100","Riga di stato: accanto a GPS il numero dei satelliti usati (GLO 2 o GPS del telefono). Verde con 7 o più satelliti e posizione entro 15 m, giallo con pochi satelliti o posizione imprecisa, rosso senza posizione. In Impostazioni anche satelliti visti e segnale."],
   ["1.0.99","Radio nel circuito: un banner sopra la barra in basso fa scorrere la chiamata da leggere col PTT, prima del sottovento, in virata base e in virata finale (si accende e si spegne in Impostazioni › Radio). Nuova pagina ALTRO › FREQUENZE: campo d'arrivo, FIS del settore, campi vicini, emergenza. La frequenza scritta nelle note del campo vale prima delle altre."],
