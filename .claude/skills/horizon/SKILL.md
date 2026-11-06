@@ -44,6 +44,7 @@ Testi, commenti, commit e risposte all'autore: **in italiano**, frasi semplici, 
 - Scadenze dei dati: assetto 0,7 s, velocità e quota 2,5 s, GPS 3,5 s → bandierine rosse, mai valori congelati.
 
 ## Logiche di sicurezza (non cambiare le soglie senza dirlo all'autore)
+- Avvisi a schermo: i gialli informativi (spazi aerei, tramonto, limite VDS) sono bandierine dal bordo destro, aperte 3 s, poi resta la linguetta finché `PH.alert` continua a chiamarle (sparisce dopo 5 s di silenzio); toccandola si riapre. Rossi e gialli di terreno (`tawsc`, `terrup`, `terrfloor`) restano al centro finché il pericolo c'è. La voce non cambia.
 - TAWS: ogni 1 s, da 0 a 60 s a passi di 5 s con il vario. «TERRENO! CABRA» sotto 100 ft entro 30 s, «ATTENZIONE TERRENO» sotto 300 ft. Tace vicino alla destinazione in circuito e senza GPS. Colori del terreno: rosso sotto 60 m, giallo sotto 180 m.
 - Spazi aerei: dentro adesso, tra 30 s, tra 1 minuto; giudizio da `IA517_RULES` secondo il tipo di volo.
 - Traffico: GDL90 (SafeSky, SkyEcho, PilotAware), oppure OGN e adsb.lol da internet ogni 6 s; triangolo di pericolo entro 1000 ft di lato e di quota, adesso o entro 60 s.

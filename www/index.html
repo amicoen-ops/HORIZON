@@ -135,7 +135,14 @@
   .ph-nav button:active{background:#2a3846}
   body.ph-land .ph-nav button{min-height:54px;font-size:14px} body.ph-land .ph-nav button i{font-size:19px} body.ph-land .ph-nav button small{font-size:9px}
   .ph-nav button[aria-current="page"]{color:#06121e;background:var(--cyan);border-color:var(--cyan)}
-  .ph-alert{position:absolute;left:50%;top:15%;transform:translateX(-50%);max-width:86%;padding:8px 14px;border-radius:10px;
+  .ph-flags{position:absolute;right:0;top:18%;width:78%;max-height:60%;overflow:hidden;display:flex;flex-direction:column;align-items:flex-end;gap:6px;z-index:5;pointer-events:none}
+.ph-flag{all:unset;box-sizing:border-box;position:relative;pointer-events:auto;cursor:pointer;min-height:34px;max-width:100%;padding:6px 12px 6px 14px;background:#ffb020;color:#1b1200;border-radius:9px 0 0 9px;
+  font:700 clamp(12px,3vw,17px) "Oxanium",system-ui,sans-serif;letter-spacing:.04em;transform:translateX(calc(100% - 12px));transition:transform .28s ease}
+.ph-flag.open{transform:none}
+.ph-flag::before{content:"";position:absolute;inset:-3px 0 -3px -20px}
+.ph-flag:focus-visible{outline:2px solid #fff;outline-offset:-3px}
+@media (prefers-reduced-motion:reduce){.ph-flag{transition:none}}
+.ph-alert{position:absolute;left:50%;top:15%;transform:translateX(-50%);max-width:86%;padding:8px 14px;border-radius:10px;
     font:700 clamp(13px,3.4vw,20px) "Oxanium",system-ui,sans-serif;letter-spacing:.06em;text-align:center;z-index:5;pointer-events:auto;cursor:pointer}
   .ph-alert small{display:block;font:600 10px system-ui,sans-serif;letter-spacing:.02em;opacity:.8;margin-top:2px}
   .ph-alert.w{background:#d4141b;color:#fff;box-shadow:0 0 0 3px rgba(255,60,60,.45)}
@@ -286,6 +293,7 @@
   <div class="toast" id="toast"></div>
 <!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
      Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE). -->
+  <div class="ph-flags" id="phFlags"></div>
   <div class="ph-alert" id="phAlert" hidden></div>
   <div class="ph-wait" id="phWait" hidden>
     <b>In attesa di GPS e sensori</b>
@@ -1563,7 +1571,7 @@ function push(){
   else if(!keep) closeMenu();
 }
 let toastT=null;
-function toastShow(msg){ const t=el('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
+function toastShow(msg){ const t=el('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),3000); }
 
 // pressione breve = menu, pressione lunga = cambio pagina
 const knob=el('knob'); let pressT=null, longFired=false;
@@ -2741,10 +2749,22 @@ setInterval(()=>{ if(!PH || PH.terrQ!=='auto' || document.hidden) return; const 
 // ---- avvisi: terreno davanti, spazi aerei, tramonto ----
 PH.alertMute={}; PH.alertSeen={};
 // un tocco sull'avviso lo toglie dal video: per uno spazio aereo finché non ne esci, per gli altri per 1 minuto
+// bandierine: i gialli informativi escono dal bordo per 3 s, poi resta la linguetta finché la condizione c'è; toccandola il messaggio si riapre.
+// I rossi e i gialli di terreno restano al centro finché il pericolo c'è. La voce non cambia.
+PH.flags={};
+PH.alertFlag=(k,l)=>l==='C' && !/^(tawsc|terrup|terrfloor)$/.test(k||'');
+PH.flagOpen=function(f,on){ clearTimeout(f.t); f.open=on; f.d.classList.toggle('open',on); f.d.setAttribute('aria-expanded',on?'true':'false'); if(on) f.t=setTimeout(()=>PH.flagOpen(f,false),3000); };
+PH.flag=function(key,text){
+  const box=el('phFlags'); if(!box) return; const sig=String(text).replace(/[\d.,]+/g,''); let f=PH.flags[key];
+  if(!f){ const d=document.createElement('button'); d.type='button'; d.className='ph-flag'; box.append(d); f=PH.flags[key]={d,key,sig:null,open:false}; d.onclick=ev=>{ ev.stopPropagation(); PH.flagOpen(f,!f.open); PH.act&&PH.act('bandierina '+key); }; }
+  f.seen=Date.now(); f.d.textContent=text; f.d.setAttribute('aria-label',text);
+  if(f.sig!==sig){ f.sig=sig; PH.flagOpen(f,true); }
+};
+setInterval(()=>{ const now=Date.now(); for(const k in PH.flags){ const f=PH.flags[k]; if(now-f.seen>5000){ clearTimeout(f.t); f.d.remove(); delete PH.flags[k]; } } },1000);
 PH.alert=function(key,level,text,every){
   const now=Date.now(), last=PH.alerts[key]||0; PH.alertSeen[key]=now;
   const m=PH.alertMute[key]; if(m && (m===true || now<m)) return;
-  PH.showAlert(level,text,key);
+  if(PH.alertFlag(key,level)) PH.flag(key,text); else PH.showAlert(level,text,key);
   if(now-last<(every||60000)) return;
   PH.alerts[key]=now; PH.say(text,level==='W'); PH.buzz(level==='W'?[300,100,300,100,300]:[150,80,150]);
 };
