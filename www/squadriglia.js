@@ -60,7 +60,7 @@ function scheda(m,isNew){
   </section></div>`;
   document.body.appendChild(d);
   const read=()=>{ const b=Object.assign({},m); d.querySelectorAll('[data-k]').forEach(i=>b[i.dataset.k]=i.value.trim()); b.reg=PH.trfFmtReg?PH.trfFmtReg(b.reg.toUpperCase()):b.reg.toUpperCase(); b.hex=N(b.hex); return b; };
-  const fon=()=>{ const b=read(); document.getElementById('hzSqFon').innerHTML=b.reg?`In radio: <b>«${esc(b.radio||PH.sqFon(b.reg))}»</b>${b.radio?'':` · abbreviato «${esc(PH.sqFonBreve(b.reg))}»`}`:''; };
+  const fon=()=>{ const b=read(); document.getElementById('hzSqFon').innerHTML=b.reg?`In radio: <b>«${esc(b.radio||PH.sqFon(b.reg))}»</b>${b.radio?'':` · abbreviato «${esc(PH.sqFonBreve(b.reg))}» (prima lettera e ultime due: solo dopo che l'ente l'ha usato)`}`:''; };
   d.querySelectorAll('[data-k]').forEach(i=>i.addEventListener('input',fon)); fon();
   document.getElementById('hzSqEdB').onclick=()=>d.remove();
   document.getElementById('hzSqOk').onclick=()=>{ const b=read(); if(N(b.reg).length<4){ toast('SCRIVI LE MARCHE'); return; }
@@ -74,7 +74,8 @@ PH.sqOpen=function(){
   const me=PH.ac&&PH.ac.reg&&!/XXXX/i.test(PH.ac.reg)?PH.ac.reg:'', iv=inVolo();
   d.innerHTML=`<div class="ph-sheet-h"><button type="button" id="hzSqB">◀ Strumento</button><b>👥 Squadriglia</b></div>
   <div class="ph-imp">
-    ${me?`<section><h3>Il mio nominativo</h3><div class="ph-row ph-col"><b>${esc(me)}</b><small>«${esc(PH.sqFon(me))}» · abbreviato «${esc(PH.sqFonBreve(me))}»</small></div></section>`:''}
+    ${me?`<section><h3>Il mio nominativo</h3><div class="ph-row ph-col"><b>${esc(me)}</b><small>«${esc(PH.sqFon(me))}» · abbreviato «${esc(PH.sqFonBreve(me))}», solo dopo che l'ente l'ha usato</small>
+      <small>Primo contatto con un ente: «Pisa Radar, ${esc(PH.sqFon(me))}${/^vds/.test(PH.ac&&PH.ac.cat||'')?', ultralight':''}». Poi tipo, provenienza e destinazione, posizione e quota.</small></div></section>`:''}
     <section><h3>In volo adesso</h3>${iv.length?iv.map(({e,m})=>`<div class="ph-row ph-col"><b style="color:#6dff8f">${esc(m.nome||m.reg)} · ${esc(m.reg)}</b><small>${(e.d/1000).toFixed(1).replace('.',',')} km · ore ${PH.trfClock(e)} · ${PH.trfDz(e)} · ${Math.round(e.t.kmh)} km/h · radio «${esc(radio(m))}»</small></div>`).join(''):
       `<p class="ph-sub">${PH.SQ.length?'Nessuno della squadriglia ricevuto nel traffico in questo momento.':'Aggiungi gli aerei che volano con te: in volo li riconosci col nome.'}</p>`}</section>
     <section><h3>Aerei (${PH.SQ.length})</h3>
