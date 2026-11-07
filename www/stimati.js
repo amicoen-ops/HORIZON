@@ -32,7 +32,7 @@ function gsOn(trk){
 // posizione detta come la vuole l'ente: distanza e settore dal campo più vicino
 function posizione(){
   if(S.lat==null) return null;
-  let best=null; for(const f of FIELDS){ if(f.kind==='wp') continue; const d=distBrg(f,S).d; if(!best||d<best.d) best={f,d}; }
+  let best=null; for(const f of FIELDS){ if(f.kind==='wp'||/^campo utente\b/i.test(f.name||'')) continue;   /* i campi senza nome non dicono niente all'ente */ const d=distBrg(f,S).d; if(!best||d<best.d) best={f,d}; }
   if(!best||best.d>25000) return {txt:`${Math.abs(S.lat).toFixed(2)}${S.lat>=0?'N':'S'} ${Math.abs(S.lon).toFixed(2)}${S.lon>=0?'E':'W'}`};
   if(best.d<1500) return {txt:'sopra '+best.f.name,f:best.f};
   const b=distBrg(best.f,S).brg; return {txt:`${(best.d/1000).toFixed(0)} km a ${SETT[Math.round(b/45)%8]} di ${best.f.name}`,f:best.f};

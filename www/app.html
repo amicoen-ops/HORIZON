@@ -1675,7 +1675,7 @@ function rdNoflyHit(a,b){ const out=[]; for(const z of RD_NOFLY){ const cl=Math.
 // sigla corta per mappa e strumento: «inbound Lago di Candia» → «INB L. CANDIA», «traverso Caluso» → «TRAV CALUSO»
 function rdSigla(n){ return String(n).replace(/^inbound\s+/i,'INB ').replace(/^traverso\s+/i,'TRAV ').replace(/\bLago (di |d')/i,'L. ').replace(/\bMonte /i,'M. ')
   .replace(/\s+(Canavese|Torinese|Biellese|Vercellese|Monferrato)\b/gi,'').replace(/ di /,' ').toUpperCase().slice(0,14); }
-function rdWpField(w){ return {id:w.id,short:rdSigla(w.name),name:w.name,lat:w.lat,lon:w.lon,elft:null,kind:'wp',rw:[],ends:[],rdwp:true}; }
+function rdWpField(w){ return {id:w.id,auto:!!w.auto,short:rdSigla(w.name),name:w.name,lat:w.lat,lon:w.lon,elft:null,kind:'wp',rw:[],ends:[],rdwp:true}; }
 for(const w of RD_WPS) if(!byId(w.id)) FIELDS.push(rdWpField(w));
 // punti di riporto VFR del Nord Italia (openAIP, CC BY-NC 4.0): [nome, sigla, lat, lon, obbligatorio]
 const rdTitle=t=>t.toLowerCase().replace(/(^|[\s'(-])([a-zàèéìòù])/g,(m,a,b)=>a+b.toUpperCase());
@@ -1751,7 +1751,10 @@ function rdOpen(){
   requestAnimationFrame(()=>{ rdFit(); rdChanged(false); rdHint('Tocca per aggiungere un punto · trascina la linea per inserirne uno · trascina un punto su quello vicino per toglierlo',6000); });
 }
 function rdClose(save){
-  if(save){ if(RD.pts.length<2){ rdHint('Servono almeno partenza e arrivo'); return; } rdSave(); }
+  if(save){ if(RD.pts.length<2){ rdHint('Servono almeno partenza e arrivo'); return; }
+    if(navigator.onLine && RD.pts.some(p=>!p.f||p.f.rdwp)){ rdHint('Cerco i nomi dei punti…',5000); const b=document.getElementById('rdOk'); if(b) b.disabled=true;
+      Promise.race([nomiCarica(RD.pts),new Promise(r=>setTimeout(r,5000))]).then(()=>{ if(b) b.disabled=false; rdSave(); rdClose(false); }); return; }
+    rdSave(); }
   RD.on=false; RD.root.hidden=true; try{ parent.document.body.classList.remove('ph-rdfull'); }catch(e){}
 }
 // ---------- nomi dei punti liberi: laghi, paesi e cime da OpenStreetMap (Overpass, © contributori OSM, ODbL) ----------
@@ -1761,16 +1764,16 @@ function rdClose(save){
 const NOMI={list:store.get('ia517_nomi',[])||[],done:store.get('ia517_nomi_q',[])||[],busy:false};
 const NOMI_SETT=['N','NE','E','SE','S','SO','O','NO'];
 async function nomiCarica(pts){
-  if(NOMI.busy||!pts||!pts.length||!navigator.onLine) return;
+  if(NOMI.busy) return NOMI.p; if(!pts||!pts.length||!navigator.onLine) return;
   const la=pts.map(p=>p.lat), lo=pts.map(p=>p.lon), r1=v=>Math.round(v*10)/10;
   const s=r1(Math.min(...la)-0.08), w=r1(Math.min(...lo)-0.1), n=r1(Math.max(...la)+0.08), e=r1(Math.max(...lo)+0.1);
   if((n-s)*(e-w)>4) return;                                                        // zona troppo grande: niente
   if(NOMI.done.some(k=>{ const [a,b,c,d]=k.split(',').map(Number); return a<=s&&b<=w&&c>=n&&d>=e; })) return;
   const bb=`${s},${w},${n},${e}`, q=`[out:json][timeout:25];(node["place"~"^(city|town|village)$"]["name"](${bb});way["natural"="water"]["name"](${bb});relation["natural"="water"]["name"](${bb});node["natural"="peak"]["name"](${bb}););out center bb tags;`;
-  NOMI.busy=true;
+  NOMI.busy=true; let fine; NOMI.p=new Promise(r=>fine=r);
   try{ const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});
     if(!r.ok) return; nomiAggiungi((await r.json()).elements||[]); NOMI.done.push(bb); NOMI.done=NOMI.done.slice(-80); store.set('ia517_nomi_q',NOMI.done);
-  }catch(e){} finally{ NOMI.busy=false; }
+  }catch(e){} finally{ NOMI.busy=false; fine(); }
 }
 function nomiAggiungi(els){
   for(const el of els){ const g=el.tags||{}, nm=g['name:it']||g.name; if(!nm) continue;
@@ -1804,18 +1807,24 @@ function rdNome(p,prev,next){
   const db=dist(near.x,p); return `${Math.round(db.d/1000)} km ${NOMI_SETT[Math.round(db.brg/45)%8]} di ${near.x.n}`.slice(0,40);
 }
 function rdSave(){
-  let n=0; const keep=new Set();
+  let n=0; const keep=new Set(), usati=new Map();
+  // due punti con lo stesso nome nella stessa rotta: il secondo diventa «… 2»
+  const unico=nm=>{ if(/^[PR]\d+$/.test(nm)) return nm; const c=(usati.get(nm)||0)+1; usati.set(nm,c); return c>1?(nm+' '+c).slice(0,40):nm; };
   const ids=RD.pts.map(p=>{
     if(p.f && p.f.rp && Math.abs(p.f.lat-p.lat)<1e-7 && Math.abs(p.f.lon-p.lon)<1e-7){ const id=p.f.id; keep.add(id);
       if(!RD_WPS.some(w=>w.id===id)) RD_WPS.push({id,name:p.f.short,lat:p.f.lat,lon:p.f.lon}); if(!byId(id)) FIELDS.push(rdWpField({id,name:p.f.short,lat:p.f.lat,lon:p.f.lon})); return id; }
-    if(p.f && Math.abs(p.f.lat-p.lat)<1e-7 && Math.abs(p.f.lon-p.lon)<1e-7){ if(p.f.rdwp) keep.add(p.f.id); return p.f.id; }
-    n++; const ix=RD.pts.indexOf(p), id='WP'+Date.now().toString(36).toUpperCase().slice(-5)+n, w={id,name:p.name||rdNome(p,RD.pts[ix-1],RD.pts[ix+1])||('P'+n),lat:+p.lat.toFixed(6),lon:+p.lon.toFixed(6)};
+    const ix=RD.pts.indexOf(p), AUTO=/^[PR]\d+$/;
+    if(p.f && Math.abs(p.f.lat-p.lat)<1e-7 && Math.abs(p.f.lon-p.lon)<1e-7){ if(p.f.rdwp){ keep.add(p.f.id);
+        if(AUTO.test(p.f.name||'')){ const nn=rdNome(p,RD.pts[ix-1],RD.pts[ix+1]); if(nn){ const wasR=/^R\d+$/.test(p.f.name), nm=unico(nn); p.f.name=nm; p.f.short=rdSigla(nm); const w0=RD_WPS.find(w=>w.id===p.f.id); if(w0){ w0.name=nm; if(wasR) w0.auto=1; } if(wasR) p.f.auto=true; } } }
+      return p.f.id; }
+    n++; const id='WP'+Date.now().toString(36).toUpperCase().slice(-5)+n, nm0=(p.name&&!AUTO.test(p.name))?p.name:(rdNome(p,RD.pts[ix-1],RD.pts[ix+1])||p.name||('P'+n));
+    const w={id,name:unico(nm0),lat:+p.lat.toFixed(6),lon:+p.lon.toFixed(6)}; if(p.auto) w.auto=1;
     RD_WPS.push(w); FIELDS.push(rdWpField(w)); keep.add(id); return id; });
   // punti liberi non più usati da nessuna rotta salvata: via
   const used=new Set([...keep]); try{ (ROUTES||[]).forEach(r=>r.wps.forEach(w=>used.add(w.id))); }catch(e){}
   RD_WPS=RD_WPS.filter(w=>used.has(w.id)).slice(-300); store.set('ia517_wps',RD_WPS);
   PLAN.from=ids[0]; PLAN.dest=ids[ids.length-1]; PLAN.wps=ids.slice(1,-1);
-  renderRoute(); update(); toast('Rotta aggiornata: '+ids.length+' punti');
+  renderRoute(); update(); toast('Rotta aggiornata: '+ids.length+' punti'+(ids.some(id=>{ const f=byId(id); return f&&f.rdwp&&/^[PR]\d+$/.test(f.name||''); })?(NOMI.list.length?' · per alcuni punti non c\'è un riferimento vicino: tocca due volte il punto per dargli un nome':' · nomi dei punti non scaricati (serve internet): riprova più tardi'):''));
 }
 function rdPush(){ RD.hist.push(RD.pts.map(p=>Object.assign({},p))); if(RD.hist.length>40) RD.hist.shift(); }
 function rdChanged(){ RD.sel=null; rdDraw(); clearTimeout(RD.aT); RD.aT=setTimeout(rdAnalyze,250); }
@@ -2323,7 +2332,7 @@ async function rdAvoidAll(){
   rdAnalyze(); const bad=RD.info.map((l,i)=>l.hits.some(h=>h.avoid)?i:-1).filter(i=>i>=0);
   rdPush();
   // si ricalcola da capo: via i punti R1, R2… di un calcolo precedente (anche se salvati), restano quelli messi dal pilota
-  const isR=p=>/^R\d+$/.test(p.name||'')||(p.f&&p.f.kind==='wp'&&/^R\d+$/.test(p.f.short||''));
+  const isR=p=>p.auto||/^R\d+$/.test(p.name||'')||(p.f&&p.f.kind==='wp'&&(p.f.auto||/^R\d+$/.test(p.f.short||'')));
   RD.pts=RD.pts.filter((p,i)=>i===0||i===RD.pts.length-1||!isR(p)); rdAnalyze();
   RD.busy='Calcolo la rotta…'; rdDraw(); let added=0, failed=0, k=1;
   // anche le tratte senza zone: se il terreno chiede di salire, si cerca la valle
@@ -2338,7 +2347,7 @@ async function rdAvoidAll(){
     if(mid===null){ mid=await rdAround(A,B,cap,false); rdChk(); }
     if(mid===null){ mid=await rdAround(A,B,cap,true); rdChk(); if(mid!==null) seaUsed++; }
     if(mid===null){ failed++; continue; }
-    RD.pts.splice(i+1,0,...mid.map(p=>({lat:p.lat,lon:p.lon,f:null,name:'R'+(k++)}))); added+=mid.length; }
+    RD.pts.splice(i+1,0,...mid.map(p=>({lat:p.lat,lon:p.lon,f:null,name:'R'+(k++),auto:true}))); added+=mid.length; }
   // pulizia: via i punti aggiunti che non servono (tratte corte), se senza di loro la tratta resta fuori dalle zone e il terreno non chiede di salire di più
   for(let pass=0;pass<3;pass++){ let removed=0;
     for(let i=1;i<RD.pts.length-1;i++){ const p=RD.pts[i]; if(!(p.name&&/^R\d+$/.test(p.name))) continue;
@@ -2361,7 +2370,7 @@ async function rdAvoidAll(){
         for(const t of [0.25,0.5,0.75]){ const M={lat:A.lat+(B.lat-A.lat)*t,lon:A.lon+(B.lon-A.lon)*t}, lw=Math.min(rdLegCheck(A,M).safe,rdLegCheck(M,B).safe);
           if(lw<=(l.safeFt||0)-1000 && lw<best){ best=lw; cut=t; } } }
       if(!cut) continue;
-      RD.pts.splice(i+1,0,{lat:A.lat+(B.lat-A.lat)*cut,lon:A.lon+(B.lon-A.lon)*cut,f:null,name:'R0'}); split++; }
+      RD.pts.splice(i+1,0,{lat:A.lat+(B.lat-A.lat)*cut,lon:A.lon+(B.lon-A.lon)*cut,f:null,name:'R0',auto:true}); split++; }
     if(!split) break; }
   // sicurezza: un punto aggiunto con un campo a meno di 4 km si sposta sul campo (si passa sopra un posto dove atterrare),
   // se così non si entra in zone nuove, il terreno non chiede più di 300 ft in più e non si passa di più sul mare
@@ -2375,7 +2384,7 @@ async function rdAvoidAll(){
         if(Math.max(n1.safe,n2.safe)>Math.max(c1.safe,c2.safe)+300) continue;
         if(n1.sea+n2.sea>c1.sea+c2.sea+100) continue;
         RD.pts[i]={lat:f.lat,lon:f.lon,f,name:f.short||f.name}; used.add(f.id); break; } } }
-  let kk=1; for(const p of RD.pts) if(p.name&&/^R\d+$/.test(p.name)) p.name='R'+(kk++);
+  let kk=1; for(const p of RD.pts) if(p.auto||(p.name&&/^R\d+$/.test(p.name))) p.name='R'+(kk++);
   added=RD.pts.filter(p=>p.name&&/^R\d+$/.test(p.name)).length; const onF=RD.pts.slice(1,-1).filter(p=>p.f).length; added+=onF;
   RD.busy=false; rdAnalyze();
   if(noAsp) RD.msgNoAsp=true; else RD.msgNoAsp=false;
