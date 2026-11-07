@@ -129,6 +129,9 @@
   .ph-card b{font:700 19px "Oxanium",system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
   .ph-card small{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ph-card.warn b{color:var(--accent)}
+  /* schermi stretti: i numeri delle caselle non devono mai finire troncati (quota, velocità) */
+  @media (max-width:400px){ body:not(.ph-land) .ph-cards{gap:5px} body:not(.ph-land) .ph-card{padding:5px 5px}
+    body:not(.ph-land) .ph-card b{font-size:clamp(14px,4.4vw,19px);letter-spacing:-.01em} body:not(.ph-land) .ph-card span{font-size:9px;letter-spacing:.06em} }
   .ph-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
   .ph-nav button{min-height:62px;padding:0 2px;border-radius:12px;border:2px solid #3a4a5a;background:#1b2530;color:#eef3f8;font:800 17px "Oxanium",system-ui,sans-serif;letter-spacing:.04em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1}
   .ph-nav button i{font-style:normal;font-size:22px;line-height:1} .ph-nav button small{font:800 11px "Oxanium",system-ui,sans-serif;letter-spacing:.06em}
@@ -271,6 +274,11 @@
   .ph-more-g button{min-height:74px;border-radius:14px;border:2px solid #3a4a5a;background:#1b2530;color:#eef3f8;font:800 17px "Oxanium",system-ui,sans-serif;letter-spacing:.04em;display:flex;align-items:center;justify-content:center;gap:10px}
   .ph-more-g button i{font-style:normal;font-size:24px} .ph-more-g button:active{background:#2a3846}
   .ph-more-g button.x{border-color:var(--mag);color:#ffd6f8}
+  .ph-more-g button{min-width:0;padding:0 6px;overflow:hidden;line-height:1.1;text-align:center}
+  /* schermi stretti (es. 351 px, o carattere di sistema grande): icona sopra e scritta più piccola, niente sborda */
+  @media (max-width:400px){ body:not(.ph-land) .ph-more-g{gap:8px;padding-left:8px;padding-right:8px}
+    body:not(.ph-land) .ph-more-g button{flex-direction:column;gap:3px;font-size:clamp(12px,3.9vw,15px);letter-spacing:.02em;min-height:68px}
+    body:not(.ph-land) .ph-more-g button i{font-size:21px} }
   body.ph-land .ph-more-g{grid-template-columns:repeat(3,minmax(0,1fr));width:min(760px,100%)} body.ph-land .ph-more-g button{min-height:60px}
 
   body.phone.ph-land .ph-nav{position:sticky;bottom:0;z-index:3;background:#0d1115;padding:6px 0 2px;margin-top:auto}
@@ -3964,6 +3972,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.103","Schermi stretti (telefoni piccoli o con carattere di sistema grande): nel menu ALTRO icona sopra la scritta, niente più tasti che sbordano; nelle caselle quota e velocità non vengono più troncate."],
   ["1.0.102","Banner radio più lento e con le marche del velivolo in uso scritte accanto alla fase. Moncucco-Vische: circuito destro su tutte e due le piste (18 dal lato Candia, 36 dal lato Vische). Carolina: frequenza 130.000 nelle note del campo."],
   ["1.0.101","Frequenza della squadriglia (131.100 di partenza, si cambia in ALTRO › FREQUENZE): compare nella pagina Frequenze e nella Squadriglia."],
   ["1.0.100","Riga di stato: accanto a GPS il numero dei satelliti usati (GLO 2 o GPS del telefono). Verde con 7 o più satelliti e posizione entro 15 m, giallo con pochi satelliti o posizione imprecisa, rosso senza posizione. In Impostazioni anche satelliti visti e segnale."],
