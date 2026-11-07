@@ -1824,7 +1824,7 @@ function rdSave(){
   const used=new Set([...keep]); try{ (ROUTES||[]).forEach(r=>r.wps.forEach(w=>used.add(w.id))); }catch(e){}
   RD_WPS=RD_WPS.filter(w=>used.has(w.id)).slice(-300); store.set('ia517_wps',RD_WPS);
   PLAN.from=ids[0]; PLAN.dest=ids[ids.length-1]; PLAN.wps=ids.slice(1,-1);
-  renderRoute(); update(); toast('Rotta aggiornata: '+ids.length+' punti'+(n&&!NOMI.list.length?' · nomi dei punti non scaricati (serve internet): riprova più tardi':''));
+  renderRoute(); update(); toast('Rotta aggiornata: '+ids.length+' punti'+(ids.some(id=>{ const f=byId(id); return f&&f.rdwp&&/^[PR]\d+$/.test(f.name||''); })?(NOMI.list.length?' · per alcuni punti non c\'è un riferimento vicino: tocca due volte il punto per dargli un nome':' · nomi dei punti non scaricati (serve internet): riprova più tardi'):''));
 }
 function rdPush(){ RD.hist.push(RD.pts.map(p=>Object.assign({},p))); if(RD.hist.length>40) RD.hist.shift(); }
 function rdChanged(){ RD.sel=null; rdDraw(); clearTimeout(RD.aT); RD.aT=setTimeout(rdAnalyze,250); }
