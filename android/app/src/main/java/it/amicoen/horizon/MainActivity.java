@@ -22,6 +22,9 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(StatoTelefonoPlugin.class);      // batteria e segnale 4G/5G per la riga di stato
         registerPlugin(Gdl90Plugin.class);              // traffico GDL90 su UDP 4000: SafeSky, SkyEcho, PilotAware
         super.onCreate(savedInstanceState);
+        // carattere di sistema ingrandito: la WebView lo applica a tutte le scritte e lo strumento non sta più nello
+        // schermo (barra in basso tagliata, numeri troncati). Le misure dell'app sono già fatte per essere lette in volo.
+        try { getBridge().getWebView().getSettings().setTextZoom(100); } catch (Exception ignored) { }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);   // in volo lo schermo non si spegne
         immersive();
     }
