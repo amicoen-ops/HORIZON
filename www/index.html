@@ -436,6 +436,7 @@ const wrap360=a=>((a%360)+360)%360, angDiff=(a,b)=>((a-b+540)%360)-180;
 const S={pitch:2,roll:0,hdg:0,ias:115,alt:2500,vs:0,slip:0,
   terr:true,obst:true,fpm:true,fd:true,auto:true,
   lat:45.31195,lon:7.82245,trk:null,gs:null,gpsReal:false,sats:null,hdop:null,hdgBug:0,hdgBugOn:false};   // bug di prua: spento, si attiva dal menu
+window.phS=S;                                              // stato dell'aereo leggibile dal Piano (vista 3D degli spazi)
 let QNH=1020;                                              // hPa, dal METAR o dalla manopola
 const ARCS={vs0:42,vs1:55,vfe:100,vno:130,vne:145};      // profilo Avid Flyer I-A517
 const TAWS_RED=60, TAWS_YEL=180;                          // m (~200 / ~600 ft)
@@ -3975,6 +3976,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.108","Vista 3D degli spazi aerei: terreno più scuro, niente più pareti finte sul bordo della zona (i grandi CTA e TMA non fanno più da scatola), FILTRI (solo gli spazi della rotta, categorie, «Nascondi» sul singolo spazio), ✈ SEGUI per seguire il proprio aereo in simulazione con la scia e gli spazi in cui si è dentro."],
   ["1.0.107","Rotte: i punti liberi prendono il nome di quello che si vede (da OpenStreetMap): «Lago di Candia», «inbound Lago di Candia», «traverso Caluso», «2 km N di Caluso», invece di P1, P2. Il nome si cambia toccando due volte il punto nel disegno della rotta. Negli stimati e nel riporto di posizione compare il nome intero."],
   ["1.0.106","Piano › Briefing: nuova Vista 3D degli spazi aerei. Terreno vero, spazi come solidi tra base e tetto, rotta in quota e velo del limite VDS del giorno; si gira con le dita o si vola dentro (sali, scendi, vira) e si vede in quali spazi sei; tocca uno spazio per i dettagli."],
   ["1.0.105","Nuova pagina STIMATI (tocca la casella DESTINAZIONE o ALTRO › STIMATI): riporto di posizione pronto da leggere all'ente, stimato al prossimo punto e all'arrivo in ore Z, ore di passaggio (ATA) e autonomia. Mappa a tutto riquadro invece che nel tondo: si vede di più, anche negli angoli."],
