@@ -122,6 +122,10 @@ const G=[
     <p>Sotto la mappa: distanza, tempo, carburante, quota di ogni tratta e gli avvisi (rosso da cambiare, arancione da sapere).</p>`},
   {id:'rotte',t:'Rotte salvate e invio allo strumento',h:`
     <p>In PIANO › Rotte salvate: <b>Apri</b> per modificarla, <b>Vola</b> per mandarla allo strumento (a terra parte subito, in volo chiede conferma). Sullo strumento: OK › ROTTE SALVATE. Fino a 100 punti per rotta.</p>`},
+  {id:'vista3d',t:'Vista 3D degli spazi aerei',h:`
+    <p>Piano › Briefing › <b>Vista 3D degli spazi aerei</b>: terreno vero attorno alla rotta, ogni spazio aereo come un solido tra base e tetto (CTR appoggiati al suolo, CTA e TMA sospesi), la rotta in magenta alla quota del piano e, in arancio, il velo del limite VDS basico del giorno.</p>
+    <p><b>ORBITA</b>: un dito gira la vista, due dita zoomano e spostano. <b>VOLA</b>: con i tasti avanzi, indietreggi, viri, sali e scendi; in alto vedi quota, altezza sul terreno e in quali spazi sei. <b>▶ ROTTA</b> percorre la rotta da solo. Tocca uno spazio per nome, classe, limiti e giudizio VDS.</p>
+    <p>La scena è tagliata a 10.000 ft (tasto per 6.000 o 15.000): gli spazi fino a FL195 finiscono lì con il bordo tratteggiato. Quote esagerate ×2 di partenza (×1, ×3) per vedere meglio gli strati. Solo a terra o in simulazione.</p>`},
   {id:'stimati',t:'Stimati e riporto di posizione',h:`
     <p>Tocca la casella <b>DESTINAZIONE</b> (o ALTRO › STIMATI). In alto il <b>riporto di posizione</b> già pronto da leggere all'ente: marche, posizione rispetto al campo più vicino, ora in Z, quota, prossimo punto con lo stimato e il punto dopo.</p>
     <p>Sotto: stimato al prossimo punto e all'arrivo (ore Z, distanza, tempo), i punti della rotta con quota, km, ETA e l'ora vera di passaggio (ATA), e l'<b>autonomia</b> dal carburante. Gli stimati usano la GS vera sulla tratta in corso e, per le altre, la velocità del velivolo corretta col vento (stimato dalle virate o previsto).</p>`},
