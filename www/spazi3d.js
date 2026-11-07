@@ -12,6 +12,7 @@
 (function(){
 'use strict';
 const FT=0.3048, D2R_=Math.PI/180;
+const suolo=(lat,lon)=>{ try{ const v=parent.phDemAt(lat,lon,12); return v===v?Math.max(0,v):NaN; }catch(e){ return NaN; } };   // m, dal rilievo fine
 const PS=()=>{ try{ return parent.phS||null; }catch(e){ return null; } };          // stato dell'aereo dello strumento
 const st={EX:2,CAP:10000,veil:true,mode:'orbita',follow:false,segui:false,rotta:false,hid:new Set(),off:new Set(),fil:false};
 // categorie per i filtri
@@ -199,7 +200,7 @@ window.SP3D_open=async function(){
     if(st.mode==='vola'){ const ft=F.y/FT/st.EX, p={x:F.x,n:-F.z}, g0=T.at(p.x,p.n)/FT, dentro=L.filter(s=>ft>=s.lo&&ft<=s.hi&&pip2(p,s.poly));
       const vds=ft-g0>T.agl; el.innerHTML=`Quota ${Math.round(ft/10)*10} ft · sul terreno ${Math.round((ft-g0)/10)*10} ft${vds?' · <span style="color:#ffa020">SOPRA IL LIMITE VDS</span>':''}<br>${dentro.length?'Dentro: '+dentro.map(s=>esc((typeof clsLabel==='function'?clsLabel(s.a):s.a.cls)+' '+(s.a.name||''))).join(' · '):'Fuori dagli spazi disegnati'}`; }
     else { const vis=L.filter(s=>s.g.visible).length; let ae='';
-      if(plane.visible&&PS()){ const S_=PS(), ft=S_.alt||0, p={x:plane.position.x,n:-plane.position.z}, g0=T.at(p.x,p.n)/FT, dentro=L.filter(s=>ft>=s.lo&&ft<=s.hi&&pip2(p,s.poly));
+      if(plane.visible&&PS()){ const S_=PS(), ft=S_.alt||0, p={x:plane.position.x,n:-plane.position.z}, gs0=suolo(S_.lat,S_.lon), g0=(gs0===gs0?gs0:T.at(p.x,p.n))/FT, dentro=L.filter(s=>ft>=s.lo&&ft<=s.hi&&pip2(p,s.poly));
         ae=`<br>✈ ${Math.round(ft/10)*10} ft · sul terreno ${Math.round((ft-g0)/10)*10} ft${ft-g0>T.agl?' · <span style="color:#ffa020">SOPRA IL LIMITE VDS</span>':''} · ${dentro.length?'dentro: '+dentro.map(s=>esc((typeof clsLabel==='function'?clsLabel(s.a):s.a.cls)+' '+(s.a.name||''))).join(' · '):'fuori dagli spazi'}`; }
       el.innerHTML=`${vis}${vis!==L.length?' di '+L.length:''} spazi · zona ${Math.round(Z.half/500)} km di lato${T.miss?' · terreno in arrivo…':''}${ae}`; }
   }
@@ -263,7 +264,7 @@ window.SP3D_open=async function(){
     } else { if(st.segui&&plane.visible){ const k2=Math.min(1,dt*3); O.tx+=(plane.position.x-O.tx)*k2; O.ty+=(plane.position.y-O.ty)*k2; O.tz+=(plane.position.z-O.tz)*k2; } camOrbit(); }
     try{ const S_=PS(); if(S_&&S_.lat!=null){ const q=Z.E(S_.lat,S_.lon), y=yFt(S_.alt||0); plane.position.set(q.x,y,-q.n); plane.rotation.set(-Math.PI/2,-((S_.trk!=null?S_.trk:S_.hdg)||0)*D2R_,0);
       plane.visible=Math.abs(q.x)<Z.half*1.2&&Math.abs(q.n)<Z.half*1.2; drop.visible=trailL.visible=plane.visible;
-      const dp=dropG.attributes.position; dp.setXYZ(0,q.x,y,-q.n); dp.setXYZ(1,q.x,T.at(q.x,q.n)*st.EX,-q.n); dp.needsUpdate=true; drop.computeLineDistances();
+      const dp=dropG.attributes.position; dp.setXYZ(0,q.x,y,-q.n); const gz=suolo(S_.lat,S_.lon); dp.setXYZ(1,q.x,(gz===gz?gz:T.at(q.x,q.n))*st.EX,-q.n); dp.needsUpdate=true; drop.computeLineDistances();
       const lp=trail[trail.length-1]; if(plane.visible&&(!lp||Math.hypot(lp.x-q.x,lp.z+q.n)>Z.half/400)){ trail.push(new THREE.Vector3(q.x,y,-q.n)); if(trail.length>1500) trail.shift(); trailG.setFromPoints(trail); } } }catch(e){}
     if(now-hT>300){ hT=now; hud(); }
     renderer.render(scene,cam);
