@@ -749,10 +749,15 @@ function runBriefing(c){
 function renderBriefing(c){
   const b=BRIEF;
   $('aspSrc').innerHTML=ASP_SRC.real?`File: <b>${esc(ASP_SRC.name)}</b> · ${ASP_SRC.count} spazi`:'<span class="warn">Spazi aerei di esempio, non reali: carica il file OpenAir aggiornato all\'AIRAC in vigore</span>';
-  $('aspList').innerHTML=b.asp.length?b.asp.map(x=>`<div class="it"><span class="cls" style="color:${clsColor(x.a.cls)}">${esc(clsLabel(x.a))}</span>
+  const RU=window.IA517_RULES||{};
+  $('aspList').innerHTML=b.asp.length?b.asp.map((x,i)=>`<div class="it"><span class="cls" style="color:${clsColor(x.a.cls)}">${esc(clsLabel(x.a))}</span>
       <span class="t">${esc(x.a.name||'senza nome')}</span>
       <span class="s">${x.segs.map(s=>`km ${s[0].toFixed(1)}–${s[1].toFixed(1)}`).join(', ')} · da ${esc(x.a.lo.txt)} a ${esc(x.a.hi.txt)}</span>
-      <span class="v ${x.status}">${esc(x.verdict)}</span></div>`).join(''):'<div class="sub">La rotta non attraversa spazi aerei del file caricato.</div>';
+      <span class="v ${x.status}">${esc(x.verdict)}</span>
+      ${RU.inattivabile&&RU.inattivabile(x.a)?`<button class="btn" type="button" data-inatt="${i}" style="margin-top:6px">${RU.inattiva(x.a)?'↺ Segna di nuovo attiva':'Non attiva oggi (verificato su AIP, AUP, NOTAM)'}</button>`:''}</div>`).join(''):'<div class="sub">La rotta non attraversa spazi aerei del file caricato.</div>';
+  $('aspList').querySelectorAll('[data-inatt]').forEach(bt=>bt.addEventListener('click',()=>{ const a=b.asp[+bt.dataset.inatt].a, on=!IA517_RULES.inattiva(a);
+    if(on && !confirm(`${a.name||a.cls}: confermi che OGGI è disattivata? Controlla AIP, AUP e NOTAM. Il segno vale solo per oggi.`)) return;
+    IA517_RULES.setInattiva(a,on); PV.key=null; toast(on?'Segnata non attiva per oggi: rotta e avvisi la ignorano':'Di nuovo attiva'); update(); }));
   drawProfile(c,b);
   renderNotams(b.not);
   renderElev();
@@ -1693,7 +1698,7 @@ function rdPip(p,poly){ let ins=false; for(let i=0,j=poly.length-1;i<poly.length
   if(((a.lat>p.lat)!==(b.lat>p.lat)) && (p.lon<(b.lon-a.lon)*(p.lat-a.lat)/(b.lat-a.lat)+a.lon)) ins=!ins; } return ins; }
 function rdLim(L,terrFt){ if(!L) return 0; if(L.ref==='AGL') return L.ft?L.ft+(terrFt||0):-1e9; return L.ft; }
 // spazi da evitare con il profilo di volo scelto: P e R sempre, poi quelli che le regole vietano
-function rdAvoid(a){ if(!a||!a.pts||a.pts.length<3) return false; if(a.cls==='P'||a.cls==='R') return true;
+function rdAvoid(a){ if(!a||!a.pts||a.pts.length<3) return false; try{ if(IA517_RULES.inattiva(a)) return false; }catch(e){} if(a.cls==='P'||a.cls==='R') return true;
   try{ return window.IA517_RULES && IA517_RULES.verdict(a).status==='bad'; }catch(e){ return false; } }
 
 // ---------- vista ----------
@@ -1917,13 +1922,29 @@ function rdLegAnalyze(a,b,st){
     return Object.assign(L,{terrFt,safeFt,maxAt,altFt,why,ceilFt,ceilName,vCap,hits:[...hits.values()]});
   }
 }
+// quote armonizzate: poche quote di crociera invece di un gradino a ogni tratta. Un gruppo di tratte vola alla stessa quota
+// finché tutte la permettono (sopra la quota sicura sul terreno, sotto il loro tetto: zone da evitare, limite VDS, nubi,
+// tangenza) e nessuna tratta resta più di 700 ft sopra la quota che avrebbe da sola. Le tratte già fuori dai limiti restano com'erano.
+function rdHarmonize(pts,info){
+  const n=info.length; if(n<2) return; const MAXX=700, cap=rdCapFt();
+  const B=info.map(L=>{ const up=Math.min(cap,L.ceilFt!=null?L.ceilFt:cap), low=L.safeFt!=null?L.safeFt:L.altFt;
+    return (L.altFt==null||L.why==='oltre'||L.why==='vds'||low>up||L.altFt>up)?null:{lo:Math.min(low,L.altFt),up,pref:L.altFt}; });
+  let i=0;
+  while(i<n){ if(!B[i]){ i++; continue; }
+    let lo=B[i].lo, up=B[i].up, pmax=B[i].pref, pmin=B[i].pref, j=i+1;
+    for(;j<n;j++){ const b=B[j]; if(!b) break; const lo2=Math.max(lo,b.lo), up2=Math.min(up,b.up), pmx=Math.max(pmax,b.pref), pmn=Math.min(pmin,b.pref);
+      const pick=Math.min(up2,Math.max(lo2,Math.ceil(pmx/100)*100)); if(lo2>up2 || pick-pmn>MAXX) break; lo=lo2; up=up2; pmax=pmx; pmin=pmn; }
+    const alt=Math.min(up,Math.max(lo,Math.ceil(pmax/100)*100));
+    for(let k=i;k<j;k++){ const L=info[k]; if(L.altFt!==alt){ L.altOrig=L.altFt; Object.assign(L,rdLeg(pts[k],pts[k+1],alt)); L.altFt=alt; } }
+    i=j; }
+}
 function rdAnalyze(){
   try{ nomiCarica(RD.pts); }catch(e){}
   if(!RD.on) return;
   const st={asp:rdAspAll(),pending:false}, info=[];
   for(let i=0;i<RD.pts.length-1;i++) info.push(rdLegAnalyze(RD.pts[i],RD.pts[i+1],st));
   const pending=st.pending;
-  RD.info=info; RD.vert=rdVert(RD.pts,info); RD.pending=pending; rdInfo(); rdDraw();
+  rdHarmonize(RD.pts,info); RD.info=info; RD.vert=rdVert(RD.pts,info); RD.pending=pending; rdInfo(); rdDraw();
   if(pending){ clearTimeout(RD.aT); RD.aT=setTimeout(rdAnalyze,900); }
 }
 // ---------- profilo verticale: salite e discese possibili col velivolo, giri di 360° dove non bastano le tratte ----------
@@ -2518,11 +2539,11 @@ window.IA517_PV=PV;
 function pvCompute(force){
   const pts=[PLAN.from,...PLAN.wps,PLAN.dest].map(byId).filter(Boolean).map(f=>({lat:f.lat,lon:f.lon,f}));
   if(pts.length<2){ PV.res=null; return null; }
-  const a=ACP(), key=JSON.stringify([pts.map(p=>p.f.id),PLAN.cruiseFt,PLAN.tas,PLAN.fuel,PLAN.wb,RD.margin,rdProf(),rdVdsAgl(),a.roc,a.rod,a.ceil,a.mtow,a.empty,!!rdAspAll().length]);
+  const a=ACP(), key=JSON.stringify([pts.map(p=>p.f.id),PLAN.cruiseFt,PLAN.tas,PLAN.fuel,PLAN.wb,RD.margin,rdProf(),rdVdsAgl(),a.roc,a.rod,a.ceil,a.mtow,a.empty,!!rdAspAll().length,(()=>{ try{ return localStorage.getItem('ia517_inattive')||''; }catch(e){ return ''; } })()]);
   if(!force && PV.key===key && PV.res && (!PV.res.pending || PV.tOn)) return PV.res;     // terreno in arrivo: ci pensa il controllo a tempo
   const st={asp:rdAspAll(),pending:false}, info=[];
   for(let i=0;i<pts.length-1;i++) info.push(rdLegAnalyze(pts[i],pts[i+1],st));
-  const V=rdVert(pts,info); PV.res={pts,info,V,pending:st.pending}; PV.key=key;
+  rdHarmonize(pts,info); const V=rdVert(pts,info); PV.res={pts,info,V,pending:st.pending}; PV.key=key;
   PV.tries=st.pending?(PV.tKey===key?(PV.tries||0)+1:0):0; PV.tKey=key;
   clearTimeout(PV.t); PV.tOn=false;
   // terreno non ancora scaricato: si riprova ogni 2 s (al massimo 30 volte); il piano si aggiorna solo quando arriva tutto

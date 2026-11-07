@@ -40,8 +40,21 @@ window.IA517_RULES = (function () {
   // equipaggiamento del velivolo attivo (Impostazioni › Velivoli): transponder e radio
   function eq() { let e = null; try { e = window.IA517_EQUIP || (window.parent && window.parent.IA517_EQUIP); } catch (x) {}
     return { xpdr: !!(e && e.xpdr && e.xpdr !== 'no'), radio: !(e && e.radio === false) }; }
+  // zone R e Q segnate «non attive oggi» dal pilota dopo aver controllato AIP, AUP e NOTAM: valgono solo per il giorno
+  // in cui le ha segnate (domani si ricontrolla). Chiave: classe|nome. Letto dal telefono ogni 5 s al massimo.
+  const KEY_IN = 'ia517_inattive'; let inCache = null, inT = 0;
+  const oggi = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const inKey = a => String(a.cls || '') + '|' + String(a.name || '');
+  function inLista() { const now = Date.now(); if (inCache && now - inT < 5000) return inCache; inT = now;
+    let v = null; try { v = JSON.parse(localStorage.getItem(KEY_IN) || 'null'); } catch (e) {}
+    inCache = (v && v.d === oggi() && Array.isArray(v.k)) ? new Set(v.k) : new Set(); return inCache; }
+  function inattivabile(a) { return !!a && /^(R|Q|DANGER)$/.test(String(a.cls || '').toUpperCase()); }
+  function inattiva(a) { return inattivabile(a) && inLista().has(inKey(a)); }
+  function setInattiva(a, on) { const s = new Set(inLista()); on ? s.add(inKey(a)) : s.delete(inKey(a));
+    try { localStorage.setItem(KEY_IN, JSON.stringify({ d: oggi(), k: [...s] })); } catch (e) {} inCache = s; inT = Date.now(); }
   function verdict(a, prof) {
     prof = prof || get(); const p = PROFILES[prof].name, c = a.cls;
+    if (inattiva(a)) return { status: 'ok', text: `Segnata NON ATTIVA oggi da te (dopo aver controllato AIP, AUP e NOTAM). Se cambia qualcosa, togli il segno` };
     if (c === 'P') return { status: 'bad', text: 'Area proibita: non si entra, cambia rotta' };
     if (c === 'FMC') { const sq = (String(a.name).match(/SSR\s*(\d{4})/i) || [])[1];
       return { status: 'ok', text: `Area FMC: con il transponder è raccomandato il codice${sq ? ' ' + sq : ''} e l'ascolto sulla frequenza indicata (AIP ENR 1.6); non è un divieto` }; }
@@ -74,6 +87,6 @@ window.IA517_RULES = (function () {
   // per gli avvisi in volo: questo spazio merita un avviso con questo profilo?
   function alerting(a, prof) { const v = verdict(a, prof); return v.status !== 'ok' && !/^(SPORT|W|GSEC|FMC)$/.test(a.cls); }
 
-  return { PROFILES, KEY, get, set, holiday, vdsMaxAgl, verdict, alerting, isATZ, controlled,
+  return { PROFILES, KEY, get, set, holiday, vdsMaxAgl, verdict, alerting, isATZ, controlled, inattiva, inattivabile, setInattiva, KEY_IN,
     SOURCE: 'DPR 133/2010 art. 8–9 (VDS); classi ICAO/SERA (VFR)' };
 })();
