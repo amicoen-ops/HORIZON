@@ -138,6 +138,7 @@ DATI E SERVIZI (non inclusi nell'app, letti in rete)
   Terreno             Terrain Tiles su AWS Open Data (Mapzen; SRTM, EU-DEM e altre fonti)
   Spazi aerei         openAIP (CC BY-NC 4.0), www.openaip.net, se scaricati da lì
   Carburante sui campi openAIP (CC BY-NC 4.0), www.openaip.net: campi con carburante, copia aggiornata ogni notte
+  Nomi dei punti      © contributori OpenStreetMap (ODbL), tramite Overpass API
   Meteo               Open-Meteo (CC BY 4.0); METAR e TAF da aviationweather.gov (NOAA)
   Traffico            Open Glider Network (ODbL), www.glidernet.org; adsb.lol (ODbL 1.0), www.adsb.lol
   Segnalazioni        Web3Forms (FormSubmit di riserva)

@@ -971,7 +971,7 @@ function routeFromPlan(){
   // quota di ogni tratta (terreno, zone, limite del tipo di volo) dal piano: va allo strumento sul punto d'arrivo della tratta
   let alts=null; try{ const R=pvCompute(false); if(R&&R.info&&R.pts&&R.pts.length===c.pts.length&&!R.pending) alts=R.info.map(l=>l.altFt); }catch(e){}
   return {name:(c.pts.length?c.pts[0].short+' › '+c.pts[c.pts.length-1].short:'Rotta').slice(0,60),cruiseFt:PLAN.cruiseFt,
-    wps:c.pts.map((f,i)=>{ const w={id:f.id.slice(0,16),name:f.short.slice(0,40),lat:+f.lat.toFixed(6),lon:+f.lon.toFixed(6),field:f.kind!=='wp'};
+    wps:c.pts.map((f,i)=>{ const w={id:f.id.slice(0,16),name:(f.rdwp?f.name:f.short).slice(0,40),lat:+f.lat.toFixed(6),lon:+f.lon.toFixed(6),field:f.kind!=='wp'};
       if(alts&&i>0&&alts[i-1]!=null) w.altFt=Math.round(alts[i-1]/10)*10; return w; })};
 }
 function notesForInstrument(){
@@ -1672,7 +1672,10 @@ let RD_WPS=store.get('ia517_wps',[]);
 let RD_NOFLY=store.get('ia517_nofly',[]);
 function rdNoflyHit(a,b){ const out=[]; for(const z of RD_NOFLY){ const cl=Math.cos(z.lat*D2R), ax=(a.lon-z.lon)*111320*cl, ay=(a.lat-z.lat)*110540, bx=(b.lon-z.lon)*111320*cl, by=(b.lat-z.lat)*110540;
   const dx=bx-ax, dy=by-ay, L2=dx*dx+dy*dy, t=L2?clamp(-(ax*dx+ay*dy)/L2,0,1):0; if(Math.hypot(ax+t*dx,ay+t*dy)<z.r) out.push(z); } return out; }
-function rdWpField(w){ return {id:w.id,short:String(w.name).toUpperCase().slice(0,14),name:w.name,lat:w.lat,lon:w.lon,elft:null,kind:'wp',rw:[],ends:[],rdwp:true}; }
+// sigla corta per mappa e strumento: «inbound Lago di Candia» → «INB L. CANDIA», «traverso Caluso» → «TRAV CALUSO»
+function rdSigla(n){ return String(n).replace(/^inbound\s+/i,'INB ').replace(/^traverso\s+/i,'TRAV ').replace(/\bLago (di |d')/i,'L. ').replace(/\bMonte /i,'M. ')
+  .replace(/\s+(Canavese|Torinese|Biellese|Vercellese|Monferrato)\b/gi,'').replace(/ di /,' ').toUpperCase().slice(0,14); }
+function rdWpField(w){ return {id:w.id,short:rdSigla(w.name),name:w.name,lat:w.lat,lon:w.lon,elft:null,kind:'wp',rw:[],ends:[],rdwp:true}; }
 for(const w of RD_WPS) if(!byId(w.id)) FIELDS.push(rdWpField(w));
 // punti di riporto VFR del Nord Italia (openAIP, CC BY-NC 4.0): [nome, sigla, lat, lon, obbligatorio]
 const rdTitle=t=>t.toLowerCase().replace(/(^|[\s'(-])([a-zàèéìòù])/g,(m,a,b)=>a+b.toUpperCase());
@@ -1751,13 +1754,62 @@ function rdClose(save){
   if(save){ if(RD.pts.length<2){ rdHint('Servono almeno partenza e arrivo'); return; } rdSave(); }
   RD.on=false; RD.root.hidden=true; try{ parent.document.body.classList.remove('ph-rdfull'); }catch(e){}
 }
+// ---------- nomi dei punti liberi: laghi, paesi e cime da OpenStreetMap (Overpass, © contributori OSM, ODbL) ----------
+// Al posto di «P1» il punto prende il nome di quello che si vede dall'alto e che l'ente capisce: «Lago di Candia»,
+// «Candia Canavese», «traverso Caluso» (paese di lato rispetto alla tratta) o «2 km N di Caluso». Si scaricano a terra
+// mentre si disegna la rotta e restano sul telefono; il nome si può sempre cambiare toccando due volte il punto.
+const NOMI={list:store.get('ia517_nomi',[])||[],done:store.get('ia517_nomi_q',[])||[],busy:false};
+const NOMI_SETT=['N','NE','E','SE','S','SO','O','NO'];
+async function nomiCarica(pts){
+  if(NOMI.busy||!pts||!pts.length||!navigator.onLine) return;
+  const la=pts.map(p=>p.lat), lo=pts.map(p=>p.lon), r1=v=>Math.round(v*10)/10;
+  const s=r1(Math.min(...la)-0.08), w=r1(Math.min(...lo)-0.1), n=r1(Math.max(...la)+0.08), e=r1(Math.max(...lo)+0.1);
+  if((n-s)*(e-w)>4) return;                                                        // zona troppo grande: niente
+  if(NOMI.done.some(k=>{ const [a,b,c,d]=k.split(',').map(Number); return a<=s&&b<=w&&c>=n&&d>=e; })) return;
+  const bb=`${s},${w},${n},${e}`, q=`[out:json][timeout:25];(node["place"~"^(city|town|village)$"]["name"](${bb});way["natural"="water"]["name"](${bb});relation["natural"="water"]["name"](${bb});node["natural"="peak"]["name"](${bb}););out center bb tags;`;
+  NOMI.busy=true;
+  try{ const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});
+    if(!r.ok) return; nomiAggiungi((await r.json()).elements||[]); NOMI.done.push(bb); NOMI.done=NOMI.done.slice(-80); store.set('ia517_nomi_q',NOMI.done);
+  }catch(e){} finally{ NOMI.busy=false; }
+}
+function nomiAggiungi(els){
+  for(const el of els){ const g=el.tags||{}, nm=g['name:it']||g.name; if(!nm) continue;
+    if(g.natural==='water' && /^(river|canal|stream|ditch|drain|moat|wastewater)$/.test(g.water||'')) continue;
+    const lat=el.lat??(el.center&&el.center.lat), lon=el.lon??(el.center&&el.center.lon); if(lat==null||lon==null) continue;
+    const it={n:String(nm).slice(0,30),k:g.place||(g.natural==='water'?'acqua':'cima'),lat:+(+lat).toFixed(5),lon:+(+lon).toFixed(5)};
+    if(el.bounds) it.bb=[el.bounds.minlat,el.bounds.minlon,el.bounds.maxlat,el.bounds.maxlon].map(v=>+(+v).toFixed(5));
+    if(it.k==='acqua'){ if(!it.bb) continue; if(dist({lat:it.bb[0],lon:it.bb[1]},{lat:it.bb[2],lon:it.bb[3]}).d<400) continue; }   // laghetti: no
+    if(!NOMI.list.some(x=>x.n===it.n&&Math.abs(x.lat-it.lat)<2e-3&&Math.abs(x.lon-it.lon)<2e-3)) NOMI.list.push(it); }
+  NOMI.list=NOMI.list.slice(-6000); store.set('ia517_nomi',NOMI.list);
+}
+// nome per un punto libero della rotta (prev e next: i punti prima e dopo, per capire il «traverso»)
+function rdNome(p,prev,next){
+  const L=NOMI.list; if(!L.length) return null;
+  // sopra un lago (o a meno di 500 m dalla riva, misurata sul riquadro del lago)
+  let lago=null;
+  for(const x of L){ if(x.k!=='acqua') continue; const [a,b,c,e]=x.bb, m=0.0045;
+    if(p.lat>=a-m&&p.lat<=c+m&&p.lon>=b-m*1.4&&p.lon<=e+m*1.4){ const d=dist(p,x).d; if(!lago||d<lago.d) lago={x,d}; } }
+  if(lago) return lago.x.n.slice(0,40);
+  // paese vicino: le città valgono di più dei paesini (si vedono e si conoscono meglio)
+  let near=null; for(const x of L){ if(!/^(city|town|village)$/.test(x.k)) continue; const d=dist(p,x).d, lim=x.k==='village'?4000:7000, sc=d*(x.k==='village'?1:0.6); if(d<lim&&(!near||sc<near.sc)) near={x,d,sc}; }
+  if(near&&near.d<800) return near.x.n.slice(0,40);
+  // lago entro 3 km: «inbound» se è davanti lungo la tratta, «traverso» se è di lato
+  const a0=prev||p, b0=next||p;
+  if(a0!==b0){ const trk=dist(p,b0).d>200?dist(p,b0).brg:dist(a0,p).brg; let lk=null;
+    for(const x of L){ if(x.k!=='acqua') continue; const d=dist(p,x).d; if(d<3000&&(!lk||d<lk.d)) lk={x,d}; }
+    if(lk){ const rel=Math.abs(angDiff(dist(p,lk.x).brg,trk)); if(rel<35) return ('inbound '+lk.x.n).slice(0,40); if(rel>55&&rel<125) return ('traverso '+lk.x.n).slice(0,40); } }
+  if(!near){ let pk=null; for(const x of L){ if(x.k!=='cima') continue; const d=dist(p,x).d; if(d<2000&&(!pk||d<pk.d)) pk={x,d}; } return pk?pk.x.n.slice(0,40):null; }
+  const a=prev||p, b=next||p; if(a!==b){ const trk=dist(a,b).brg, rel=Math.abs(angDiff(dist(p,near.x).brg,trk));
+    if(rel>55&&rel<125) return ('traverso '+near.x.n).slice(0,40); }
+  const db=dist(near.x,p); return `${Math.round(db.d/1000)} km ${NOMI_SETT[Math.round(db.brg/45)%8]} di ${near.x.n}`.slice(0,40);
+}
 function rdSave(){
   let n=0; const keep=new Set();
   const ids=RD.pts.map(p=>{
     if(p.f && p.f.rp && Math.abs(p.f.lat-p.lat)<1e-7 && Math.abs(p.f.lon-p.lon)<1e-7){ const id=p.f.id; keep.add(id);
       if(!RD_WPS.some(w=>w.id===id)) RD_WPS.push({id,name:p.f.short,lat:p.f.lat,lon:p.f.lon}); if(!byId(id)) FIELDS.push(rdWpField({id,name:p.f.short,lat:p.f.lat,lon:p.f.lon})); return id; }
     if(p.f && Math.abs(p.f.lat-p.lat)<1e-7 && Math.abs(p.f.lon-p.lon)<1e-7){ if(p.f.rdwp) keep.add(p.f.id); return p.f.id; }
-    n++; const id='WP'+Date.now().toString(36).toUpperCase().slice(-5)+n, w={id,name:p.name||('P'+n),lat:+p.lat.toFixed(6),lon:+p.lon.toFixed(6)};
+    n++; const ix=RD.pts.indexOf(p), id='WP'+Date.now().toString(36).toUpperCase().slice(-5)+n, w={id,name:p.name||rdNome(p,RD.pts[ix-1],RD.pts[ix+1])||('P'+n),lat:+p.lat.toFixed(6),lon:+p.lon.toFixed(6)};
     RD_WPS.push(w); FIELDS.push(rdWpField(w)); keep.add(id); return id; });
   // punti liberi non più usati da nessuna rotta salvata: via
   const used=new Set([...keep]); try{ (ROUTES||[]).forEach(r=>r.wps.forEach(w=>used.add(w.id))); }catch(e){}
@@ -1857,6 +1909,7 @@ function rdLegAnalyze(a,b,st){
   }
 }
 function rdAnalyze(){
+  try{ nomiCarica(RD.pts); }catch(e){}
   if(!RD.on) return;
   const st={asp:rdAspAll(),pending:false}, info=[];
   for(let i=0;i<RD.pts.length-1;i++) info.push(rdLegAnalyze(RD.pts[i],RD.pts[i+1],st));
@@ -2118,7 +2171,9 @@ function rdGestures(){
       rdDraw(); return; }
     if(g.kind==='pan'){ if(!g.moved && pts.size===0){ const [x,y]=xy(e), f=rdNearField(x,y); rdPush(); const ll=rdLL(x,y);
         RD.pts.push(f?{lat:f.lat,lon:f.lon,f}:{lat:ll.lat,lon:ll.lon,f:null}); rdChanged(); } return; }
-    if(!g.moved){ rdHint((()=>{ const l=RD.info[g.idx]||RD.info[g.idx-1]; const p=RD.pts[g.idx]; return (p.f?p.f.name:'Punto '+g.idx)+(l&&l.terrFt!=null?` · terreno max tratta ${Math.round(l.terrFt)} ft`:''); })()); rdDraw(); return; }
+    if(!g.moved && !RD.pts[g.idx].f && RD.selPt===g.idx){ const p=RD.pts[g.idx], sug=p.name||rdNome(p,RD.pts[g.idx-1],RD.pts[g.idx+1])||'';
+      const v=prompt('Nome del punto (come lo dirai all\'ente, es. «Lago di Candia», «traverso Caluso»)',sug); if(v!=null){ p.name=v.trim().slice(0,40)||undefined; rdHint(p.name?'Punto: '+p.name:'Nome automatico'); rdDraw(); } RD.selPt=null; return; }
+    if(!g.moved){ RD.selPt=RD.pts[g.idx].f?null:g.idx; rdHint((()=>{ const l=RD.info[g.idx]||RD.info[g.idx-1]; const p=RD.pts[g.idx]; return (p.f?p.f.name:(p.name||rdNome(p,RD.pts[g.idx-1],RD.pts[g.idx+1])||'Punto '+g.idx)+' · tocca ancora per cambiare il nome')+(l&&l.terrFt!=null?` · terreno max tratta ${Math.round(l.terrFt)} ft`:''); })()); rdDraw(); return; }
     RD.hist.push(g.before); if(RD.hist.length>40) RD.hist.shift();
     if(g.merge!=null){ RD.pts.splice(g.idx,1); rdHint('Punto tolto'); }
     else if(g.snap){ const p=RD.pts[g.idx]; p.lat=g.snap.lat; p.lon=g.snap.lon; p.f=g.snap; }

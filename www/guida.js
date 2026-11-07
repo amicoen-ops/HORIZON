@@ -121,7 +121,8 @@ const G=[
     <li>in VDS basico resta a 5 km dagli aeroporti e sotto il limite di quota (si spezza la tratta solo se lo supereresti di oltre 500 ft).</li></ul>
     <p>Sotto la mappa: distanza, tempo, carburante, quota di ogni tratta e gli avvisi (rosso da cambiare, arancione da sapere).</p>`},
   {id:'rotte',t:'Rotte salvate e invio allo strumento',h:`
-    <p>In PIANO › Rotte salvate: <b>Apri</b> per modificarla, <b>Vola</b> per mandarla allo strumento (a terra parte subito, in volo chiede conferma). Sullo strumento: OK › ROTTE SALVATE. Fino a 100 punti per rotta.</p>`},
+    <p>In PIANO › Rotte salvate: <b>Apri</b> per modificarla, <b>Vola</b> per mandarla allo strumento (a terra parte subito, in volo chiede conferma). Sullo strumento: OK › ROTTE SALVATE. Fino a 100 punti per rotta.</p>
+    <p><b>Nomi dei punti</b>: un punto libero prende da solo il nome di quello che si vede dall'alto e che l'ente capisce (da OpenStreetMap, scaricato a terra mentre disegni): «Lago di Candia», «Candia Canavese», «inbound Lago di Candia» (lago davanti entro 3 km), «traverso Caluso» (paese di lato), «2 km N di Caluso». Sullo strumento la sigla è corta (INB L. CANDIA). Per cambiarlo: tocca il punto, poi toccalo ancora e scrivi il nome. Dove ci sono, usa i punti di riporto VFR ufficiali.</p>`},
   {id:'vista3d',t:'Vista 3D degli spazi aerei',h:`
     <p>Piano › Briefing › <b>Vista 3D degli spazi aerei</b>: terreno vero attorno alla rotta, ogni spazio aereo come un solido tra base e tetto (CTR appoggiati al suolo, CTA e TMA sospesi), la rotta in magenta alla quota del piano e, in arancio, il velo del limite VDS basico del giorno.</p>
     <p><b>ORBITA</b>: un dito gira la vista, due dita zoomano e spostano. <b>VOLA</b>: con i tasti avanzi, indietreggi, viri, sali e scendi; in alto vedi quota, altezza sul terreno e in quali spazi sei. <b>▶ ROTTA</b> percorre la rotta da solo. Tocca uno spazio per nome, classe, limiti e giudizio VDS.</p>

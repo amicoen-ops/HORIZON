@@ -25,6 +25,7 @@ Per funzionare l'app chiede dati a servizi esterni. Ogni richiesta porta solo qu
 - **Mappe** — OpenStreetMap, OpenTopoMap, Esri (solo con la tua chiave), Geoportale Nazionale. L'app chiede le tessere della zona mostrata, e dalla zona si capisce dove ti trovi più o meno.
 - **Terreno** — AWS Open Data (Terrain Tiles). Anche qui l'app chiede le tessere della zona mostrata.
 - **Meteo** — Open-Meteo e aviationweather.gov (NOAA). Al primo l'app manda le coordinate dei campi del piano di volo, al secondo le sigle ICAO degli aeroporti.
+- **Nomi dei punti della rotta** — Overpass API (OpenStreetMap). Mentre disegni una rotta l'app chiede i nomi di paesi, laghi e cime nel riquadro della rotta, arrotondato a 0,1° (circa 10 km): nessuna posizione esatta, nessun dato personale.
 - **Traffico in tempo reale**, solo se è acceso (Impostazioni › Traffico) — Open Glider Network (live.glidernet.org) e adsb.lol. L'app manda la zona in cui sei arrotondata a 0,1° (circa 10 km), mai la posizione esatta, e riceve gli aerei di quella zona. Se usi SafeSky sullo stesso telefono, il suo traffico arriva dentro il telefono (porta UDP 4000) e non esce niente.
 - **Aggiornamenti**, solo nella versione scaricata da GitHub — GitHub. L'app legge il numero dell'ultima versione pubblicata.
 - **Segnalazioni** — Web3Forms (FormSubmit di riserva), che le inoltra per posta al titolare. Partono solo quando invii tu una segnalazione dalla pagina Info, e contengono:
