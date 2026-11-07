@@ -443,6 +443,9 @@ const SIM_WIND={dir:350,kmh:12};                          // vento della simulaz
 const C={white:'#ffffff',cyan:'#33e1ff',green:'#19e38a',amber:'#ffd21e',mag:'#ff46e0',box:'rgba(6,10,15,.84)'};
 function font(px,w){ return `${w||''} ${Math.round(px)}px Rajdhani, "Barlow Semi Condensed", sans-serif`; }
 function roundClip(){ ctx.beginPath(); ctx.arc(CX,CY,R,0,7); ctx.clip(); }
+// mappa a tutto riquadro (non nel tondo): rettangolo con gli angoli appena arrotondati
+function mapClip(){ const r=R*0.05; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(1,1,W-2,H-2,r); else ctx.rect(1,1,W-2,H-2); ctx.clip(); }
+function mapFrame(){ ctx.save(); ctx.lineWidth=2*k; ctx.strokeStyle='#30363f'; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(1,1,W-2,H-2,R*0.05); else ctx.rect(1,1,W-2,H-2); ctx.stroke(); ctx.restore(); }
 const rho=hm=>1.225*Math.pow(Math.max(0.3,1-2.2558e-5*hm),4.2559);
 const tasOf=(iasKmh,altFt)=>iasKmh/3.6*Math.sqrt(1.225/rho(altFt*FT2M));   // m/s
 
@@ -1297,8 +1300,8 @@ function drawMap(g){
   if(MR.zi!==zi || Math.hypot(ac.E-MR.cE,ac.N-MR.cN)>MR.half*0.22 || Math.abs(S.alt*FT2M-MR.alt)>25 || MR.inh!==inhField()) rasterMap(ac);
   const sc=1.3*R/rng, ax=CX, ay=CY+(pan?0:0.3*R), ct=Math.cos(t), stt=Math.sin(t); if(PH) PH.mapSc=sc;
   const toS=(E,N)=>{ const dE=E-ac.E, dN=N-ac.N; return {x:ax+(dE*ct-dN*stt)*sc, y:ay-(dE*stt+dN*ct)*sc}; };
-  const onS=p=>Math.hypot(p.x-CX,p.y-CY)<R*1.05;
-  ctx.save(); roundClip();
+  const onS=p=>p.x>-R*0.05&&p.x<W+R*0.05&&p.y>-R*0.05&&p.y<H+R*0.05;
+  ctx.save(); mapClip();
   ctx.fillStyle='#1d2a1a'; ctx.fillRect(0,0,W,H); phoneBase(ac,sc,ax,ay,t);
   ctx.save(); ctx.translate(ax,ay); ctx.rotate(-t); ctx.imageSmoothingEnabled=true;
   ctx.drawImage(MR.cv,(MR.cE-MR.half-ac.E)*sc,(ac.N-(MR.cN+MR.half))*sc,2*MR.half*sc,2*MR.half*sc);
@@ -1416,7 +1419,7 @@ function drawMap(g){
   ctx.fillText(PH?PH.mapCaption():'terreno sintetico · campi OurAirports',CX,CY+R*0.82,R*1.3);
   ctx.restore();
   if(lost('gps')) failBox(CX,CY,R*0.5,R*0.16,'GPS PERSO','posizione non aggiornata');
-  drawBezel();
+  mapFrame();
 }
 
 // ---------------- simulazione ----------------
@@ -2061,7 +2064,7 @@ function rasterMap(ac){
   if(PH){ const now=performance.now();
     if(MR.zi===zi && MR.half>0 && now-(PH.rastT||0)<1500) return;
     PH.rastT=now; }
-  const n=MR.n, half=ZOOMS[zi]*1000*1.4, acAlt=S.alt*FT2M, base=PH&&PH.base!=='dem';
+  const n=MR.n, half=ZOOMS[zi]*1000*1.8, acAlt=S.alt*FT2M, base=PH&&PH.base!=='dem';   // 1,8: copre anche gli angoli della mappa quadrata
   if(PH){ const km=ZOOMS[zi]; PH.demZ=km>=250?7:(km>=90?8:(km>=30?9:(km>=15?10:(km<=3?12:11)))); }
   MR.cv.width=n; MR.cv.height=n; const c2=MR.cv.getContext('2d'), img=c2.createImageData(n,n);
   const z=new Float32Array(n*n), st=2*half/n, air=PH_air();
@@ -2937,7 +2940,7 @@ function phoneBase(ac,sc,ax,ay,t){
   const cosl=Math.cos(S.lat*D2R);
   const bd=PH.baseDef(); if(bd.key && !PH.esriKey) return;
   let z=Math.floor(Math.log2(40075016.686*cosl*sc/(256*1.15))); z=clamp(z,Math.max(4,bd.min||4),bd.max||17);
-  const n=2**z, rM=1.4*R/sc;
+  const n=2**z, rM=1.8*R/sc;
   const lat2y=la=>{ const r=la*D2R; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n; };
   const pn=PH.pan, cLat=S.lat+(pn?pn.N/110540:0), cLon=S.lon+(pn?pn.E/(111320*cosl):0);   // centro della vista (mappa spostata col dito)
   const x0=Math.floor((cLon-rM/(111320*cosl)+180)/360*n), x1=Math.floor((cLon+rM/(111320*cosl)+180)/360*n);
@@ -3972,6 +3975,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.105","Nuova pagina STIMATI (tocca la casella DESTINAZIONE o ALTRO › STIMATI): riporto di posizione pronto da leggere all'ente, stimato al prossimo punto e all'arrivo in ore Z, ore di passaggio (ATA) e autonomia. Mappa a tutto riquadro invece che nel tondo: si vede di più, anche negli angoli."],
   ["1.0.104","Telefoni con il carattere di sistema ingrandito: lo strumento non lo applica più, così tutto sta nello schermo (barra in basso intera, numeri non troncati)."],
   ["1.0.103","Schermi stretti (telefoni piccoli o con carattere di sistema grande): nel menu ALTRO icona sopra la scritta, niente più tasti che sbordano; nelle caselle quota e velocità non vengono più troncate."],
   ["1.0.102","Banner radio più lento e con le marche del velivolo in uso scritte accanto alla fase. Moncucco-Vische: circuito destro su tutte e due le piste (18 dal lato Candia, 36 dal lato Vische). Carolina: frequenza 130.000 nelle note del campo."],
@@ -4989,4 +4993,5 @@ requestAnimationFrame(frame);
 <script src="squadriglia.js"></script>
 <script src="frequenze.js"></script>
 <script src="radio.js"></script>
+<script src="stimati.js"></script>
 </body></html>
