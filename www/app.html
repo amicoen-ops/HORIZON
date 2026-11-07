@@ -243,6 +243,7 @@
         <h2>Spazi aerei sulla rotta</h2>
         <div class="srcrow"><span class="sub" id="aspSrc"></span><label class="btn" for="aspFile">Carica file OpenAir</label><input id="aspFile" type="file" accept=".txt,.air,.openair,text/plain" hidden></div>
         <canvas id="prof" width="640" height="360" aria-label="Profilo verticale della rotta con gli spazi aerei"></canvas>
+        <div class="btnrow"><button class="btn pri" id="asp3d" type="button">Vista 3D degli spazi aerei</button></div>
         <div id="aspList"></div>
       </section>
       <section class="card">
@@ -2536,4 +2537,5 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) probe();
 
 </script>
 
+<script src="spazi3d.js"></script>
 </body></html>

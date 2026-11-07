@@ -99,6 +99,7 @@ La licenza del progetto (file LICENSE) non le limita.
   @capacitor-community/keep-awake       MIT   Copyright (c) 2019 The keep-awake developers.
   @capacitor-community/text-to-speech   MIT   Copyright (c) 2021 Robin Genz
   AndroidX (Jetpack)                    Apache License 2.0   Copyright The Android Open Source Project
+  three.js (vista 3D degli spazi aerei) MIT   Copyright © 2010-2023 three.js authors
 
 Testo della licenza MIT, valido per le librerie MIT qui sopra con i rispettivi
 titolari del copyright:
