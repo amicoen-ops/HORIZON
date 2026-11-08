@@ -2863,21 +2863,28 @@ PH.dctSmart=function(f,quiet){
   }).catch(e=>{ PH.act&&PH.act('direct to: calcolo rotta non riuscito '+String(e&&e.message||e).slice(0,60)); });
 };
 PH.aspList=function(){ try{ const w=el('phAppFrame').contentWindow; if(w && w.IA517_asp) return w.IA517_asp(); }catch(e){} return []; };
+// avvisi degli spazi aerei regolabili (Impostazioni › Avvisi): anticipo, margine di quota, categorie.
+// Vietati e regolamentati (P, R) e parchi avvisano sempre: non si possono spegnere.
+PH.aspCfg=Object.assign({ant:60,buf:100,off:[]},lsGet('ia517p_aspcfg',{}));
+PH.aspGruppo=function(c){ c=String(c||'').toUpperCase(); if(/^(P|R|OFR)$/.test(c)) return 'vietati'; if(/^(CTR|A|B|C|D)$/.test(c)) return 'controllati';
+  if(/^(E|RMZ|TMZ)$/.test(c)) return 'e'; if(/^(Q|DANGER)$/.test(c)) return 'pericolosi'; return 'altri'; };
 PH.checkAirspace=function(){
   if(!(PH.sim || (PH.flight && S.gpsReal && !PH.demo))) return;
   const list=PH.aspList();
   if(!list.length) return;
+  const CF=PH.aspCfg, buf=+CF.buf||100, ant=+CF.ant||60, offG=new Set(CF.off||[]);
   const v=S.gs/3.6, tr=(S.trk!=null?S.trk:S.hdg)*D2R, cosl=Math.cos(S.lat*D2R);
   const at=t=>({lat:S.lat+Math.cos(tr)*v*t/110540, lon:S.lon+Math.sin(tr)*v*t/(111320*cosl), ft:S.alt+S.vs*t/FT2M});
   const lim=(L,p)=>{ if(L.ref==='AGL'){ const z=terrain(...xy(enu(p.lat,p.lon))); return L.ft+(z===z?z/FT2M:0); } return L.ft; };
   for(const a of list){
     if(!window.IA517_RULES || !IA517_RULES.alerting(a)) continue;
+    { const g=PH.aspGruppo(a.cls); if(g!=='vietati' && offG.has(g)) continue; }
     const bb=a.bb; if(!bb || S.lat<bb[0]-0.1 || S.lat>bb[1]+0.1 || S.lon<bb[2]-0.15 || S.lon>bb[3]+0.15) continue;
     const label=`${a.cls} ${a.name}`.slice(0,40);
-    for(const t of [0,30,60]){ const p=at(t);
-      if(PH.pip(p,a.pts) && p.ft>=lim(a.lo,p)-100 && p.ft<=lim(a.hi,p)+100){
+    for(const t of [0,Math.round(ant/2),ant]){ const p=at(t);
+      if(PH.pip(p,a.pts) && p.ft>=lim(a.lo,p)-buf && p.ft<=lim(a.hi,p)+buf){
         if(t===0){ const v=IA517_RULES.verdict(a); PH.alert('asp0'+a.name,v.status==='bad'?'W':'C','DENTRO '+label+(v.status==='bad'?' · VIETATO '+IA517_RULES.PROFILES[IA517_RULES.get()].short:''),120000); }
-        else PH.alert('asp1'+a.name,'C',`TRA ${t===30?'30 SECONDI':'1 MINUTO'}: ${label} · ${a.lo.txt}–${a.hi.txt}`,180000);
+        else PH.alert('asp1'+a.name,'C',`TRA ${t<60?t+' SECONDI':(t===60?'1 MINUTO':Math.round(t/60)+' MINUTI')}: ${label} · ${a.lo.txt}–${a.hi.txt}`,180000);
         break; } }
   }
 };
@@ -3291,6 +3298,10 @@ PH.renderImp=function(){
   <section><h3>Avvisi</h3>
     <label class="ph-chk"><input type="checkbox" id="phVoice" ${on(PH.voice)}> Voce (pista, circuito, terreno, spazi aerei, tramonto)</label>
     <label class="ph-chk"><input type="checkbox" id="phVib" ${on(PH.vib)}> Vibrazione</label>
+    <p class="ph-sub"><b>Spazi aerei</b>: con quanto anticipo avvisare, con che margine di quota, e quali categorie. Vietati, regolamentati e parchi avvisano sempre.</p>
+    <div class="ph-seg" id="phAspAnt">${[[60,'1 min'],[120,'2 min'],[180,'3 min']].map(([v,l])=>`<button data-v="${v}" aria-pressed="${+PH.aspCfg.ant===v}">Anticipo ${l}</button>`).join('')}</div>
+    <div class="ph-seg" id="phAspBuf">${[[100,'±100 ft'],[300,'±300 ft'],[500,'±500 ft']].map(([v,l])=>`<button data-v="${v}" aria-pressed="${+PH.aspCfg.buf===v}">${l}</button>`).join('')}</div>
+    ${[['controllati','Controllati (CTR, A–D): utile spegnerli nel VDS avanzato con autorizzazione'],['e','Classe E, RMZ, TMZ'],['pericolosi','Pericolosi'],['altri','Altri (sportivi, volo a vela, ATZ…)']].map(([g,l])=>`<label class="ph-chk"><input type="checkbox" data-ag="${g}" ${(PH.aspCfg.off||[]).includes(g)?'':'checked'}> Avvisa: ${l}</label>`).join('')}
     <label class="ph-chk"><input type="checkbox" id="phWake" ${on(PH.wakeOn)}> Schermo sempre acceso</label>
     <div class="ph-btns"><button class="ph-btn" id="phVoiceTest">Prova la voce</button><button class="ph-btn" id="phFull">Schermo intero</button></div>
     <p class="ph-sub">Spazi aerei: si usano quelli del file OpenAir caricato nel Piano (Briefing). Con i soli esempi non c'è nessun avviso.</p>
@@ -3378,6 +3389,9 @@ PH.renderImp=function(){
   el('phRadioOn').onchange=e=>{ if(PH.radioSet) PH.radioSet(e.target.checked); };
   el('phFreqGo').onclick=()=>{ if(PH.freqOpen) PH.freqOpen(); };
   el('phVib').onchange=e=>{ PH.vib=e.target.checked; lsSet('ia517p_vib',PH.vib); };
+  const aspSave=()=>lsSet('ia517p_aspcfg',PH.aspCfg);
+  ['phAspAnt','phAspBuf'].forEach(id=>el(id).querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.aspCfg[id==='phAspAnt'?'ant':'buf']=+b.dataset.v; aspSave(); el(id).querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); }));
+  box.querySelectorAll('[data-ag]').forEach(c=>c.onchange=()=>{ const s=new Set(PH.aspCfg.off||[]); c.checked?s.delete(c.dataset.ag):s.add(c.dataset.ag); PH.aspCfg.off=[...s]; aspSave(); });
   el('phWake').onchange=e=>{ PH.wakeOn=e.target.checked; lsSet('ia517p_wake',PH.wakeOn); if(PH.wakeOn) PH.wakeLock(); else if(PH.wake) PH.wake.release(); };
   el('phVoiceTest').onclick=()=>PH.say('Carolina, pista 3 6, circuito sinistro, 800 piedi',true);
   el('phFull').onclick=()=>{ try{ const q=document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen({navigationUI:'hide'}); if(q&&q.catch) q.catch(()=>toast(PH.native?'L\'APP È GIÀ A SCHERMO INTERO':'SCHERMO INTERO NON DISPONIBILE')); else if(!q) toast('SCHERMO INTERO NON DISPONIBILE'); }catch(e){} };
@@ -4019,6 +4033,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.118","Traffico: scia tratteggiata delle ultime posizioni (2 minuti), per vedere dove va. Avvisi degli spazi aerei regolabili in Impostazioni › Avvisi: anticipo 1–3 minuti, margine di quota, categorie (es. spegnere i controllati nel VDS avanzato con autorizzazione); vietati, regolamentati e parchi avvisano sempre."],
   ["1.0.117","Punti di riporto VFR sulla mappa (pieni gli obbligatori) e nel riporto di posizione degli stimati. Nuova pagina NOTE ENTE (ALTRO o stimati): QNH, squawk (solo cifre 0–7), quota autorizzata, punto di ingresso e frequenza con tasti grandi, frase di readback pronta e QNH mandato allo strumento con un tocco."],
   ["1.0.116","Mappa: spazi aerei disegnati con colori per classe, nome e limiti; quelli lontani dalla tua quota (oltre ±1000 ft) attenuati. Nuovo tasto ◧ LIVELLI sopra lo zoom, con tasti grandi: spazi, traffico, campi, punti VFR, planata e mappa di base. Gli avvisi restano sempre."],
   ["1.0.115","EMERGENZA: tieni premuto SOS (accanto a LIVELLA) o ALTRO › EMERGENZA. L'app sceglie il campo migliore raggiungibile in planata con vento e terreno, fa il DIRECT TO, lo dice a voce, mostra una barra rossa con prua, km e margine, il MAYDAY già scritto, 121.500 e 7700. Sulla mappa la zona di planata ha la forma vera (vento e terreno) invece del cerchio. Check list: nuova fase «Emergenza: piantata motore»."],
@@ -4862,6 +4877,13 @@ PH.trfMap=function(){
     if(e.me || (e.dz===e.dz && Math.abs(e.dz)>6000*FT2M)) continue;
     const qx=e.x-pE, qy=e.y-pN, x=ax+(qx*ct-qy*st)*sc, y=ay-(qx*st+qy*ct)*sc; if(x<-s||x>W+s||y<-s||y>H+s) continue;
     if(main) T.mapHits.push({id:e.t.id,x,y});
+    // scia: ultime posizioni (2 minuti, una ogni 3 s), disegnate rispetto all'aereo
+    if(main && e.t.lat!=null){ const tr=T.scia||(T.scia=new Map()); let L=tr.get(e.t.id); if(!L){ L=[]; tr.set(e.t.id,L); } const nw=Date.now(), lp=L[L.length-1];
+      if(!lp||nw-lp.t>3000){ L.push({lat:e.t.lat,lon:e.t.lon,t:nw}); while(L.length&&nw-L[0].t>120000) L.shift(); } }
+    if(PH.lyr&&PH.lyr.scia!==false&&T.scia&&T.scia.get(e.t.id)&&T.scia.get(e.t.id).length>1){ const L=T.scia.get(e.t.id), me=enu(S.lat,S.lon);
+      ctx.save(); ctx.strokeStyle='rgba(180,220,255,.55)'; ctx.lineWidth=Math.max(1.5,s*0.16); ctx.setLineDash([s*0.3,s*0.4]); ctx.beginPath();
+      L.forEach((q,i)=>{ const o=enu(q.lat,q.lon), rx=o.E-me.E-pE, ry=o.N-me.N-pN, X=ax+(rx*ct-ry*st)*sc, Y=ay-(rx*st+ry*ct)*sc; i?ctx.lineTo(X,Y):ctx.moveTo(X,Y); });
+      ctx.lineTo(x,y); ctx.stroke(); ctx.restore(); }
     const near=e.dz===e.dz && Math.abs(e.dz)<PH.TRF_LIM && e.d<3000;
     const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(PH.sqOf&&PH.sqOf(e.t)?'#6dff8f':(e.age>30||e.t.ground||e.t.kmh<25?'#9aa4af':(near?'#ffe08a':'#4fd2ff'))));
     ctx.save(); ctx.translate(x,y); ctx.rotate(e.t.trk*D2R-t0); ctx.fillStyle=col; ctx.strokeStyle='#000'; ctx.lineWidth=Math.max(1.5,s*0.18);
