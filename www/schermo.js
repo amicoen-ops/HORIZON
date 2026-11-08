@@ -92,7 +92,7 @@ function divisore(A,vh){ if(!A){ dv.hidden=true; return; } dv.hidden=false; dv.s
   html body.phone.hz-tab-l .ph-nav{position:static;margin-top:0}
   body.phone.ph-land.hz-tab-l .ph-side{width:auto}
   html body.phone.hz-narrow.hz-tab-l .ph-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
-  #hzDiv{position:fixed;top:0;bottom:0;width:28px;z-index:30;cursor:col-resize;touch-action:none;display:flex;align-items:center;justify-content:center}
+  #hzDiv{position:fixed;top:0;bottom:0;width:28px;z-index:15;cursor:col-resize;touch-action:none;display:flex;align-items:center;justify-content:center}
   #hzDiv[hidden]{display:none} #hzDiv i{display:block;width:6px;height:72px;border-radius:3px;background:#3a4a5a;box-shadow:0 0 0 1px #0a0f14}
   #hzDiv.on i,#hzDiv:hover i{background:#33e1ff;height:120px}
   body.ph-simple #hzDiv{display:none!important}`; document.head.appendChild(s); }
