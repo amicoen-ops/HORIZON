@@ -2512,15 +2512,27 @@ PH.onPos=function(p){
   const fx={src:'phone',lat:c.latitude,lon:c.longitude,msl:(c.altitude!=null&&c.altitude===c.altitude)?c.altitude-PH.geoid:null,
     speed:c.speed,heading:c.heading,acc:c.accuracy,t:p.timestamp||Date.now(),recv:Date.now()};
   PH.phoneFix=fx;
-  if(PH.useGlo()) return;
-  PH.applyFix(fx);
+  PH.fixIn(fx);
 };
-PH.useGlo=function(){
-  const g=PH.glo.fix;
-  if(PH.srcPref==='phone') return false;
-  if(PH.srcPref==='glo') return PH.glo.want || !!PH.glo.port;   // solo GLO 2: se tace, bandierine rosse
-  return !!g && Date.now()-g.recv<2500;
-};
+// fonti di posizione: GPS del telefono, Garmin GLO 2 e (HORIZON 2) orologio Garmin. Ognuna dice la sua precisione in metri:
+// in «Automatica» si usa la più precisa tra quelle che danno la posizione adesso. Per non saltare da una all'altra si cambia
+// solo se un'altra è meglio di almeno il 30% per 5 secondi di fila, oppure se quella in uso tace da 2,5 s.
+// «Solo …»: sempre quella; se tace, bandierine rosse.
+PH.fixes={}; PH.srcCur=null; PH.srcCand=null;
+PH.srcFresh=f=>!!f && Date.now()-f.recv<2500;
+PH.srcPick=function(){
+  const P=(PH.srcPref==='fenix'&&!PH.fenix)?'auto':PH.srcPref;      // «solo orologio» scelto in HORIZON 2 ma qui l'orologio non c'è
+  if(P!=='auto') return P;
+  const L=Object.values(PH.fixes).filter(PH.srcFresh); if(!L.length) return PH.srcCur;
+  const a=f=>f.acc>0?f.acc:99, best=L.reduce((x,y)=>a(y)<a(x)?y:x), cur=PH.fixes[PH.srcCur];
+  if(!PH.srcFresh(cur)){ PH.srcCur=best.src; PH.srcCand=null; return best.src; }
+  if(best===cur || a(best)>a(cur)*0.7){ PH.srcCand=null; return PH.srcCur; }
+  const now=Date.now(); if(!PH.srcCand || PH.srcCand.src!==best.src) PH.srcCand={src:best.src,t:now};
+  if(now-PH.srcCand.t>=5000){ PH.srcCur=best.src; PH.srcCand=null; PH.act&&PH.act('posizione da '+best.src+' ±'+Math.round(a(best))+' m'); }
+  return PH.srcCur; };
+PH.fixIn=function(fx){ PH.fixes[fx.src]=fx; if(PH.srcPick()===fx.src) PH.applyFix(fx); };
+PH.useGlo=function(){ return PH.srcPick()==='glo'; };
+PH.SRC_NOME={phone:'GPS del telefono',glo:'Garmin GLO 2',fenix:'orologio Garmin'};
 PH.applyFix=function(fx){
   const now=performance.now(), tFix=fx.t;
   PH.acc=fx.acc; PH.src=fx.src; S.sats=fx.sats!=null?fx.sats:null; S.hdop=fx.hdop!=null?fx.hdop:null;
@@ -3076,7 +3088,7 @@ PH.status=function(){
     [PH.demo?'warn':(fx&&age(fx.t)<5?'ok':'bad'),'GPS del telefono',PH.demo?'volo dimostrativo':(fx?`±${Math.round(fx.acc)} m${PH.stato&&PH.stato.satU!=null?` · ${PH.stato.satU} satelliti usati su ${PH.stato.satV}${PH.stato.cn0!=null?' · segnale '+PH.stato.cn0+' dB-Hz':''}`:''} · ${age(fx.t)<2?'adesso':age(fx.t)+' s fa'}`:(PH.gpsDenied?'permesso negato':'nessun fix'))],
     [PH.glo.port?(PH.glo.fix&&Date.now()-PH.glo.fix.recv<3000?'ok':'warn'):(PH.glo.want?'bad':'warn'),'Garmin GLO 2',
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
-    ['ok','Posizione in uso',PH.demo?'simulata':(PH.src==='glo'?'Garmin GLO 2':(PH.src==='phone'?'GPS del telefono':'nessuna'))+' · scelta '+{auto:'automatica',phone:'solo telefono',glo:'solo GLO 2'}[PH.srcPref]],
+    ['ok','Posizione in uso',PH.demo?'simulata':(PH.SRC_NOME[PH.src]||'nessuna')+' · scelta '+({auto:'la più precisa',phone:'solo telefono',glo:'solo GLO 2',fenix:'solo orologio'}[PH.srcPref]||PH.srcPref)],
     [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz'+(PH.mDtI?` (dichiarati ${Math.round(1/PH.mDtI)})`:'')+' · '+PH.gyroTxt()+' · schermo '+PH.scrAng()+'°'+(PH.accSign<0?' · segno iOS':''):'nessun dato'],
     [PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?'ok':'warn','Bussola',PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?`${String(Math.round(PH.mag.hdg)).padStart(3,'0')}° vera · ${PH.magInUse()?'in uso':(PH.compassMode==='never'?'spenta':'in volo usa la traccia GPS')}${PH.mag.acc!=null&&PH.mag.acc<2?' · da calibrare (muovi a otto)':''}`:(PH.mag.iosNeed?'inclina un momento il telefono in avanti (quasi in piano) per trovare il nord':(PH.mag.err?'non disponibile: '+PH.mag.err:'nessun dato'))],
     [PH.mountCal?'ok':'warn','Montaggio',PH.mountCal?('livellato'+(PH.groundPitch?` · a terra ${PH.groundPitch}°`:'')):'telefono verticale (predefinito)'],
@@ -3264,8 +3276,9 @@ PH.renderImp=function(){
     <p class="ph-sub"><b>Semplice</b>: solo l'orizzonte, come uno strumento di bordo classico, con velocità, quota, vario, prua, vento e tempo di volo. Niente mappa, rotte e simulazione. Gli avvisi di terreno e di spazio aereo restano attivi. <b>Completa</b>: tutto.</p>
   </section>
   <section><h3>Posizione: GPS del telefono e Garmin GLO 2</h3>
-    <p class="ph-sub">Il GLO 2 (GPS e GLONASS, 10 posizioni al secondo, quota sul livello del mare) è più preciso del telefono. Abbinalo prima nelle impostazioni Bluetooth di Android, poi collegalo qui: le volte successive si ricollega da solo. In automatico si usa il GLO 2 quando dà la posizione e il telefono se il GLO 2 si spegne o perde il segnale.</p>
-    <div class="ph-seg" id="phSrc">${[['auto','Automatica'],['glo','Solo GLO 2'],['phone','Solo telefono']].map(([k2,l])=>`<button data-s="${k2}" aria-pressed="${PH.srcPref===k2}">${l}</button>`).join('')}</div>
+    <p class="ph-sub">Il GLO 2 (GPS e GLONASS, 10 posizioni al secondo, quota sul livello del mare) di solito è più preciso del telefono. Abbinalo prima nelle impostazioni Bluetooth di Android, poi collegalo qui: le volte successive si ricollega da solo. <b>La più precisa</b>: tra telefono, GLO 2${PH.fenix?' e orologio':''} si usa quella con la precisione migliore in questo momento; si cambia solo se un'altra è meglio di almeno il 30% per 5 secondi, e subito se quella in uso perde il segnale. Oppure scegli tu.</p>
+    <p class="ph-sub" id="phSrcLive"></p>
+    <div class="ph-seg" id="phSrc">${[['auto','La più precisa'],['glo','Solo GLO 2'],['phone','Solo telefono']].concat(PH.fenix?[['fenix','Solo orologio']]:[]).map(([k2,l])=>`<button data-s="${k2}" aria-pressed="${PH.srcPref===k2}">${l}</button>`).join('')}</div>
     <div class="ph-btns">${PH.glo.port?'<button class="ph-btn" id="phGloOff">Scollega GLO 2</button>':'<button class="ph-btn pri" id="phGloOn">Collega Garmin GLO 2</button>'}</div>
     <p class="ph-sub" id="phGloMsg">${('serial' in navigator)||(PH.native&&PH.native.glo)?'':'Questo browser non legge GPS Bluetooth: aggiorna Chrome, oppure usa l\'app Garmin GLO come posizione fittizia di Android (Opzioni sviluppatore › App di posizione fittizia): così il GLO 2 arriva come se fosse il GPS del telefono.'}</p>
   </section>
@@ -3339,7 +3352,9 @@ PH.renderImp=function(){
   if(el('phRecGo')) el('phRecGo').onclick=()=>PH.recStart(20);
   if(el('phContaOn')) el('phContaOn').onchange=e=>{ lsSet('ia517p_conta',e.target.checked); toast(e.target.checked?'CONTEGGIO CAMPI ATTIVO':'CONTEGGIO CAMPI SPENTO'); };
   PH.recUi();
-  stat(); clearInterval(PH.impT); PH.impT=setInterval(()=>{ if(el('phImp').hidden) clearInterval(PH.impT); else { stat(); PH.recUi(); } },1000);
+  const srcLive=()=>{ const e=el('phSrcLive'); if(!e) return; const a=['phone','glo'].concat(PH.fenix?['fenix']:[]).map(k=>{ const f=PH.fixes[k], ok=PH.srcFresh(f);
+      return `${k===PH.src?'<b>':''}${PH.SRC_NOME[k]} ${ok?'±'+(f.acc<10?f.acc.toFixed(1).replace('.',','):Math.round(f.acc))+' m':'—'}${k===PH.src?' (in uso)</b>':''}`; }); e.innerHTML='Adesso: '+a.join(' · '); };
+  stat(); srcLive(); clearInterval(PH.impT); PH.impT=setInterval(()=>{ if(el('phImp').hidden) clearInterval(PH.impT); else { stat(); srcLive(); PH.recUi(); } },1000);
   el('phSrc').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.srcPref=b.dataset.s; lsSet('ia517p_src',PH.srcPref);
     el('phSrc').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); stat(); });
   if(el('phGloOn')) el('phGloOn').onclick=async()=>{ el('phGloMsg').textContent='Scegli il GLO 2 nell\'elenco…'; const ok=await PH.gloConnect(true);
@@ -3498,7 +3513,7 @@ PH.gloLine=function(line){
   const fx={src:'glo',lat,lon,msl:gga?gga.alt:null,speed:p[7]!==''?+p[7]*0.514444:null,heading:p[8]!==''?+p[8]:null,
     acc:gga&&gga.hdop?Math.max(2.5,gga.hdop*3):8,sats:gga?gga.sats:null,hdop:gga?gga.hdop:null,t:now,recv:now};
   G.fix=fx;
-  if(PH.useGlo()) PH.applyFix(fx);
+  PH.fixIn(fx);
 };
 
 function demoTakeoff(){
@@ -4050,6 +4065,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.130","Posizione: «La più precisa» sceglie da sola tra GPS del telefono e Garmin GLO 2 quella con la precisione migliore in quel momento (cambia solo se l'altra è meglio del 30% per 5 secondi, subito se quella in uso perde il segnale); in Impostazioni › Posizione la precisione di ognuna in tempo reale. Oppure «Solo GLO 2» o «Solo telefono»."],
   ["1.0.128","Vista 3D su rotte lunghe: la scena copre un tratto di circa 100 km alla volta, con terreno e spazi aerei ben visibili; ◀ TRATTO ▶ per passare al tratto dopo, e con ▶ ROTTA, SEGUI o un volo rivisto si passa da sola al tratto successivo."],
   ["1.0.127","Tablet: la riga centrale per allargare le finestre si vede solo sullo strumento, non più sopra Piano, Impostazioni e le altre pagine."],
   ["1.0.126","Mappa: il rilievo DEM resta nitido anche sulle mappe alte del tablet. IGM e ortofoto: con lo zoom troppo largo la mappa dice di avvicinarsi; dal browser (iPad, iPhone) non si possono caricare perché il servizio è solo http, quindi non compaiono più tra le mappe e la mappa lo dice: si usano nell'app Android."],

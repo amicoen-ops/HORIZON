@@ -73,6 +73,26 @@ function catalogoWire(box){ box.querySelectorAll('[data-cat]').forEach(b=>b.oncl
 PH.catalogoHtml=catalogoHtml; PH.catalogoWire=catalogoWire;
 
 // ---------------- guida: una sezione per funzione ----------------
+// disegno del fenix 7 con i tasti e cosa fanno in HORIZON (HORIZON 2 con l'app HORIZON Link sull'orologio)
+PH.guidaTasti=function(){
+  const tasto=(x,y,lato,nome,fa,col,fa2)=>{ const tx=lato<0?x-14:x+14, an=lato<0?'end':'start';
+    return `<rect x="${lato<0?x-6:x}" y="${y-13}" width="6" height="26" rx="2" fill="${col}"/>
+      <text x="${tx}" y="${y-3}" text-anchor="${an}" fill="#e8eef3" font-size="13" font-weight="800" font-family="system-ui">${nome}</text>
+      <text x="${tx}" y="${y+13}" text-anchor="${an}" fill="${col}" font-size="12" font-weight="700" font-family="system-ui">${fa}</text>${fa2?`
+      <text x="${tx}" y="${y+28}" text-anchor="${an}" fill="${col}" font-size="12" font-weight="700" font-family="system-ui">${fa2}</text>`:''}`; };
+  return `<svg viewBox="0 0 360 230" width="100%" style="max-width:420px;display:block;margin:6px auto" role="img" aria-label="Tasti del fenix 7 in HORIZON">
+    <circle cx="180" cy="115" r="84" fill="#1b2530" stroke="#56636e" stroke-width="6"/>
+    <circle cx="180" cy="115" r="70" fill="#0b1720"/>
+    <text x="180" y="98" text-anchor="middle" fill="#3ddc84" font-size="10" font-family="system-ui">HORIZON collegato</text>
+    <text x="150" y="128" text-anchor="middle" fill="#fff" font-size="20" font-weight="800" font-family="system-ui">132</text>
+    <text x="210" y="128" text-anchor="middle" fill="#fff" font-size="20" font-weight="800" font-family="system-ui">2450</text>
+    <text x="180" y="150" text-anchor="middle" fill="#3ddc84" font-size="11" font-family="system-ui">VARIO +1.2</text>
+    ${tasto(96,62,-1,'LIGHT','luce','#9aa4b0')}
+    ${tasto(90,112,-1,'SU','◀ manopola','#33e1ff','tieni: PAGINA')}
+    ${tasto(96,176,-1,'GIÙ','▶ manopola','#33e1ff')}
+    ${tasto(264,62,1,'START','OK (premi)','#3ddc84')}
+    ${tasto(264,176,1,'BACK','esci dall\'app','#ffc531')}
+  </svg>`; };
 const G=[
   {id:'inizio',t:'Primi passi',h:`
     <ol><li>Accetta le avvertenze e concedi la <b>posizione</b> (e il Bluetooth se usi un GPS esterno).</li>
@@ -183,6 +203,16 @@ const G=[
     <p><b>Garmin GLO 2</b> via Bluetooth: Impostazioni › Posizione. Più preciso e più veloce del GPS del telefono.</p>
     <p><b>Quota GPS</b>: si può tarare su un campo noto (Impostazioni › Quota GPS). QNH dal METAR o dal menu.</p>
     <p><b>Senza internet</b>: campi, rotte, velivoli e diario sono sul telefono; terreno, mappe e spazi aerei funzionano se li hai scaricati prima (Impostazioni › Volare senza internet).</p>`},
+  {id:'orologio',t:'Orologio Garmin (HORIZON 2)',h:`
+    <p>Solo in <b>HORIZON 2 (prova)</b>, l'app che si installa accanto a HORIZON. Sull'orologio (fenix 7 e simili) gira l'app <b>HORIZON Link</b>: si collega al telefono tramite Garmin Connect, che deve essere installata e con l'orologio associato.</p>
+    ${PH.guidaTasti()}
+    <ul><li><b>START</b> = OK della manopola (premi): menu, conferme, DIRECT TO.</li>
+    <li><b>SU</b> e <b>GIÙ</b> = ruota la manopola a sinistra e a destra: zoom della mappa, scelta nei menu, bug di prua.</li>
+    <li><b>SU tenuto</b> (menu dell'orologio) = cambia pagina, orizzonte o mappa.</li>
+    <li><b>BACK</b> = esci dall'app sull'orologio. <b>LIGHT</b> = luce, come sempre.</li></ul>
+    <p>Tasti fisici: in turbolenza si premono a colpo sicuro, senza cercare il punto giusto sullo schermo.</p>
+    <p>Sull'orologio: velocità, quota, vario e destinazione dallo strumento. Con un avviso (terreno, spazi aerei, traffico) vibra e lo scrive: rosso se urgente, giallo se informativo.</p>
+    <p>Dall'orologio allo strumento: <b>GPS</b> (fonte di posizione in più: Impostazioni › Posizione, la più precisa oppure solo orologio), <b>barometro</b> (quota con il QNH, come l'altimetro di bordo), <b>bussola</b> (solo con l'orologio fermo sul cruscotto: al polso si muove con il braccio), battito e batteria. Tutto in Impostazioni › Orologio Garmin.</p>`},
   {id:'impostazioni',t:'Impostazioni utili',h:`
     <p>In cima <b>Prima di partire</b>: velivolo, LIVELLA, posizione e GLO 2, bussola, quota GPS, tipo di volo, spazi aerei, terreno senza internet, radio e check list, ognuno con lo stato (✓ a posto, ! da fare) e un tasto grande che porta all'azione. In volo (e in simulazione) in cima c'è <b>In volo</b>: voce, interfaccia, orizzonte e bussola più pronti o più morbidi, frequenze, con tasti molto grandi per la turbolenza; in volo tutti i tasti delle pagine diventano più grandi. Le altre sezioni si aprono e si chiudono toccando il titolo.</p>
     <ul><li><b>Interfaccia</b>: Completa o Semplice (orizzonte grande e poche caselle, avvisi sempre attivi), e le caselle dei dati da mostrare, in ordine. <b>Tema pieno sole</b>: testi bianchi e più spessi e più contrasto, per leggere col sole sullo schermo (anche da «In volo»). Su <b>tablet</b> (in orizzontale e in verticale) a sinistra l'orizzonte con sotto dati e tasti, a destra la mappa a tutta altezza (o gli stimati); con la mappa alta l'aereo sta in basso e si vede più strada davanti. <b>Un tocco sulla finestra grande</b> scambia mappa e orizzonte (quello grande diventa piccolo a sinistra). <b>La riga centrale</b> tra le due finestre si trascina col dito per allargare o stringere le finestre; un doppio tocco sulla riga torna alla larghezza automatica. Se la colonna è più larga dell'altezza disponibile, la finestra piccola diventa un rettangolo largo quanto la colonna.</li>
@@ -249,8 +279,8 @@ PH.guidaOpen=function(sez){
     <section><h3>Tour guidato</h3><p class="ph-sub">Un giro di un minuto sui comandi dello strumento, passo per passo.</p>
       <div class="ph-btns"><button class="ph-btn pri" type="button" id="hzGTour">▶ Inizia il tour</button></div></section>
     <section><h3>Cerca nella guida</h3><input id="hzGQ" type="search" placeholder="es. livella, traffico, rotta, planata" style="width:100%"></section>
-    <section><h3>Argomenti</h3><div class="hz-idx">${G.map(g=>`<a href="#" data-g="${g.id}">${esc(g.t)}</a>`).join('')}<a href="#" data-g="catalogo">Catalogo dei velivoli</a></div></section>
-    ${G.map(g=>`<section class="hz-g" id="hzG-${g.id}"><details><summary><h3 style="display:inline">${esc(g.t)}</h3></summary><div class="hz-gt">${g.h}</div></details></section>`).join('')}
+    <section><h3>Argomenti</h3><div class="hz-idx">${G.filter(g=>g.id!=="orologio"||PH.fenix).map(g=>`<a href="#" data-g="${g.id}">${esc(g.t)}</a>`).join('')}<a href="#" data-g="catalogo">Catalogo dei velivoli</a></div></section>
+    ${G.filter(g=>g.id!=="orologio"||PH.fenix).map(g=>`<section class="hz-g" id="hzG-${g.id}"><details><summary><h3 style="display:inline">${esc(g.t)}</h3></summary><div class="hz-gt">${g.h}</div></details></section>`).join('')}
     <section class="hz-g" id="hzG-catalogo"><details><summary><h3 style="display:inline">Catalogo dei velivoli</h3></summary><div class="hz-gt">${catalogoHtml()}</div></details></section>
   </div>`;
   document.body.appendChild(d);

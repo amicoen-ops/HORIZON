@@ -4,8 +4,9 @@
 // OROLOGIO GARMIN (solo HORIZON 2, che ha il modulo nativo «Garmin»; nelle altre versioni questo file non fa niente).
 // L'app «HORIZON Link» sull'orologio (cartella garmin/) manda una volta al secondo: posizione GPS (multibanda sul fenix),
 // velocità e traccia, pressione e quota del barometro, prua della bussola, battito, batteria.
-// · GPS: fonte di posizione in più. «Automatica» lo usa quando la sua qualità è buona (prima del telefono; il GLO 2
-//   resta prima se c'è); «Orologio» solo quello (se tace, bandierine rosse); «Mai».
+// · GPS: fonte di posizione in più (Impostazioni › Posizione): con «La più precisa» si usa quando la sua precisione è la
+//   migliore tra telefono, GLO 2 e orologio; oppure «Solo orologio». La precisione dell'orologio è stimata dalla qualità
+//   del fix che dà Garmin (buona ≈ 4 m, usabile ≈ 10 m, debole ≈ 25 m).
 // · Quota dal barometro: quando la posizione viene dall'orologio, la quota è quella della pressione con il QNH dello
 //   strumento (come l'altimetro di bordo); taratura sul campo come per il GPS.
 // · Bussola: solo con l'orologio fermo (sul cruscotto o sul supporto): al polso si muove con il braccio. Spenta di partenza.
@@ -18,21 +19,13 @@ if(!C || !C.isPluginAvailable || !C.isPluginAvailable('Garmin')) return;
 const G=C.Plugins.Garmin;
 const esc=x=>String(x??'').replace(/[<&>"]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[c]));
 const KEY='ia517p_fenix';
-PH.fenixCfg=Object.assign({gps:'auto',baro:true,bussola:false,avvisi:true},lsGet(KEY,{}));
+PH.fenixCfg=Object.assign({baro:true,bussola:false,avvisi:true},lsGet(KEY,{}));
 const salva=()=>lsSet(KEY,PH.fenixCfg);
 PH.fenix={stato:{},d:null,t:0,n:0};
-const QM={4:5,3:15,2:40,1:100};                        // qualità Garmin → precisione indicativa in metri
+const QM={4:4,3:10,2:25,1:60};                         // qualità Garmin → precisione stimata in metri
 const fresco=()=>PH.fenix.d && Date.now()-PH.fenix.t<2500 && PH.fenix.d.la!=null;
-// l'orologio è la fonte di posizione?
-PH.useFenix=function(){ const c=PH.fenixCfg.gps;
-  if(c==='no') return false;
-  if(c==='si') return true;
-  const g=PH.glo&&PH.glo.fix; if(g && Date.now()-g.recv<2500) return false;   // automatica: il GLO 2 resta prima
-  return fresco() && (PH.fenix.d.q||0)>=4; };
 // quota dalla pressione con il QNH dello strumento (atmosfera standard)
 const baroMsl=p=>p>30000?44330.77*(1-Math.pow(p/(QNH*100),0.190263)):null;
-{ const prev=PH.onPos; PH.onPos=function(p){ if(PH.useFenix()){ try{ const c=p.coords; PH.phoneFix={src:'phone',lat:c.latitude,lon:c.longitude,acc:c.accuracy,t:p.timestamp||Date.now(),recv:Date.now()}; }catch(e){} return; } return prev.apply(this,arguments); }; }
-{ const prev=PH.useGlo; PH.useGlo=function(){ if(PH.fenixCfg.gps==='si') return false; return prev.apply(this,arguments); }; }
 // bussola dell'orologio: stessa strada di quella del telefono (deviazione, declinazione, filtro)
 const bussolaOn=()=>PH.fenixCfg.bussola && PH.fenix.d && PH.fenix.d.mh!=null && Date.now()-PH.fenix.t<2500;
 { const prev=PH.magFromR; PH.magFromR=function(){ if(bussolaOn()) return; return prev.apply(this,arguments); }; }
@@ -50,11 +43,10 @@ function dati(d){
   if(d.t!=='d') return;
   PH.fenix.d=d; PH.fenix.t=Date.now(); PH.fenix.n++;
   if(PH.fenixCfg.bussola && d.mh!=null) bussola(d.mh);
-  if(d.la!=null && PH.useFenix()){
+  if(d.la!=null && (d.q||0)>=2){
     const bm=PH.fenixCfg.baro&&d.p!=null?baroMsl(d.p):null;
-    PH.applyFix({src:'fenix',lat:d.la,lon:d.lo,msl:bm!=null?bm:(d.al!=null?d.al:null),speed:d.sp!=null?d.sp:null,heading:d.hd!=null?d.hd:null,
-      acc:QM[d.q]||50,t:Date.now(),recv:Date.now()});
-    if(typeof LIVE!=='undefined') LIVE.gps=performance.now();
+    PH.fixIn({src:'fenix',lat:d.la,lon:d.lo,msl:bm!=null?bm:(d.al!=null?d.al:null),speed:d.sp!=null?d.sp:null,heading:d.hd!=null?d.hd:null,
+      acc:QM[d.q]||60,t:Date.now(),recv:Date.now()});
   }
 }
 G.addListener('dati',d=>{ try{ dati(d||{}); }catch(e){ PH.logErr&&PH.logErr('orologio: '+e); } });
@@ -81,17 +73,15 @@ function html(){ const s=PH.fenix.stato, d=PH.fenix.d, ok=fresco(), c=PH.fenixCf
     ${d?`<div class="hz-fx"><span>GPS <b>${v(d.q,'',x=>q[x]||x)}</b></span><span>Quota GPS <b>${v(d.al!=null?d.al/FT2M:null,' ft')}</b></span><span>Quota baro <b>${v(d.p!=null&&baroMsl(d.p)!=null?baroMsl(d.p)/FT2M:null,' ft')}</b></span>
       <span>Pressione <b>${v(d.p!=null?d.p/100:null,' hPa',x=>x.toFixed(1))}</b></span><span>Bussola <b>${v(d.mh,'°',x=>String(Math.round(wrap360(x))).padStart(3,'0'))}</b></span><span>Battito <b>${v(d.hr,' bpm')}</b></span><span>Batteria <b>${v(d.bt,'%')}</b></span></div>`:''}
     <div class="ph-btns"><button class="ph-btn" type="button" id="hzFxOpen">Apri l'app sull'orologio</button><button class="ph-btn" type="button" id="hzFxRetry">Ricollega</button></div>
-    <p class="ph-sub"><b>Posizione dall'orologio</b></p>
-    <div class="ph-seg" id="hzFxGps">${[['auto','Automatica'],['si','Solo orologio'],['no','Mai']].map(([k,l])=>`<button data-g="${k}" aria-pressed="${c.gps===k}">${l}</button>`).join('')}</div>
-    <p class="ph-sub">Automatica: l'orologio quando il suo GPS è buono (il GLO 2, se collegato, resta prima; poi il telefono). Ora in uso: <b>${PH.src==='fenix'?'orologio':(PH.src==='glo'?'GLO 2':(PH.src==='phone'?'telefono':'—'))}</b>.</p>
+    <p class="ph-sub"><b>Posizione</b>: la scelta tra telefono, GLO 2 e orologio è in «Posizione» (la più precisa, oppure una sola). Ora in uso: <b>${esc(PH.SRC_NOME[PH.src]||'—')}</b>.</p>
+    ${PH.guidaTasti?PH.guidaTasti():''}
     <label class="ph-chk"><input type="checkbox" id="hzFxBaro" ${c.baro?'checked':''}> Quota dal barometro dell'orologio con il QNH (quando la posizione viene dall'orologio)</label>
     <label class="ph-chk"><input type="checkbox" id="hzFxBus" ${c.bussola?'checked':''}> Prua dalla bussola dell'orologio (solo con l'orologio fermo sul cruscotto, non al polso)</label>
     <label class="ph-chk"><input type="checkbox" id="hzFxAvv" ${c.avvisi?'checked':''}> Avvisi sull'orologio (vibra e scrive)</label>
-    <p class="ph-sub">Tasti dell'orologio: START = OK, SU e GIÙ = manopola, SU tenuto = cambia pagina.</p></section>`; }
+    </section>`; }
 function wire(sec){
   sec.querySelector('#hzFxOpen').onclick=()=>G.apri().then(()=>toast('APP APERTA SULL\'OROLOGIO')).catch(e=>toast(String(e&&e.message||e).toUpperCase()));
   sec.querySelector('#hzFxRetry').onclick=()=>G.avvia().then(s=>{ PH.fenix.stato=s||{}; ridisegna(); }).catch(()=>{});
-  sec.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{ PH.fenixCfg.gps=b.dataset.g; salva(); ridisegna(); });
   sec.querySelector('#hzFxBaro').onchange=e=>{ PH.fenixCfg.baro=e.target.checked; salva(); PH.vario.h=NaN; };
   sec.querySelector('#hzFxBus').onchange=e=>{ PH.fenixCfg.bussola=e.target.checked; salva(); PH.mag.hdg=null; };
   sec.querySelector('#hzFxAvv').onchange=e=>{ PH.fenixCfg.avvisi=e.target.checked; salva(); }; }
@@ -101,7 +91,7 @@ function ridisegna(){ const old=document.getElementById('hzFenix'); if(!old) ret
 { const orig=PH.renderImp; PH.renderImp=function(){ orig.apply(this,arguments);
     const box=document.getElementById('phImpBody'); if(!box) return;
     const t=document.createElement('div'); t.innerHTML=html(); const sec=t.firstElementChild;
-    const pos=[...box.querySelectorAll(':scope > section')].find(s=>/GLO 2/.test(s.dataset.t||s.textContent.slice(0,60)));
+    const pos=[...box.querySelectorAll(':scope > section')].find(s=>/^Posizione/.test(s.dataset.t||s.textContent.trim().slice(0,30)));
     if(pos) pos.after(sec); else box.appendChild(sec);
     // stesse sezioni pieghevoli delle altre impostazioni
     const h=sec.querySelector('h3'); const b=document.createElement('div'); b.className='hz-sb'; while(h.nextSibling) b.appendChild(h.nextSibling); sec.appendChild(b);
