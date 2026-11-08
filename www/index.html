@@ -4019,6 +4019,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.117","Punti di riporto VFR sulla mappa (pieni gli obbligatori) e nel riporto di posizione degli stimati. Nuova pagina NOTE ENTE (ALTRO o stimati): QNH, squawk (solo cifre 0–7), quota autorizzata, punto di ingresso e frequenza con tasti grandi, frase di readback pronta e QNH mandato allo strumento con un tocco."],
   ["1.0.116","Mappa: spazi aerei disegnati con colori per classe, nome e limiti; quelli lontani dalla tua quota (oltre ±1000 ft) attenuati. Nuovo tasto ◧ LIVELLI sopra lo zoom, con tasti grandi: spazi, traffico, campi, punti VFR, planata e mappa di base. Gli avvisi restano sempre."],
   ["1.0.115","EMERGENZA: tieni premuto SOS (accanto a LIVELLA) o ALTRO › EMERGENZA. L'app sceglie il campo migliore raggiungibile in planata con vento e terreno, fa il DIRECT TO, lo dice a voce, mostra una barra rossa con prua, km e margine, il MAYDAY già scritto, 121.500 e 7700. Sulla mappa la zona di planata ha la forma vera (vento e terreno) invece del cerchio. Check list: nuova fase «Emergenza: piantata motore»."],
   ["1.0.114","Briefing: il profilo e il giudizio sugli spazi usano le quote del piano (quelle calcolate e armonizzate), non più la crociera uguale per tutta la rotta. Una CTA con base 2500 ft non risulta più «vietata» se il piano ti fa passare sotto a 2400 ft: è segnalata in giallo con il margine."],
@@ -5057,4 +5058,5 @@ requestAnimationFrame(frame);
 <script src="impostazioni.js"></script>
 <script src="emergenza.js"></script>
 <script src="livelli.js"></script>
+<script src="note.js"></script>
 </body></html>

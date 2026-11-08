@@ -29,7 +29,7 @@ function visibili(c,rng){
 }
 PH.mapUnder=function(toS,sc,c){
   if(!PH.lyr.asp) return;
-  const rng=ZOOMS[zi]*1000, list=visibili(c,rng); if(!list.length) return;
+  const rng=ZOOMS[zi]*1000, list=visibili(c,rng); if(!list.length){ try{ PH.vrpDraw&&PH.vrpDraw(toS); }catch(e){} return; }
   const alt=S.alt, z0=terrain(...xy(enu(S.lat,S.lon))), gFt=z0===z0?z0/FT2M:0;
   const lim=L=>L.ref==='AGL'?(L.ft?L.ft+gFt:-1e9):L.ft;
   const R0=window.IA517_RULES; let labels=0;
