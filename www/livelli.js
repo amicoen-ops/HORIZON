@@ -53,8 +53,8 @@ PH.mapUnder=function(toS,sc,c){
 };
 
 // ---- pannello LIVELLI ----
-const BASI=['topo','osm','igm','orto','esri','dem'];
-function basi(){ return BASI.filter(b=>PH.BASES[b]&&!(PH.BASES[b].key&&!PH.esriKey)); }
+const BASI=['ofm','topo','osm','igm','orto','esri','dem'];
+function basi(){ return BASI.filter(b=>PH.BASES[b]&&!(PH.BASES[b].key&&!PH.esriKey)&&!(b==='ofm'&&!PH.cartaOk)); }
 function pannello(){
   let d=document.getElementById('hzLyr'); if(d) d.remove();
   d=document.createElement('div'); d.className='ph-more'; d.id='hzLyr';

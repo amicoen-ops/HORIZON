@@ -20,6 +20,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(LicenzaPlugin.class);            // licenza: firma dell'app e acquisto su Google Play
         registerPlugin(UpdaterPlugin.class);            // aggiornamenti: APK di GitHub o Google Play
         registerPlugin(StatoTelefonoPlugin.class);      // batteria e segnale 4G/5G per la riga di stato
+        registerPlugin(CartaPlugin.class);              // carta VFR open flightmaps scaricata sul telefono (MBTiles)
         registerPlugin(Gdl90Plugin.class);              // traffico GDL90 su UDP 4000: SafeSky, SkyEcho, PilotAware
         super.onCreate(savedInstanceState);
         // carattere di sistema ingrandito: la WebView lo applica a tutte le scritte e lo strumento non sta più nello

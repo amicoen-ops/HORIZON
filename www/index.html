@@ -2991,14 +2991,15 @@ function phoneBase(ac,sc,ax,ay,t){
     if(!T){ if(PH.tilesLoading>12) continue;
       T={img:new Image(),ok:false,t:Date.now()}; PH.tilesLoading=(PH.tilesLoading||0)+1;
       T.img.onload=()=>{ T.ok=true; PH.tilesLoading--; }; T.img.onerror=()=>{ PH.tilesLoading--; setTimeout(()=>PH.tiles.delete(key),30000); };
-      T.img.src=PH.tileUrl(z,x,y,bd); PH.tiles.set(key,T);
+      if(bd.local){ PH.cartaTile(z,x,y).then(d=>{ if(d) T.img.src='data:image/png;base64,'+d; else T.img.onerror(); }).catch(()=>T.img.onerror()); }   // carta scaricata sul telefono
+      else T.img.src=PH.tileUrl(z,x,y,bd); PH.tiles.set(key,T);
       if(PH.tiles.size>400){ const k0=PH.tiles.keys().next().value; PH.tiles.delete(k0); } }
     if(!T.ok) continue;
     const a=enu(tLat(y),tLon(x)), b=enu(tLat(y+1),tLon(x+1));
     ctx.drawImage(T.img,(a.E-ac.E)*sc,(ac.N-a.N)*sc,(b.E-a.E)*sc+0.6,(a.N-b.N)*sc+0.6);
   }
   ctx.restore();
-  ctx.fillStyle='rgba(4,8,12,.30)'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle=PH.base==='ofm'?'rgba(4,8,12,.10)':'rgba(4,8,12,.30)'; ctx.fillRect(0,0,W,H);   // la carta VFR va letta: velo leggero
 }
 PH.mapCaption=function(){
   const dem=PH.dem.size?'terreno DEM':'terreno non scaricato';
@@ -3016,7 +3017,7 @@ PH.prefetch=async function(kind,onProg){
     const y0=Math.floor(lat2y(c0.lat+rKm*1000/110540)), y1=Math.floor(lat2y(c0.lat-rKm*1000/110540));
     for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++) jobs.push(urlF(z,x,y)); };
   if(kind==='dem'){ add(7,450,phDemUrl); add(8,250,phDemUrl); add(9,150,phDemUrl); add(10,100,phDemUrl); add(11,60,phDemUrl); }
-  else { const bd=PH.baseDef(); if(PH.base==='dem') return {done:0,ok:0};
+  else { const bd=PH.baseDef(); if(PH.base==='dem'||bd.local) return {done:0,ok:0};      // la carta VFR è già tutta sul telefono
     for(const z of [8,9,10,11,12,13]) if(z>=(bd.min||6) && z<=(bd.max||17)) add(z,z<=9?60:(z<=11?30:(z===12?12:6)),(z,x,y)=>PH.tileUrl(z,x,y,bd)); }
   let done=0, ok=0;
   const worker=async()=>{ while(jobs.length){ const u=jobs.pop();
@@ -4033,6 +4034,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.120","Carta VFR open flightmaps come mappa di base (app Android): si scarica una volta in Impostazioni › Volare senza internet (Italia, circa 105 MB) e funziona senza internet; si sceglie da ◧ LIVELLI › MAPPA; a ogni ciclo AIRAC l'app dice di aggiornarla."],
   ["1.0.119","Tema PIENO SOLE (Impostazioni › Interfaccia o «In volo»): testi bianchi e più spessi, più contrasto, per leggere col sole sullo schermo. Tablet in orizzontale: accanto all'orizzonte la mappa oppure gli stimati."],
   ["1.0.118","Traffico: scia tratteggiata delle ultime posizioni (2 minuti), per vedere dove va. Avvisi degli spazi aerei regolabili in Impostazioni › Avvisi: anticipo 1–3 minuti, margine di quota, categorie (es. spegnere i controllati nel VDS avanzato con autorizzazione); vietati, regolamentati e parchi avvisano sempre."],
   ["1.0.117","Punti di riporto VFR sulla mappa (pieni gli obbligatori) e nel riporto di posizione degli stimati. Nuova pagina NOTE ENTE (ALTRO o stimati): QNH, squawk (solo cifre 0–7), quota autorizzata, punto di ingresso e frequenza con tasti grandi, frase di readback pronta e QNH mandato allo strumento con un tocco."],
@@ -5083,4 +5085,5 @@ requestAnimationFrame(frame);
 <script src="livelli.js"></script>
 <script src="note.js"></script>
 <script src="schermo.js"></script>
+<script src="carta.js"></script>
 </body></html>
