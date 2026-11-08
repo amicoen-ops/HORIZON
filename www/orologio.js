@@ -3,7 +3,7 @@
 //
 // OROLOGIO GARMIN (solo HORIZON 2, che ha il modulo nativo «Garmin»; nelle altre versioni questo file non fa niente).
 // L'app «HORIZON Link» sull'orologio (cartella garmin/) manda una volta al secondo: posizione GPS (multibanda sul fenix),
-// velocità e traccia, pressione e quota del barometro, prua della bussola, battito, batteria.
+// velocità e traccia, pressione e quota del barometro, prua della bussola, battito, saturazione (SpO2), batteria.
 // · GPS: fonte di posizione in più (Impostazioni › Posizione): con «La più precisa» si usa quando la sua precisione è la
 //   migliore tra telefono, GLO 2 e orologio; oppure «Solo orologio». La precisione dell'orologio è stimata dalla qualità
 //   del fix che dà Garmin (buona ≈ 4 m, usabile ≈ 10 m, debole ≈ 25 m).
@@ -71,7 +71,7 @@ function html(){ const s=PH.fenix.stato, d=PH.fenix.d, ok=fresco(), c=PH.fenixCf
     <p class="ph-sub">${s.collegato?`<b style="color:#3ddc84">Collegato: ${esc(s.nome||'orologio')}</b>`:`<b style="color:#ffc531">${s.errore?esc(s.errore):'Non collegato'}</b>`}${d?` · dati ${ok?'adesso':Math.round((Date.now()-PH.fenix.t)/1000)+' s fa'} · ${PH.fenix.n} messaggi`:''}.
     Sull'orologio apri l'app <b>HORIZON Link</b> (dal menu delle app, o col tasto qui sotto). Serve l'app Garmin Connect sul telefono.</p>
     ${d?`<div class="hz-fx"><span>GPS <b>${v(d.q,'',x=>q[x]||x)}</b></span><span>Quota GPS <b>${v(d.al!=null?d.al/FT2M:null,' ft')}</b></span><span>Quota baro <b>${v(d.p!=null&&baroMsl(d.p)!=null?baroMsl(d.p)/FT2M:null,' ft')}</b></span>
-      <span>Pressione <b>${v(d.p!=null?d.p/100:null,' hPa',x=>x.toFixed(1))}</b></span><span>Bussola <b>${v(d.mh,'°',x=>String(Math.round(wrap360(x))).padStart(3,'0'))}</b></span><span>Battito <b>${v(d.hr,' bpm')}</b></span><span>Batteria <b>${v(d.bt,'%')}</b></span></div>`:''}
+      <span>Pressione <b>${v(d.p!=null?d.p/100:null,' hPa',x=>x.toFixed(1))}</b></span><span>Bussola <b>${v(d.mh,'°',x=>String(Math.round(wrap360(x))).padStart(3,'0'))}</b></span><span>Battito <b>${v(d.hr,' bpm')}</b></span><span>SpO₂ <b>${v(d.ox,'%')}</b>${d.ox!=null&&d.oxa>120?' ('+Math.round(d.oxa/60)+' min fa)':''}</span><span>Batteria <b>${v(d.bt,'%')}</b></span></div>`:''}
     <div class="ph-btns"><button class="ph-btn" type="button" id="hzFxOpen">Apri l'app sull'orologio</button><button class="ph-btn" type="button" id="hzFxRetry">Ricollega</button></div>
     <p class="ph-sub"><b>Posizione</b>: la scelta tra telefono, GLO 2 e orologio è in «Posizione» (la più precisa, oppure una sola). Ora in uso: <b>${esc(PH.SRC_NOME[PH.src]||'—')}</b>.</p>
     ${PH.guidaTasti?PH.guidaTasti():''}

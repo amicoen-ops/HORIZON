@@ -2,7 +2,8 @@
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 //
 // Schermata dell'orologio: pochi dati grandi. In alto lo stato del collegamento e del GPS, al centro velocità e quota
-// (dallo strumento se collegato, altrimenti dai sensori dell'orologio), sotto vario e destinazione. Un avviso dello
+// (dallo strumento se collegato, altrimenti dai sensori dell'orologio), sotto vario e destinazione, in basso battito e
+// saturazione (SpO2: gialla sotto 92%, rossa sotto 88%). Un avviso dello
 // strumento riempie lo schermo per 8 secondi (rosso se urgente, giallo se informativo).
 import Toybox.Graphics;
 import Toybox.Lang;
@@ -67,8 +68,13 @@ class HorizonView extends WatchUi.View {
         if (dest != null) {
             dc.drawText(cx, h * 0.72, Graphics.FONT_XTINY, dest.toString(), Graphics.TEXT_JUSTIFY_CENTER);
         }
-        var hr = (app.sens != null && app.sens.heartRate != null) ? app.sens.heartRate.toString() + " bpm" : "";
-        dc.drawText(cx, h * 0.82, Graphics.FONT_XTINY, hr, Graphics.TEXT_JUSTIFY_CENTER);
+        // pilota: battito e saturazione (gialla sotto 92%, rossa sotto 88%)
+        var hr = (app.sens != null && app.sens.heartRate != null) ? app.sens.heartRate.toString() : "--";
+        var o = app.ox();
+        dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(w * 0.36, h * 0.80, Graphics.FONT_SMALL, "HR " + hr, Graphics.TEXT_JUSTIFY_CENTER);
+        dc.setColor(o == null ? Graphics.COLOR_LT_GRAY : (o < 88 ? Graphics.COLOR_RED : (o < 92 ? Graphics.COLOR_YELLOW : Graphics.COLOR_BLUE)), Graphics.COLOR_TRANSPARENT);
+        dc.drawText(w * 0.66, h * 0.80, Graphics.FONT_SMALL, o == null ? "SpO2 --" : "SpO2 " + o.toNumber().toString() + "%", Graphics.TEXT_JUSTIFY_CENTER);
     }
 }
 

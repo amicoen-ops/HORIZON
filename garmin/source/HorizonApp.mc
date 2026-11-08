@@ -13,7 +13,9 @@ import Toybox.Lang;
 import Toybox.Math;
 import Toybox.Position;
 import Toybox.Sensor;
+import Toybox.SensorHistory;
 import Toybox.System;
+import Toybox.Time;
 import Toybox.Timer;
 import Toybox.WatchUi;
 
@@ -33,6 +35,9 @@ class HorizonApp extends Application.AppBase {
     var busyT = 0;
     var queue = [];            // tasti premuti, partono prima dei dati
     var timer = null;
+    var oxH = null;            // ultima saturazione dallo storico (se il sensore non la dà in diretta)
+    var oxHT = 0;
+    var nTick = 0;
 
     function initialize() {
         AppBase.initialize();
@@ -41,7 +46,9 @@ class HorizonApp extends Application.AppBase {
     function onStart(state) {
         startGps();
         try {
-            Sensor.setEnabledSensors([Sensor.SENSOR_HEARTRATE]);
+            var L = [Sensor.SENSOR_HEARTRATE];
+            if (Sensor has :SENSOR_ONBOARD_PULSE_OXIMETRY) { L.add(Sensor.SENSOR_ONBOARD_PULSE_OXIMETRY); }
+            Sensor.setEnabledSensors(L);
         } catch (e) {
         }
         Sensor.enableSensorEvents(method(:onSensor));
@@ -142,6 +149,8 @@ class HorizonApp extends Application.AppBase {
         var now = System.getTimer();
         if (busy && now - busyT > 4000) { busy = false; }        // risposta persa: si riprova
         if (linkOk && now - linkT > 8000) { linkOk = false; }
+        nTick++;
+        if (nTick % 30 == 1) { storicoOx(); }
         if (queue.size() == 0) { queue.add(dati()); }
         send();
         WatchUi.requestUpdate();
@@ -167,6 +176,26 @@ class HorizonApp extends Application.AppBase {
         if (queue.size() > 0) { send(); }
     }
 
+    // saturazione dallo storico dell'orologio (misura della funzione Pulse Ox), ogni 30 secondi
+    function storicoOx() {
+        if (!(Toybox has :SensorHistory) || !(SensorHistory has :getOxygenSaturationHistory)) { return; }
+        try {
+            var it = SensorHistory.getOxygenSaturationHistory({:period => 1, :order => SensorHistory.ORDER_NEWEST_FIRST});
+            var s = it != null ? it.next() : null;
+            if (s != null && s.data != null) {
+                oxH = s.data;
+                oxHT = s.when != null ? s.when.value() : 0;
+            }
+        } catch (e) {
+        }
+    }
+
+    // saturazione: dal sensore in diretta se c'è, altrimenti l'ultima dello storico
+    function ox() {
+        if (sens != null && (sens has :oxygenSaturation) && sens.oxygenSaturation != null) { return sens.oxygenSaturation; }
+        return oxH;
+    }
+
     // i dati dei sensori in un dizionario piccolo (le chiavi corte occupano meno nella trasmissione)
     function dati() {
         var d = {"t" => "d", "v" => 1};
@@ -186,6 +215,11 @@ class HorizonApp extends Application.AppBase {
             if (sens.heading != null) { d.put("mh", Math.toDegrees(sens.heading)); }
             if (sens.heartRate != null) { d.put("hr", sens.heartRate); }
             if (sens.temperature != null) { d.put("te", sens.temperature); }
+            if ((sens has :oxygenSaturation) && sens.oxygenSaturation != null) { d.put("ox", sens.oxygenSaturation); d.put("oxa", 0); }
+        }
+        if (d.get("ox") == null && oxH != null) {
+            d.put("ox", oxH);
+            d.put("oxa", oxHT > 0 ? Time.now().value() - oxHT : -1);      // età della misura in secondi
         }
         var st = System.getSystemStats();
         if (st != null && st.battery != null) { d.put("bt", st.battery.toNumber()); }
