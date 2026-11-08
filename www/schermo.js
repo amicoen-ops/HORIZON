@@ -4,6 +4,8 @@
 // SCHERMO. · Tema PIENO SOLE: testi bianchi e più spessi, bordi più chiari, contrasto dello strumento un po' più alto,
 //   per leggere con il sole sullo schermo (Impostazioni › Interfaccia, o «In volo»).
 // · Tablet in orizzontale: accanto all'orizzonte, a scelta, la mappa (come prima) o gli stimati (aggiornati ogni 5 s).
+// · Tablet: un tocco sulla finestra grande scambia mappa e orizzonte; la riga centrale si trascina per allargare o
+//   stringere le finestre (doppio tocco sulla riga: larghezza automatica).
 (function(){
 'use strict';
 PH.sole=lsGet('ia517p_sole',false);
@@ -38,16 +40,42 @@ const side=document.querySelector('.ph-side'), un=document.getElementById('unit'
 function tablet(){
   const vw=innerWidth, vh=innerHeight, tab=Math.min(vw,vh)>=700 && PH.ui!=='simple', land=vw>vh*1.15, on=tab&&PH.splitOn!==false;
   document.body.classList.toggle('hz-tab-l',on); document.body.classList.toggle('hz-narrow',on&&!land);
-  if(!on){ if(side) side.style.width=''; return; }
+  if(!on){ if(side) side.style.width=''; un.style.justifySelf=''; divisore(0); return; }
   PH.split=true; if(u2) u2.hidden=false;
-  // colonna sinistra: orizzonte + dati e tasti; a destra la mappa (o gli stimati) a tutta altezza
-  let A=Math.floor(land?vw*0.42:(vw-28)/2);
-  for(let i=0;i<2;i++){ if(side) side.style.width=A+'px'; const sh=side?side.offsetHeight:380; A=Math.max(280,Math.floor(Math.min(land?vw*0.46:(vw-28)/2,vh-sh-40))); }
-  un.style.width=A+'px'; if(side) side.style.width=A+'px';
-  for(let i=0;i<2;i++){ const bot=side?side.getBoundingClientRect().bottom:0, over=Math.max(document.documentElement.scrollHeight-vh,bot-vh+6); if(over<=0) break; A=Math.max(280,A-over-4); un.style.width=A+'px'; if(side) side.style.width=A+'px'; }
+  // colonna sinistra: orizzonte + dati e tasti; a destra la mappa (o gli stimati) a tutta altezza.
+  // Larghezza della colonna: automatica, oppure quella scelta trascinando la riga centrale (PH.splitR, quota dello schermo).
+  const r=+PH.splitR||0;
+  let A=Math.floor(land?vw*0.42:(vw-28)/2), U;
+  if(r){ A=Math.round(Math.max(260,Math.min(vw-300,vw*r)));
+    if(side) side.style.width=A+'px'; const sh=side?side.offsetHeight:380; U=Math.max(220,Math.min(A,vh-sh-40)); }
+  else { for(let i=0;i<2;i++){ if(side) side.style.width=A+'px'; const sh=side?side.offsetHeight:380; A=Math.max(280,Math.floor(Math.min(land?vw*0.46:(vw-28)/2,vh-sh-40))); } U=A; }
+  un.style.width=U+'px'; un.style.justifySelf=U<A?'center':''; if(side) side.style.width=A+'px';
+  for(let i=0;i<2;i++){ const bot=side?side.getBoundingClientRect().bottom:0, over=Math.max(document.documentElement.scrollHeight-vh,bot-vh+6); if(over<=0) break;
+    U=Math.max(r?200:280,U-over-4); un.style.width=U+'px'; if(!r){ A=U; if(side) side.style.width=A+'px'; } else un.style.justifySelf='center'; }
+  divisore(A,vh);
   const mw=Math.floor(vw-A-32), mh=Math.floor(vh-16);
   for(const x of [u2,p2]){ if(!x) continue; x.style.width=mw+'px'; x.style.height=mh+'px'; }
 }
+// ---- riga centrale da trascinare: allarga o stringe la colonna dell'orizzonte (doppio tocco: automatica) ----
+PH.splitR=lsGet('ia517p_split_r',0);
+const dv=document.createElement('div'); dv.id='hzDiv'; dv.hidden=true; dv.setAttribute('role','separator'); dv.setAttribute('aria-label','Trascina per cambiare la larghezza delle finestre'); dv.innerHTML='<i></i>';
+document.body.appendChild(dv);
+function divisore(A,vh){ if(!A){ dv.hidden=true; return; } dv.hidden=false; dv.style.left=(8+A+6-14)+'px'; }
+{ let drag=null, raf=0, lastTap=0;
+  dv.addEventListener('pointerdown',e=>{ e.preventDefault(); e.stopPropagation(); dv.setPointerCapture(e.pointerId); drag={x:e.clientX}; dv.classList.add('on');
+    const now=performance.now(); if(now-lastTap<350){ PH.splitR=0; lsSet('ia517p_split_r',0); drag=null; dv.classList.remove('on'); PH.layout(); toastShow('FINESTRE: LARGHEZZA AUTOMATICA'); } lastTap=now; });
+  dv.addEventListener('pointermove',e=>{ if(!drag) return; drag.x=e.clientX; if(raf) return;
+    raf=requestAnimationFrame(()=>{ raf=0; if(!drag) return; PH.splitR=Math.max(0.2,Math.min(0.75,(drag.x-14)/innerWidth)); PH.layout(); }); });
+  const fine=()=>{ if(!drag) return; drag=null; dv.classList.remove('on'); lsSet('ia517p_split_r',PH.splitR); PH.act&&PH.act('larghezza finestre '+Math.round(PH.splitR*100)+'%'); };
+  dv.addEventListener('pointerup',fine); dv.addEventListener('pointercancel',fine); }
+// ---- tocco sulla finestra grande: scambia mappa e orizzonte ----
+{ const cv=document.getElementById('pfd2'); let t=null, n=0;
+  if(cv){ cv.addEventListener('pointerdown',e=>{ n++; t=n===1?{x:e.clientX,y:e.clientY,t:performance.now()}:null; });
+    cv.addEventListener('pointermove',e=>{ if(t&&Math.abs(e.clientX-t.x)+Math.abs(e.clientY-t.y)>12) t=null; });
+    cv.addEventListener('pointerup',e=>{ n=Math.max(0,n-1); const ok=t&&!PH.pinch&&performance.now()-t.t<450; t=null;
+      if(!ok||!document.body.classList.contains('hz-tab-l')) return;
+      try{ closeMenu(); }catch(x){} togglePage(); toastShow(PAGE==='pfd'?'GRANDE: MAPPA':'GRANDE: ORIZZONTE'); });
+    cv.addEventListener('pointercancel',()=>{ n=0; t=null; }); } }
 { const orig=PH.layout; PH.layout=function(){ orig.apply(this,arguments);
     try{ tablet(); }catch(e){ console.error('tablet',e); }
     const on=PH.split && PH.panel2==='stimati';
@@ -61,7 +89,11 @@ function tablet(){
   html body.phone.hz-tab-l .ph-cards{grid-template-columns:repeat(4,minmax(0,1fr))}
   html body.phone.hz-tab-l .ph-nav{position:static;margin-top:0}
   body.phone.ph-land.hz-tab-l .ph-side{width:auto}
-  html body.phone.hz-narrow.hz-tab-l .ph-cards{grid-template-columns:repeat(2,minmax(0,1fr))}`; document.head.appendChild(s); }
+  html body.phone.hz-narrow.hz-tab-l .ph-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #hzDiv{position:fixed;top:0;bottom:0;width:28px;z-index:30;cursor:col-resize;touch-action:none;display:flex;align-items:center;justify-content:center}
+  #hzDiv[hidden]{display:none} #hzDiv i{display:block;width:6px;height:72px;border-radius:3px;background:#3a4a5a;box-shadow:0 0 0 1px #0a0f14}
+  #hzDiv.on i,#hzDiv:hover i{background:#33e1ff;height:120px}
+  body.ph-simple #hzDiv{display:none!important}`; document.head.appendChild(s); }
 setInterval(()=>{ try{ riempi(); }catch(e){} },5000);
 try{ PH.layout(); PH.zoomBtns&&PH.zoomBtns(); }catch(e){}
 // la colonna dei dati cambia altezza in volo (riga degli spazi, avvisi, banner radio): si ridispone se esce dallo schermo

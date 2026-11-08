@@ -1298,7 +1298,7 @@ function rasterMap(ac){
 }
 function drawMap(g){
   const acA=enu(S.lat,S.lon), pan=PH&&PH.pan, ac=pan?{E:acA.E+pan.E,N:acA.N+pan.N}:acA, t=pan?0:((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000;
-  if(MR.zi!==zi || Math.hypot(ac.E-MR.cE,ac.N-MR.cN)>MR.half*0.22 || Math.abs(S.alt*FT2M-MR.alt)>25 || MR.inh!==inhField()) rasterMap(ac);
+  if(MR.zi!==zi || (PH&&Math.abs(mapCov()-(MR.f||1.8))>0.15) || Math.hypot(ac.E-MR.cE,ac.N-MR.cN)>MR.half*0.22 || Math.abs(S.alt*FT2M-MR.alt)>25 || MR.inh!==inhField()) rasterMap(ac);
   const sc=1.3*R/rng, ax=CX, ay=CY+(pan?0:0.3*R), ct=Math.cos(t), stt=Math.sin(t); if(PH) PH.mapSc=sc;
   const toS=(E,N)=>{ const dE=E-ac.E, dN=N-ac.N; return {x:ax+(dE*ct-dN*stt)*sc, y:ay-(dE*stt+dN*ct)*sc}; };
   const onS=p=>p.x>-R*0.05&&p.x<W+R*0.05&&p.y>-R*0.05&&p.y<H+R*0.05;
@@ -2062,11 +2062,14 @@ function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
   }
 }
 // mappa: rilievo dal DEM; con la mappa di base accesa restano solo le zone TAWS gialle e rosse
+// quanta mappa serve attorno all'aereo, in multipli della scala: fino all'angolo più lontano del riquadro
+// (mappe alte e strette sul tablet in verticale, con l'aereo in basso); almeno 1,8 come per il riquadro quadrato
+function mapCov(){ const ay=CY+0.3*R; return Math.max(1.8,Math.hypot(Math.max(CX,W-CX),Math.max(ay,H-ay))*1.05/(1.3*R)); }
 function rasterMap(ac){
   if(PH){ const now=performance.now();
     if(MR.zi===zi && MR.half>0 && now-(PH.rastT||0)<1500) return;
     PH.rastT=now; }
-  const n=MR.n, half=ZOOMS[zi]*1000*1.8, acAlt=S.alt*FT2M, base=PH&&PH.base!=='dem';   // 1,8: copre anche gli angoli della mappa quadrata
+  MR.f=PH?mapCov():1.8; const n=Math.min(260,Math.round(MR.n*MR.f/1.8)), half=ZOOMS[zi]*1000*MR.f, acAlt=S.alt*FT2M, base=PH&&PH.base!=='dem';   // 1,8: copre anche gli angoli della mappa quadrata
   if(PH){ const km=ZOOMS[zi]; PH.demZ=km>=250?7:(km>=90?8:(km>=30?9:(km>=15?10:(km<=3?12:11)))); }
   MR.cv.width=n; MR.cv.height=n; const c2=MR.cv.getContext('2d'), img=c2.createImageData(n,n);
   const z=new Float32Array(n*n), st=2*half/n, air=PH_air();
@@ -2978,12 +2981,16 @@ function phoneBase(ac,sc,ax,ay,t){
   const cosl=Math.cos(S.lat*D2R);
   const bd=PH.baseDef(); if(bd.key && !PH.esriKey) return;
   let z=Math.floor(Math.log2(40075016.686*cosl*sc/(256*1.15))); z=clamp(z,Math.max(4,bd.min||4),bd.max||17);
-  const n=2**z, rM=1.8*R/sc;
+  const n=2**z;
   const lat2y=la=>{ const r=la*D2R; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n; };
   const pn=PH.pan, cLat=S.lat+(pn?pn.N/110540:0), cLon=S.lon+(pn?pn.E/(111320*cosl):0);   // centro della vista (mappa spostata col dito)
-  const x0=Math.floor((cLon-rM/(111320*cosl)+180)/360*n), x1=Math.floor((cLon+rM/(111320*cosl)+180)/360*n);
-  const y0=Math.floor(lat2y(cLat+rM/110540)), y1=Math.floor(lat2y(cLat-rM/110540));
-  if((x1-x0+1)*(y1-y0+1)>90) return;
+  // tessere che servono: gli angoli del riquadro visibile (ruotato con la traccia) portati in latitudine e longitudine
+  const ct0=Math.cos(t), st0=Math.sin(t); let la0=90,la1=-90,lo0=180,lo1=-180;
+  for(const [px,py] of [[0,0],[W,0],[0,H],[W,H]]){ const u=(px-ax)*1.04/sc, v=-(py-ay)*1.04/sc, dE=u*ct0+v*st0, dN=-u*st0+v*ct0;
+    const la=cLat+dN/110540, lo=cLon+dE/(111320*cosl); la0=Math.min(la0,la); la1=Math.max(la1,la); lo0=Math.min(lo0,lo); lo1=Math.max(lo1,lo); }
+  const x0=Math.floor((lo0+180)/360*n), x1=Math.floor((lo1+180)/360*n);
+  const y0=Math.floor(lat2y(la1)), y1=Math.floor(lat2y(la0));
+  if((x1-x0+1)*(y1-y0+1)>160) return;
   const tLat=y=>Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*R2D, tLon=x=>x/n*360-180;
   ctx.save(); ctx.translate(ax,ay); ctx.rotate(-t); ctx.imageSmoothingEnabled=true;
   for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++){
@@ -4034,6 +4041,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.124","Tablet: un tocco sulla finestra grande scambia mappa e orizzonte; la riga centrale si trascina per allargare o stringere le finestre (doppio tocco: automatica). Mappa alta e stretta (tablet in verticale): tessere e terreno ora coprono tutto il riquadro, non solo la parte vicina all'aereo."],
   ["1.0.123","Briefing: l'elenco degli spazi aerei sulla rotta torna leggibile sul telefono (il tasto «Non attiva oggi» schiacciava il nome e i limiti in una colonna stretta)."],
   ["1.0.122","Vento sulla pista: tocca VENTO per il disegno del campo con contrario e traverso per ogni testata (verde la migliore, rosso oltre il traverso del velivolo), anche nel circuito, in EMERGENZA e nel Piano. Colori VFR su METAR e TAF, striscia delle prossime 12 ore e meteo lungo la rotta all'ora di passaggio. NOTAM e meteo dei campi sulla mappa (◧ LIVELLI). Caselle dei dati a scelta e interfaccia semplice con poche caselle grandi. Check list e METAR letti a voce. Scadenze nel diario e voli rivisti in 3D."],
   ["1.0.121","Tablet: nuova disposizione in orizzontale e in verticale. A sinistra orizzonte, dati e tasti; a destra la mappa (o gli stimati) a tutta altezza, quasi il doppio di prima. Con la mappa alta l'aereo sta in basso e si vede più strada davanti."],
