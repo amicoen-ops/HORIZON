@@ -40,7 +40,7 @@ const side=document.querySelector('.ph-side'), un=document.getElementById('unit'
 function tablet(){
   const vw=innerWidth, vh=innerHeight, tab=Math.min(vw,vh)>=700 && PH.ui!=='simple', land=vw>vh*1.15, on=tab&&PH.splitOn!==false;
   document.body.classList.toggle('hz-tab-l',on); document.body.classList.toggle('hz-narrow',on&&!land);
-  if(!on){ if(side) side.style.width=''; un.style.justifySelf=''; divisore(0); return; }
+  if(!on){ if(side) side.style.width=''; un.style.height=''; un.style.aspectRatio=''; divisore(0); return; }
   PH.split=true; if(u2) u2.hidden=false;
   // colonna sinistra: orizzonte + dati e tasti; a destra la mappa (o gli stimati) a tutta altezza.
   // Larghezza della colonna: automatica, oppure quella scelta trascinando la riga centrale (PH.splitR, quota dello schermo).
@@ -49,9 +49,11 @@ function tablet(){
   if(r){ A=Math.round(Math.max(260,Math.min(vw-300,vw*r)));
     if(side) side.style.width=A+'px'; const sh=side?side.offsetHeight:380; U=Math.max(220,Math.min(A,vh-sh-40)); }
   else { for(let i=0;i<2;i++){ if(side) side.style.width=A+'px'; const sh=side?side.offsetHeight:380; A=Math.max(280,Math.floor(Math.min(land?vw*0.46:(vw-28)/2,vh-sh-40))); } U=A; }
-  un.style.width=U+'px'; un.style.justifySelf=U<A?'center':''; if(side) side.style.width=A+'px';
+  // finestra piccola: larga quanto la colonna; se l'altezza non basta per un quadrato diventa un rettangolo (mappa piena)
+  const box=h=>{ un.style.width=A+'px'; un.style.height=h+'px'; un.style.aspectRatio=h<A?'auto':''; };
+  box(U); if(side) side.style.width=A+'px';
   for(let i=0;i<2;i++){ const bot=side?side.getBoundingClientRect().bottom:0, over=Math.max(document.documentElement.scrollHeight-vh,bot-vh+6); if(over<=0) break;
-    U=Math.max(r?200:280,U-over-4); un.style.width=U+'px'; if(!r){ A=U; if(side) side.style.width=A+'px'; } else un.style.justifySelf='center'; }
+    U=Math.max(r?200:280,U-over-4); if(!r){ A=U; if(side) side.style.width=A+'px'; } box(U); }
   divisore(A,vh);
   const mw=Math.floor(vw-A-32), mh=Math.floor(vh-16);
   for(const x of [u2,p2]){ if(!x) continue; x.style.width=mw+'px'; x.style.height=mh+'px'; }
@@ -84,7 +86,7 @@ function divisore(A,vh){ if(!A){ dv.hidden=true; return; } dv.hidden=false; dv.s
 { const s=document.createElement('style'); s.textContent=`
   body.phone.hz-tab-l{display:grid!important;grid-template-columns:auto 1fr;grid-template-rows:auto 1fr;gap:8px 12px;align-items:start;justify-items:start;padding:8px;overflow:hidden}
   body.hz-tab-l #unit{grid-column:1;grid-row:1}
-  body.hz-tab-l .ph-side{grid-column:1;grid-row:2;max-height:none;overflow:visible}
+  body.hz-tab-l .ph-side{grid-column:1;grid-row:2;max-height:none;overflow:visible;max-width:none}
   body.hz-tab-l #unit2,body.hz-tab-l #hzP2{grid-column:2;grid-row:1/3;aspect-ratio:auto;max-width:none}
   html body.phone.hz-tab-l .ph-cards{grid-template-columns:repeat(4,minmax(0,1fr))}
   html body.phone.hz-tab-l .ph-nav{position:static;margin-top:0}
