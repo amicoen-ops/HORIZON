@@ -4,6 +4,8 @@
 // VISTA 3D DEGLI SPAZI AEREI (Briefing del Piano). Terreno vero attorno alla rotta, ogni spazio aereo come un solido
 // tra base e tetto (il contorno della carta estruso in verticale: CTR appoggiati al suolo, CTA e TMA sospesi), la rotta
 // alla quota del piano, il velo del limite VDS basico del giorno e la posizione dell'aereo (anche in simulazione).
+// ROTTA LUNGA: la scena copre un tratto di circa 100 km alla volta; ◀ TRATTO ▶ per spostarsi, e seguendo l'aereo si
+// passa da sola al tratto successivo.
 // RIVEDI UN VOLO (dal diario, tasto 3D): la traccia registrata in arancio e l'aereo che la ripercorre (×10…×120, pausa, da capo).
 // Due modi: ORBITA (un dito gira, due dita spostano e zoomano) e VOLA (comandi per avanzare, virare, salire, scendere;
 // «Segui la rotta» la percorre da solo). Toccando uno spazio se ne vedono nome, classe, limiti e giudizio.
@@ -28,7 +30,21 @@ function carica(){
 function inVoloVero(){ try{ const P=parent.PH, S_=PS(); if(!P||!S_) return false; if(P.demo||P.sim||S_.auto) return false; return !!P.flight||(S_.gpsReal&&S_.gs>45); }catch(e){ return false; } }
 
 // ---- geometria locale (metri, attorno al centro della zona) ----
-function zona(c){
+// rotta lunga: la scena copre un tratto alla volta (circa 100 km di lato), con ◀ ▶ per passare al tratto dopo
+const TRATTO_HALF=50000;
+function tratti(c){
+  const pts=(c&&c.pts||[]).filter(p=>p&&p.lat!=null); if(pts.length<2) return null;
+  const la=(Math.min(...pts.map(p=>p.lat))+Math.max(...pts.map(p=>p.lat)))/2, lo=(Math.min(...pts.map(p=>p.lon))+Math.max(...pts.map(p=>p.lon)))/2;
+  const kx=111320*Math.cos(la*D2R_), ky=110540; let ext=0; for(const p of pts) ext=Math.max(ext,Math.abs((p.lon-lo)*kx),Math.abs((p.lat-la)*ky));
+  if(ext+12000<=60000) return null;                          // ci sta tutta: una scena sola, come prima
+  const d=[0]; for(let i=1;i<pts.length;i++){ const a=pts[i-1], b=pts[i]; d.push(d[i-1]+Math.hypot((b.lon-a.lon)*kx,(b.lat-a.lat)*ky)); }
+  const tot=d[d.length-1], n=Math.max(2,Math.ceil(tot/80000)), out=[];
+  for(let k=0;k<n;k++){ const t=(k+0.5)*tot/n; let i=1; while(i<d.length-1&&d[i]<t) i++; const f=d[i]>d[i-1]?(t-d[i-1])/(d[i]-d[i-1]):0;
+    out.push({lat:pts[i-1].lat+(pts[i].lat-pts[i-1].lat)*f, lon:pts[i-1].lon+(pts[i].lon-pts[i-1].lon)*f}); }
+  return out; }
+function zona(c,centro){
+  if(centro){ const la0=centro.lat, lo0=centro.lon, kx=111320*Math.cos(la0*D2R_), ky=110540;
+    return {la0,lo0,kx,ky,E:(lat,lon)=>({x:(lon-lo0)*kx, n:(lat-la0)*ky}),half:TRATTO_HALF,ll:(x,n)=>({lat:la0+n/ky,lon:lo0+x/kx})}; }
   const pts=(c&&c.pts||[]).filter(p=>p&&p.lat!=null);
   let la0,lo0; if(pts.length){ la0=(Math.min(...pts.map(p=>p.lat))+Math.max(...pts.map(p=>p.lat)))/2; lo0=(Math.min(...pts.map(p=>p.lon))+Math.max(...pts.map(p=>p.lon)))/2; }
   else { const S_=PS()||{}; la0=S_.lat||45.25; lo0=S_.lon||7.9; }
@@ -133,7 +149,8 @@ function html(){
     <button type="button" data-k="fil"${st.fil?' class="on"':''}>☰ FILTRI</button>
     <button type="button" data-k="ex">×${st.EX}</button>
     <button type="button" data-k="cap">${st.CAP/1000}k ft</button>
-    <button type="button" data-k="veil"${st.veil?' class="on"':''}>VDS</button>${st.rp?`
+    <button type="button" data-k="veil"${st.veil?' class="on"':''}>VDS</button>${st.tr?`
+    <button type="button" data-k="tp"${st.tr.i?'':' disabled'}>◀</button><button type="button" data-k="tl">TRATTO ${st.tr.i+1}/${st.tr.n}</button><button type="button" data-k="tn"${st.tr.i<st.tr.n-1?'':' disabled'}>▶</button>`:''}${st.rp?`
     <button type="button" data-k="rp" class="on">${st.rp.play?'⏸':'▶'} VOLO</button><button type="button" data-k="rpv">×${st.rp.vel}</button><button type="button" data-k="rp0">⏮</button>`:''}</div>
   <div class="s3-hud" id="s3Hud"></div>
   <div class="s3-info" id="s3Info" hidden></div>
@@ -151,7 +168,7 @@ function html(){
   #s3 canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   #s3 .s3-bar{position:absolute;top:max(8px,env(safe-area-inset-top,0px));left:8px;right:8px;display:flex;gap:6px;flex-wrap:wrap;z-index:2}
   #s3 button{min-height:44px;min-width:44px;padding:0 10px;border-radius:10px;border:2px solid #3a4a5a;background:rgba(20,28,36,.88);color:#eef3f8;font:800 14px system-ui,sans-serif}
-  #s3 button.on{border-color:#33e1ff;color:#33e1ff}
+  #s3 button.on{border-color:#33e1ff;color:#33e1ff} #s3 button:disabled{opacity:.35}
   #s3 .s3-hud{position:absolute;top:calc(max(8px,env(safe-area-inset-top,0px)) + 56px);left:8px;right:8px;font:700 14px system-ui,sans-serif;color:#fff;text-shadow:0 1px 3px #000;z-index:2;pointer-events:none}
   #s3 .s3-info{position:absolute;left:8px;right:8px;bottom:calc(36px + env(safe-area-inset-bottom,0px));background:rgba(12,18,24,.94);border:1px solid #33e1ff;border-radius:12px;padding:10px;color:#e5ecf1;font:500 15px/1.35 system-ui,sans-serif;z-index:3}
   #s3 .s3-info b{font-size:17px} #s3 .s3-info .ok{color:#19e38a} #s3 .s3-info .warn{color:#ffd21e} #s3 .s3-info .bad{color:#ff5a5a}
@@ -190,7 +207,8 @@ window.SP3D_open=async function(opt){
   const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0a0f14); scene.fog=null;
   scene.add(new THREE.HemisphereLight(0xdfe8ff,0x223018,.8)); const sun=new THREE.DirectionalLight(0xffffff,1.1); sun.position.set(-1,2,1); scene.add(sun);
   const cam=new THREE.PerspectiveCamera(55,1,10,1e6);
-  const Z=zona(c), world=new THREE.Group(), veilGrp=new THREE.Group(); scene.add(world); scene.add(veilGrp);
+  const TR=tratti(c), ti=TR?Math.max(0,Math.min(TR.length-1,opt.tratto|0)):0; st.tr=TR?{i:ti,n:TR.length}:null;
+  const Z=zona(c,TR?TR[ti]:null), world=new THREE.Group(), veilGrp=new THREE.Group(); scene.add(world); scene.add(veilGrp);
   let T=null, L=[], R=null, tries=0;
   let build=()=>{ world.clear(); veilGrp.clear(); T=terreno(Z,THREE,world,veilGrp); L=spazi(Z,THREE,world,T); R=c&&b?rotta(Z,THREE,world,c,b):null; veilGrp.visible=st.veil; };
   // filtri: categorie, solo la rotta, spazi nascosti uno per uno (si spengono e basta: niente ricostruzione)
@@ -214,6 +232,7 @@ window.SP3D_open=async function(opt){
   const O={tx:0,ty:yFt(2500),tz:0,dist:Z.half*2.2,az:0.6,el:0.8};
   const F={x:0,y:yFt(3000),z:Z.half*0.9,yaw:0,pitch:-0.08,keys:new Set(),s:0};
   if(RP){ st.mode='orbita'; st.follow=false; st.segui=true; O.dist=Z.half*0.6; O.el=0.45; }
+  if(opt.fs!=null){ F.s=opt.fs; st.mode='vola'; st.follow=true; }          // ▶ ROTTA che continua nel tratto nuovo
   function camOrbit(){ cam.position.set(O.tx+O.dist*Math.cos(O.el)*Math.sin(O.az),O.ty+O.dist*Math.sin(O.el),O.tz+O.dist*Math.cos(O.el)*Math.cos(O.az)); cam.lookAt(O.tx,O.ty,O.tz); }
   function camFly(){ cam.position.set(F.x,F.y,F.z); cam.lookAt(F.x-Math.sin(F.yaw)*Math.cos(F.pitch),F.y+Math.sin(F.pitch),F.z-Math.cos(F.yaw)*Math.cos(F.pitch)); }
   function size(){ const w=box.clientWidth, h=box.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); }
@@ -267,6 +286,8 @@ window.SP3D_open=async function(opt){
       if(k==='veil'){ st.veil=!st.veil; veilGrp.visible=st.veil; }
       if(k==='fil') st.fil=!st.fil;
       if(k==='mostra'){ st.off.clear(); filtra(); }
+      if(k==='tp'&&TR&&ti>0){ vai(ti-1); return; }
+      if(k==='tn'&&TR&&ti<TR.length-1){ vai(ti+1); return; }
       if(k==='rp'&&RP){ if(RP.t>=RP.t1){ RP.t=RP.t0; trail.length=0; } RP.play=!RP.play; }
       if(k==='rpv'&&RP){ const o=[10,30,60,120]; RP.vel=o[(o.indexOf(RP.vel)+1)%o.length]; }
       if(k==='rp0'&&RP){ RP.t=RP.t0; trail.length=0; RP.play=true; }
@@ -285,7 +306,7 @@ window.SP3D_open=async function(opt){
     raf=requestAnimationFrame(loop); const dt=Math.min(0.05,(now-last)/1000); last=now;
     if(st.mode==='vola'){
       const v=Z.half/20;
-      if(st.follow&&R){ F.s=(F.s+dt/45)%1; const p=R.curve.getPointAt(F.s), q=R.curve.getPointAt(Math.min(1,F.s+0.004)); F.x=p.x; F.y=p.y+yFt(400); F.z=p.z;
+      if(st.follow&&R){ F.s=(F.s+dt/Math.max(45,(R.len||(R.len=R.curve.getLength()))/2500))%1; const p=R.curve.getPointAt(F.s), q=R.curve.getPointAt(Math.min(1,F.s+0.004)); F.x=p.x; F.y=p.y+yFt(400); F.z=p.z;
         F.yaw=Math.atan2(-(q.x-p.x),-(q.z-p.z)); F.pitch=-0.12; }
       else { const K=F.keys; if(K.has('av')){ F.x-=Math.sin(F.yaw)*v*dt; F.z-=Math.cos(F.yaw)*v*dt; } if(K.has('in')){ F.x+=Math.sin(F.yaw)*v*dt; F.z+=Math.cos(F.yaw)*v*dt; }
         if(K.has('sx')) F.yaw+=0.9*dt; if(K.has('dx')) F.yaw-=0.9*dt; if(K.has('su')) F.y+=yFt(1500)*dt; if(K.has('giu')) F.y=Math.max(yFt(100),F.y-yFt(1500)*dt); }
@@ -297,10 +318,18 @@ window.SP3D_open=async function(opt){
       plane.visible=Math.abs(q.x)<Z.half*1.2&&Math.abs(q.n)<Z.half*1.2; drop.visible=trailL.visible=plane.visible;
       const dp=dropG.attributes.position; dp.setXYZ(0,q.x,y,-q.n); const gz=suolo(S_.lat,S_.lon); dp.setXYZ(1,q.x,(gz===gz?gz:T.at(q.x,q.n))*st.EX,-q.n); dp.needsUpdate=true; drop.computeLineDistances();
       const lp=trail[trail.length-1]; if(plane.visible&&(!lp||Math.hypot(lp.x-q.x,lp.z+q.n)>Z.half/400)){ trail.push(new THREE.Vector3(q.x,y,-q.n)); if(trail.length>1500) trail.shift(); trailG.setFromPoints(trail); } } }catch(e){}
-    if(now-hT>300){ hT=now; hud(); }
+    if(now-hT>300){ hT=now; hud();
+      // seguendo l'aereo (simulazione o volo rivisto) si passa da solo al tratto in cui si trova
+      if(TR&&(st.segui||RP)){ const S_=src(); if(S_&&S_.lat!=null){ const q=Z.E(S_.lat,S_.lon); if(Math.abs(q.x)>Z.half*0.92||Math.abs(q.n)>Z.half*0.92){
+        let j=ti,bd=1e18; TR.forEach((c2,k)=>{ const d=(c2.lat-S_.lat)**2+((c2.lon-S_.lon)*Math.cos(S_.lat*D2R_))**2; if(d<bd){ bd=d; j=k; } }); if(j!==ti){ vai(j); return; } } } }
+      // ▶ ROTTA: la camera esce dal tratto, si passa al successivo
+      if(TR&&st.follow&&st.mode==='vola'&&(Math.abs(F.x)>Z.half*0.95||Math.abs(F.z)>Z.half*0.95)){ const p2=Z.ll(F.x,-F.z);
+        let j=ti,bd=1e18; TR.forEach((c2,k)=>{ const d=(c2.lat-p2.lat)**2+((c2.lon-p2.lon)*Math.cos(p2.lat*D2R_))**2; if(d<bd){ bd=d; j=k; } }); if(j!==ti){ vai(j); return; } } }
     renderer.render(scene,cam);
   }
   raf=requestAnimationFrame(loop);
+  // altro tratto: la scena si ricostruisce attorno al nuovo centro (stato dei filtri e del volo rivisto restano)
+  function vai(i){ const sg=st.segui; chiudi(); window.SP3D_open(Object.assign({},opt,{tratto:i,fs:st.follow&&st.mode==='vola'?F.s:null})).then(()=>{ st.segui=sg; }); }
   function chiudi(){ cancelAnimationFrame(raf); clearInterval(reb); ro.disconnect(); renderer.dispose(); scene.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.map) m.map.dispose(); m.dispose(); }); } }); box.remove(); G=null; }
   G={box,chiudi};
   try{ parent.PH&&parent.PH.act&&parent.PH.act('vista 3D spazi aerei'); }catch(e){}
