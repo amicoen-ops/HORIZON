@@ -9,6 +9,7 @@ import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Position;
 import Toybox.System;
+import Toybox.Timer;
 import Toybox.WatchUi;
 
 class HorizonView extends WatchUi.View {
@@ -28,6 +29,7 @@ class HorizonView extends WatchUi.View {
     // un errore nel disegno non deve chiudere l'app: si scrive e si va avanti
     function onUpdate(dc) {
         try {
+            app.segna("disegno");
             disegna(dc);
         } catch (e) {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
@@ -73,29 +75,70 @@ class HorizonView extends WatchUi.View {
         dc.drawText(w * 0.70, h * 0.38, Graphics.FONT_NUMBER_MEDIUM, fmt(alt, 0), Graphics.TEXT_JUSTIFY_CENTER);
         if (vs != null) {
             dc.setColor(vs >= 0 ? Graphics.COLOR_GREEN : Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, h * 0.62, Graphics.FONT_SMALL, "VARIO " + (vs >= 0 ? "+" : "") + fmt(vs, 1) + " m/s", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, h * 0.57, Graphics.FONT_SMALL, "VARIO " + (vs >= 0 ? "+" : "") + fmt(vs, 1) + " m/s", Graphics.TEXT_JUSTIFY_CENTER);
         }
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
         if (dest != null) {
-            dc.drawText(cx, h * 0.72, Graphics.FONT_XTINY, dest.toString(), Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, h * 0.66, Graphics.FONT_XTINY, dest.toString(), Graphics.TEXT_JUSTIFY_CENTER);
         }
         // pilota: battito e saturazione (gialla sotto 92%, rossa sotto 88%)
         var hr = (app.sens != null && app.sens.heartRate != null) ? app.sens.heartRate.toString() : "--";
         var o = app.ox();
         dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w * 0.48, h * 0.80, Graphics.FONT_TINY, "HR " + hr + "  ", Graphics.TEXT_JUSTIFY_RIGHT);
+        dc.drawText(w * 0.47, h * 0.75, Graphics.FONT_TINY, "HR " + hr, Graphics.TEXT_JUSTIFY_RIGHT);
         dc.setColor(o == null ? Graphics.COLOR_LT_GRAY : (o < 88 ? Graphics.COLOR_RED : (o < 92 ? Graphics.COLOR_YELLOW : Graphics.COLOR_BLUE)), Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w * 0.52, h * 0.80, Graphics.FONT_TINY, o == null ? "SpO2 --" : "SpO2 " + o.toNumber().toString() + "%", Graphics.TEXT_JUSTIFY_LEFT);
+        dc.drawText(w * 0.53, h * 0.75, Graphics.FONT_TINY, o == null ? "SpO2 --" : "SpO2 " + o.toNumber().toString() + "%", Graphics.TEXT_JUSTIFY_LEFT);
     }
 }
 
-// tasti: START = OK, SU = ruota a sinistra, GIÙ = ruota a destra, SU tenuto (menu) = cambia pagina
+// tasti: START = OK, SU = ruota a sinistra, GIÙ = ruota a destra, SU tenuto (menu) = cambia pagina,
+// GIÙ + BACK insieme (i due tasti in basso) = cambia pagina, BACK da solo = esci.
+// GIÙ e BACK aspettano un attimo (0,35 s) prima di agire: se nel frattempo arriva l'altro tasto è la combinazione.
 class HorizonDelegate extends WatchUi.BehaviorDelegate {
     var app;
+    var tDown = 0;
+    var tEsc = 0;
+    var comboT = -10000;
+    var pend = null;
+    var pendT = null;
 
     function initialize(a) {
         BehaviorDelegate.initialize();
         app = a;
+        pendT = new Timer.Timer();
+    }
+
+    function onKeyPressed(evt) {
+        var k = evt.getKey(), now = System.getTimer();
+        if (k == WatchUi.KEY_DOWN) { tDown = now; }
+        else if (k == WatchUi.KEY_ESC) { tEsc = now; }
+        var d = tDown - tEsc;
+        if (tDown > 0 && tEsc > 0 && d < 400 && d > -400 && now - comboT > 800) {
+            comboT = now;
+            annulla();
+            app.key("pg");
+            return true;
+        }
+        return false;
+    }
+
+    function annulla() {
+        pendT.stop();
+        pend = null;
+    }
+
+    function rimanda(cosa) {
+        annulla();
+        pend = cosa;
+        pendT.start(method(:esegui), 350, false);
+    }
+
+    function esegui() as Void {
+        var p = pend;
+        pend = null;
+        if (p == null || System.getTimer() - comboT < 800) { return; }
+        if (p.equals("r")) { app.key("r"); }
+        else if (p.equals("esci")) { System.exit(); }
     }
 
     function onSelect() {
@@ -109,7 +152,14 @@ class HorizonDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() {
-        app.key("r");
+        if (System.getTimer() - comboT < 800) { return true; }
+        rimanda("r");
+        return true;
+    }
+
+    function onBack() {
+        if (System.getTimer() - comboT < 800) { return true; }
+        rimanda("esci");
         return true;
     }
 
