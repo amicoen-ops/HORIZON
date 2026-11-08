@@ -1303,11 +1303,13 @@ function drawMap(g){
   const toS=(E,N)=>{ const dE=E-ac.E, dN=N-ac.N; return {x:ax+(dE*ct-dN*stt)*sc, y:ay-(dE*stt+dN*ct)*sc}; };
   const onS=p=>p.x>-R*0.05&&p.x<W+R*0.05&&p.y>-R*0.05&&p.y<H+R*0.05;
   ctx.save(); mapClip();
-  ctx.fillStyle='#1d2a1a'; ctx.fillRect(0,0,W,H); phoneBase(ac,sc,ax,ay,t);
+  ctx.fillStyle='#1d2a1a'; ctx.fillRect(0,0,W,H); if(PH) PH.baseHint=''; phoneBase(ac,sc,ax,ay,t);
   ctx.save(); ctx.translate(ax,ay); ctx.rotate(-t); ctx.imageSmoothingEnabled=true;
   ctx.drawImage(MR.cv,(MR.cE-MR.half-ac.E)*sc,(ac.N-(MR.cN+MR.half))*sc,2*MR.half*sc,2*MR.half*sc);
   ctx.restore();
   ctx.fillStyle='rgba(0,0,0,.12)'; ctx.fillRect(0,0,W,H);
+  if(PH&&PH.baseHint){ ctx.save(); ctx.font=font(R*0.05,'700'); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.lineWidth=4*k; ctx.strokeStyle='rgba(0,0,0,.85)'; ctx.fillStyle='#ffd23f';
+    ctx.strokeText(PH.baseHint,W/2,H-R*0.12); ctx.fillText(PH.baseHint,W/2,H-R*0.12); ctx.restore(); }
   // anello di distanza e nord
   ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=1.3*k; ctx.setLineDash([6*k,6*k]);
   ctx.beginPath(); ctx.arc(ax,ay,0.65*R,0,7); ctx.stroke(); ctx.setLineDash([]);
@@ -2069,7 +2071,7 @@ function rasterMap(ac){
   if(PH){ const now=performance.now();
     if(MR.zi===zi && MR.half>0 && now-(PH.rastT||0)<1500) return;
     PH.rastT=now; }
-  MR.f=PH?mapCov():1.8; const n=Math.min(260,Math.round(MR.n*MR.f/1.8)), half=ZOOMS[zi]*1000*MR.f, acAlt=S.alt*FT2M, base=PH&&PH.base!=='dem';   // 1,8: copre anche gli angoli della mappa quadrata
+  MR.f=PH?mapCov():1.8; const n=Math.min(400,Math.round(MR.n*MR.f/1.8)), half=ZOOMS[zi]*1000*MR.f, acAlt=S.alt*FT2M, base=PH&&PH.base!=='dem';   // 1,8: copre anche gli angoli della mappa quadrata
   if(PH){ const km=ZOOMS[zi]; PH.demZ=km>=250?7:(km>=90?8:(km>=30?9:(km>=15?10:(km<=3?12:11)))); }
   MR.cv.width=n; MR.cv.height=n; const c2=MR.cv.getContext('2d'), img=c2.createImageData(n,n);
   const z=new Float32Array(n*n), st=2*half/n, air=PH_air();
@@ -2189,6 +2191,7 @@ OBST.length=0;                                           // ostacoli sintetici: 
 PH.native=(()=>{ const C=window.Capacitor; if(!C||!C.isNativePlatform||!C.isNativePlatform()) return null;
   const P=n=>{ try{ return (C.Plugins&&C.Plugins[n])||C.registerPlugin(n); }catch(e){ return null; } };
   return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass'),upd:P('Updater')}; })();
+PH.wmsBlocked=!PH.native && location.protocol==='https:';     // IGM e ortofoto (solo http): dal browser in https non si caricano
 // ---- voce e vibrazione ----
 PH.say=function(text,urgent){
   if(!PH.voice || (!window.speechSynthesis && !(PH.native&&PH.native.tts))) return;
@@ -2946,6 +2949,7 @@ PH.fieldElev=function(){
 // ---- mappa di base (OpenTopoMap / OpenStreetMap) sotto la mappa mobile ----
 // mappe di base: tessere XYZ oppure WMS (la richiesta copre esattamente la tessera in gradi)
 const PH_WMS_PCN='http://wms.pcn.minambiente.it/ogc?map=/ms_ogc/WMS_v1.3/raster/';
+// dal browser in https il servizio http è bloccato (contenuto misto): IGM e ortofoto solo nell'app installata
 PH.BASES={
   topo:{name:'OpenTopoMap',max:16,attr:'© OpenStreetMap · OpenTopoMap',url:(z,x,y)=>`https://${'abc'[(x+y)%3]}.tile.opentopomap.org/${z}/${x}/${y}.png`},
   osm:{name:'OpenStreetMap',max:18,attr:'© OpenStreetMap',url:(z,x,y)=>`https://tile.openstreetmap.org/${z}/${x}/${y}.png`},
@@ -2980,7 +2984,12 @@ function phoneBase(ac,sc,ax,ay,t){
   if(!PH || PH.base==='dem') return;
   const cosl=Math.cos(S.lat*D2R);
   const bd=PH.baseDef(); if(bd.key && !PH.esriKey) return;
-  let z=Math.floor(Math.log2(40075016.686*cosl*sc/(256*1.15))); z=clamp(z,Math.max(4,bd.min||4),bd.max||17);
+  let z=Math.floor(Math.log2(40075016.686*cosl*sc/(256*1.15)));
+  // carte di dettaglio (IGM, ortofoto) a una scala troppo larga: niente tessere (sarebbero centinaia), lo si dice sulla mappa
+  if(bd.min && z<bd.min-1){ PH.baseHint=`${bd.name}: avvicina lo zoom (${ZOOMS.filter(km=>Math.floor(Math.log2(40075016.686*cosl*(1.3*R/(km*1000))/(256*1.15)))>=bd.min-1).slice(-1)[0]||2} km o meno)`; return; }
+  PH.baseHint='';
+  if(PH.wmsBlocked&&bd.wms){ PH.baseHint=`${bd.name}: solo nell'app installata (servizio http)`; return; }
+  z=clamp(z,Math.max(4,bd.min||4),bd.max||17);
   const n=2**z;
   const lat2y=la=>{ const r=la*D2R; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n; };
   const pn=PH.pan, cLat=S.lat+(pn?pn.N/110540:0), cLon=S.lon+(pn?pn.E/(111320*cosl):0);   // centro della vista (mappa spostata col dito)
@@ -4041,6 +4050,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.126","Mappa: il rilievo DEM resta nitido anche sulle mappe alte del tablet. IGM e ortofoto: con lo zoom troppo largo la mappa dice di avvicinarsi; dal browser (iPad, iPhone) non si possono caricare perché il servizio è solo http, quindi non compaiono più tra le mappe e la mappa lo dice: si usano nell'app Android."],
   ["1.0.125","Tablet: allargando la colonna con la riga centrale, la finestra piccola (mappa o orizzonte) diventa larga quanto la colonna invece di restare un quadrato in mezzo: la mappa riempie tutto lo spazio."],
   ["1.0.124","Tablet: un tocco sulla finestra grande scambia mappa e orizzonte; la riga centrale si trascina per allargare o stringere le finestre (doppio tocco: automatica). Mappa alta e stretta (tablet in verticale): tessere e terreno ora coprono tutto il riquadro, non solo la parte vicina all'aereo."],
   ["1.0.123","Briefing: l'elenco degli spazi aerei sulla rotta torna leggibile sul telefono (il tasto «Non attiva oggi» schiacciava il nome e i limiti in una colonna stretta)."],

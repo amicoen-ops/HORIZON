@@ -73,7 +73,7 @@ PH.mapUnder=function(toS,sc,c){
 
 // ---- pannello LIVELLI ----
 const BASI=['ofm','topo','osm','igm','orto','esri','dem'];
-function basi(){ return BASI.filter(b=>PH.BASES[b]&&!(PH.BASES[b].key&&!PH.esriKey)&&!(b==='ofm'&&!PH.cartaOk)); }
+function basi(){ return BASI.filter(b=>PH.BASES[b]&&!(PH.BASES[b].key&&!PH.esriKey)&&!(b==='ofm'&&!PH.cartaOk)&&!(PH.wmsBlocked&&PH.BASES[b].wms)); }
 function pannello(){
   let d=document.getElementById('hzLyr'); if(d) d.remove();
   d=document.createElement('div'); d.className='ph-more'; d.id='hzLyr';
