@@ -2,14 +2,15 @@
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 //
 // LIVELLI DELLA MAPPA. Tasto ◧ accanto allo zoom: pannello a tasti grandi per accendere e spegnere spazi aerei, traffico,
-// campi, zona di planata, punti di riporto VFR e scia del traffico, e per cambiare la mappa di base.
+// campi, zona di planata, punti di riporto VFR, scia del traffico, NOTAM (cerchi arancio dal Briefing) e meteo dei campi
+// (anelli colorati dai METAR, disegnati da vento.js), e per cambiare la mappa di base.
 // Spazi aerei sulla mappa dello strumento: contorni colorati per classe sotto campi e rotta. «Solo vicini alla mia quota»:
 // quelli che toccano la tua quota (±1000 ft) in pieno, gli altri appena accennati (come lo Smart Airspace dei Garmin).
 // Spegnere un livello toglie solo il disegno: gli avvisi (spazi, traffico, terreno) restano sempre.
 (function(){
 'use strict';
 const KEY='ia517p_lyr';
-PH.lyr=Object.assign({asp:true,aspSmart:true,trf:true,campi:true,vrp:true,scia:true},lsGet(KEY,{}));
+PH.lyr=Object.assign({asp:true,aspSmart:true,trf:true,campi:true,vrp:true,scia:true,notam:true,meteo:true},lsGet(KEY,{}));
 const salva=()=>lsSet(KEY,PH.lyr);
 const COL=c=>{ c=String(c||'').toUpperCase(); if(/^(P|R)$/.test(c)) return [255,77,77]; if(/^(CTR|A|B|C|D)$/.test(c)) return [79,155,255];
   if(/^(E|RMZ|TMZ)$/.test(c)) return [181,140,255]; if(/^(Q|DANGER)$/.test(c)) return [255,197,49]; if(c==='OFR') return [255,140,60]; return [150,160,172]; };
@@ -27,7 +28,25 @@ function visibili(c,rng){
     if(a.lo&&a.lo.ref!=='AGL'&&a.lo.ft>15000) continue; out.push(a); }
   cache={t:now,key,list:out}; return out;
 }
+// ---- NOTAM sulla mappa: cerchio tratteggiato arancio con oggetto e quote (dal Piano › Briefing › NOTAM) ----
+let nCache={t:0,list:[]};
+PH.notamMap=function(){ const now=performance.now(); if(now-nCache.t<10000) return nCache.list;
+  let L=[]; try{ const w=document.getElementById('phAppFrame').contentWindow; L=w&&w.IA517_notam?w.IA517_notam():[]; }catch(e){}
+  nCache={t:now,list:L}; return L; };
+function notamDraw(toS){
+  if(PH.lyr.notam===false||PH.ui==='simple') return; const L=PH.notamMap(); if(!L.length) return;
+  const now=Date.now(); ctx.save(); ctx.font=font(R*0.032,'700'); ctx.textAlign='center'; ctx.textBaseline='bottom';
+  for(const n of L){ const q=enu(n.lat,n.lon), p=toS(q.E,q.N), e=toS(q.E+n.r,q.N), rp=Math.hypot(e.x-p.x,e.y-p.y);
+    if(p.x+rp<0||p.y+rp<0||p.x-rp>W||p.y-rp>H) continue;
+    const att=(!n.from||n.from<=now)&&(n.perm||!n.to||n.to>=now), vic=n.lo==null||n.lo<=S.alt+1000;
+    ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(rp,6*k),0,2*Math.PI);
+    ctx.fillStyle=`rgba(255,140,40,${att&&vic?0.12:0.04})`; ctx.fill();
+    ctx.setLineDash([8*k,5*k]); ctx.lineWidth=(att&&vic?2.6:1.4)*k; ctx.strokeStyle=`rgba(255,150,50,${att&&vic?0.95:0.45})`; ctx.stroke(); ctx.setLineDash([]);
+    if(ZOOMS[zi]<=60){ const t=`NOTAM ${n.subj}${n.lo!=null?' '+(n.lo?n.lo:'SFC')+'–'+n.hi+' ft':''}${att?'':' (più tardi)'}`;
+      ctx.lineWidth=3*k; ctx.strokeStyle='rgba(0,0,0,.85)'; ctx.fillStyle='#ffa040'; const y=p.y-Math.max(rp,6*k)-2*k; ctx.strokeText(t,p.x,y); ctx.fillText(t,p.x,y); } }
+  ctx.restore(); }
 PH.mapUnder=function(toS,sc,c){
+  try{ notamDraw(toS); }catch(e){}
   if(!PH.lyr.asp) return;
   const rng=ZOOMS[zi]*1000, list=visibili(c,rng); if(!list.length){ try{ PH.vrpDraw&&PH.vrpDraw(toS); }catch(e){} return; }
   const alt=S.alt, z0=terrain(...xy(enu(S.lat,S.lon))), gFt=z0===z0?z0/FT2M:0;
@@ -63,6 +82,7 @@ function pannello(){
     ${T('asp','SPAZI AEREI')}${T('aspSmart','SOLO VICINI','alla mia quota ±1000 ft')}
     ${T('trf','TRAFFICO','gli avvisi restano')}${T('scia','SCIA TRAFFICO')}
     ${T('campi','CAMPI')}${T('vrp','PUNTI VFR','di riporto')}
+    ${T('notam','NOTAM','dal Briefing')}${T('meteo','METEO CAMPI','colori VFR dai METAR')}
     <button type="button" data-l="planata" class="${PH.glideOn?'on':''}"><i>${PH.glideOn?'✓':'—'}</i>PLANATA<small>zona raggiungibile</small></button>
     <button type="button" data-l="base"><i>🗺</i>MAPPA<small>${(PH.BASES[PH.base]||{}).name||PH.base} · tocca per cambiare</small></button>
     <button type="button" data-x class="x"><i>✕</i>CHIUDI</button></div>`;
