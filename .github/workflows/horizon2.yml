@@ -90,7 +90,8 @@ jobs:
 
       - name: Errori di compilazione
         if: failure()
-        run: grep -n -E "error:|ERROR|What went wrong|e: " build-h2.log | head -60 || true
+        run: |
+          grep -n -E "error:|ERROR|What went wrong|e: " build-h2.log | head -60 || true
 
       - uses: actions/upload-artifact@v4
         with:
