@@ -73,19 +73,19 @@ class HorizonView extends WatchUi.View {
         dc.drawText(w * 0.70, h * 0.38, Graphics.FONT_NUMBER_MEDIUM, fmt(alt, 0), Graphics.TEXT_JUSTIFY_CENTER);
         if (vs != null) {
             dc.setColor(vs >= 0 ? Graphics.COLOR_GREEN : Graphics.COLOR_ORANGE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(cx, h * 0.62, Graphics.FONT_SMALL, "VARIO " + (vs >= 0 ? "+" : "") + fmt(vs, 1) + " m/s", Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, h * 0.57, Graphics.FONT_SMALL, "VARIO " + (vs >= 0 ? "+" : "") + fmt(vs, 1) + " m/s", Graphics.TEXT_JUSTIFY_CENTER);
         }
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_TRANSPARENT);
         if (dest != null) {
-            dc.drawText(cx, h * 0.72, Graphics.FONT_XTINY, dest.toString(), Graphics.TEXT_JUSTIFY_CENTER);
+            dc.drawText(cx, h * 0.66, Graphics.FONT_XTINY, dest.toString(), Graphics.TEXT_JUSTIFY_CENTER);
         }
         // pilota: battito e saturazione (gialla sotto 92%, rossa sotto 88%)
         var hr = (app.sens != null && app.sens.heartRate != null) ? app.sens.heartRate.toString() : "--";
         var o = app.ox();
         dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w * 0.48, h * 0.80, Graphics.FONT_TINY, "HR " + hr + "  ", Graphics.TEXT_JUSTIFY_RIGHT);
+        dc.drawText(w * 0.47, h * 0.75, Graphics.FONT_TINY, "HR " + hr, Graphics.TEXT_JUSTIFY_RIGHT);
         dc.setColor(o == null ? Graphics.COLOR_LT_GRAY : (o < 88 ? Graphics.COLOR_RED : (o < 92 ? Graphics.COLOR_YELLOW : Graphics.COLOR_BLUE)), Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w * 0.52, h * 0.80, Graphics.FONT_TINY, o == null ? "SpO2 --" : "SpO2 " + o.toNumber().toString() + "%", Graphics.TEXT_JUSTIFY_LEFT);
+        dc.drawText(w * 0.53, h * 0.75, Graphics.FONT_TINY, o == null ? "SpO2 --" : "SpO2 " + o.toNumber().toString() + "%", Graphics.TEXT_JUSTIFY_LEFT);
     }
 }
 
