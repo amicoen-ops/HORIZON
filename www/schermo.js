@@ -31,13 +31,49 @@ function riempi(){
   const f=p2.querySelector('#hzStF'); if(f) f.onclick=()=>PH.freqOpen&&PH.freqOpen();
   const n=p2.querySelector('#hzStN'); if(n) n.onclick=()=>PH.noteOpen&&PH.noteOpen();
 }
+// ---- disposizione per tablet ----
+// Orizzontale: colonna sinistra con orizzonte + dati e tasti sotto, a destra la mappa (o gli stimati) a tutta altezza.
+// Verticale: in alto orizzonte e mappa affiancati, sotto dati e tasti più grandi.
+const side=document.querySelector('.ph-side'), un=document.getElementById('unit');
+function tablet(){
+  const vw=innerWidth, vh=innerHeight, tab=Math.min(vw,vh)>=700 && PH.ui!=='simple', land=vw>vh*1.15, on=tab&&PH.splitOn!==false;
+  document.body.classList.toggle('hz-tab-l',on); document.body.classList.toggle('hz-narrow',on&&!land);
+  if(!on){ if(side) side.style.width=''; return; }
+  PH.split=true; if(u2) u2.hidden=false;
+  // colonna sinistra: orizzonte + dati e tasti; a destra la mappa (o gli stimati) a tutta altezza
+  let A=Math.floor(land?vw*0.42:(vw-28)/2);
+  for(let i=0;i<2;i++){ if(side) side.style.width=A+'px'; const sh=side?side.offsetHeight:380; A=Math.max(280,Math.floor(Math.min(land?vw*0.46:(vw-28)/2,vh-sh-40))); }
+  un.style.width=A+'px'; if(side) side.style.width=A+'px';
+  for(let i=0;i<2;i++){ const bot=side?side.getBoundingClientRect().bottom:0, over=Math.max(document.documentElement.scrollHeight-vh,bot-vh+6); if(over<=0) break; A=Math.max(280,A-over-4); un.style.width=A+'px'; if(side) side.style.width=A+'px'; }
+  const mw=Math.floor(vw-A-32), mh=Math.floor(vh-16);
+  for(const x of [u2,p2]){ if(!x) continue; x.style.width=mw+'px'; x.style.height=mh+'px'; }
+}
 { const orig=PH.layout; PH.layout=function(){ orig.apply(this,arguments);
+    try{ tablet(); }catch(e){ console.error('tablet',e); }
     const on=PH.split && PH.panel2==='stimati';
-    if(u2){ if(on){ u2.hidden=true; p2.style.width=u2.style.width; p2.style.height=u2.style.width; } }
+    if(u2){ if(on){ u2.hidden=true; if(!document.body.classList.contains('hz-tab-l')){ p2.style.width=u2.style.width; p2.style.height=u2.style.width; } } }
     p2.hidden=!on; if(on) riempi(); }; }
+{ const s=document.createElement('style'); s.textContent=`
+  body.phone.hz-tab-l{display:grid!important;grid-template-columns:auto 1fr;grid-template-rows:auto 1fr;gap:8px 12px;align-items:start;justify-items:start;padding:8px;overflow:hidden}
+  body.hz-tab-l #unit{grid-column:1;grid-row:1}
+  body.hz-tab-l .ph-side{grid-column:1;grid-row:2;max-height:none;overflow:visible}
+  body.hz-tab-l #unit2,body.hz-tab-l #hzP2{grid-column:2;grid-row:1/3;aspect-ratio:auto;max-width:none}
+  html body.phone.hz-tab-l .ph-cards{grid-template-columns:repeat(4,minmax(0,1fr))}
+  html body.phone.hz-tab-l .ph-nav{position:static;margin-top:0}
+  body.phone.ph-land.hz-tab-l .ph-side{width:auto}
+  html body.phone.hz-narrow.hz-tab-l .ph-cards{grid-template-columns:repeat(2,minmax(0,1fr))}`; document.head.appendChild(s); }
 setInterval(()=>{ try{ riempi(); }catch(e){} },5000);
+try{ PH.layout(); PH.zoomBtns&&PH.zoomBtns(); }catch(e){}
+// la colonna dei dati cambia altezza in volo (riga degli spazi, avvisi, banner radio): si ridispone se esce dallo schermo
+// o se lascia molto spazio vuoto (al massimo una volta ogni mezzo secondo)
+if(side && window.ResizeObserver){ let tm=null; new ResizeObserver(()=>{ if(!document.body.classList.contains('hz-tab-l')||tm) return;
+  tm=setTimeout(()=>{ tm=null; const bot=side.getBoundingClientRect().bottom; if(bot>innerHeight-4||bot<innerHeight-70) PH.layout(); },500); }).observe(side); }
 PH.panel2Set=function(v){ PH.panel2=v; lsSet('ia517p_panel2',v); PH.layout(); };
 
+// ---- mappa alta e stretta (tablet in verticale): aereo e riquadri in basso, sopra più strada davanti ----
+function inBasso(fn){ return function(){ if(H>W*1.25 && R>50){ const c=CY; CY=H-R*1.02; try{ return fn.apply(this,arguments); } finally{ CY=c; } } return fn.apply(this,arguments); }; }
+try{ drawMap=inBasso(drawMap); }catch(e){}
+try{ if(PH.trfMap) PH.trfMap=inBasso(PH.trfMap); }catch(e){}
 // ---- impostazioni: sotto «Interfaccia» ----
 { const orig=PH.renderImp; PH.renderImp=function(){ orig.apply(this,arguments);
     const sp=document.getElementById('phSplit'); if(!sp) return; const lab=sp.closest('label');
