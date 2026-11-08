@@ -6,6 +6,7 @@
 //   pressione e quota del barometro, prua della bussola, battito.
 // · Riceve dal telefono i dati da mostrare (velocità, quota, vario, destinazione) e gli avvisi: vibra e li scrive.
 // · Tasti: START = OK, SU / GIÙ = ruota a sinistra / destra, SU tenuto (menu) = cambia pagina, INDIETRO = esci.
+import Toybox.Activity;
 import Toybox.Application;
 import Toybox.Attention;
 import Toybox.Communications;
@@ -38,12 +39,26 @@ class HorizonApp extends Application.AppBase {
     var oxH = null;            // ultima saturazione dallo storico (se il sensore non la dà in diretta)
     var oxHT = 0;
     var nTick = 0;
+    var passo = "";           // scatola nera: ultimo punto del codice, salvato; alla riapertura va al telefono
+    var prevPasso = null;
+    var prevMem = null;
 
     function initialize() {
         AppBase.initialize();
     }
 
+    // scatola nera: dove si trova l'app adesso (resta salvato se l'orologio la chiude per un errore)
+    function segna(p) {
+        passo = p;
+        try { Application.Storage.setValue("passo", p); } catch (e) { }
+    }
+
     function onStart(state) {
+        try {
+            prevPasso = Application.Storage.getValue("passo");
+            prevMem = Application.Storage.getValue("mem");
+        } catch (e) { }
+        segna("avvio");
         startGps();
         try {
             var L = [Sensor.SENSOR_HEARTRATE];
@@ -57,9 +72,11 @@ class HorizonApp extends Application.AppBase {
         }
         timer = new Timer.Timer();
         timer.start(method(:tick), 1000, true);
+        segna("pronta");
     }
 
     function onStop(state) {
+        segna("chiusa normalmente");
         if (timer != null) { timer.stop(); }
         Position.enableLocationEvents(Position.LOCATION_DISABLE, method(:onPos));
         Sensor.enableSensorEvents(null);
@@ -108,6 +125,7 @@ class HorizonApp extends Application.AppBase {
 
     // messaggi dal telefono: {t:"s"} dati da mostrare, {t:"a"} avviso
     function onPhone(msg) {
+        segna("messaggio dal telefono");
         var d = msg.data;
         if (d == null || !(d instanceof Dictionary)) { return; }
         linkOk = true;
@@ -126,6 +144,7 @@ class HorizonApp extends Application.AppBase {
     }
 
     function vibra(lvl) {
+        segna("vibrazione");
         if (!(Attention has :vibrate)) { return; }
         var p;
         if (lvl.equals("W")) {
@@ -141,6 +160,7 @@ class HorizonApp extends Application.AppBase {
 
     // un tasto: va in coda e parte subito
     function key(k) {
+        segna("tasto " + k);
         queue.add({"t" => "k", "k" => k});
         send();
     }
@@ -152,7 +172,12 @@ class HorizonApp extends Application.AppBase {
         if (busy && now - busyT > 15000) { busy = false; }
         if (linkOk && now - linkT > 8000) { linkOk = false; }
         nTick++;
-        if (nTick % 30 == 1) { storicoOx(); }
+        segna("secondo");
+        if (nTick % 10 == 0) {
+            var ms = System.getSystemStats();
+            try { Application.Storage.setValue("mem", ms.usedMemory.toString() + "/" + ms.totalMemory.toString()); } catch (e) { }
+        }
+        if (nTick % 30 == 1) { segna("storico SpO2"); storicoOx(); }
         if (queue.size() > 4) { queue = queue.slice(queue.size() - 4, null); }   // coda corta: i dati vecchi non servono
         if (queue.size() == 0 && !busy) { queue.add(dati()); }
         send();
@@ -161,6 +186,7 @@ class HorizonApp extends Application.AppBase {
 
     function send() {
         if (busy || queue.size() == 0) { return; }
+        segna("invio al telefono");
         var m = queue[0];
         queue = queue.slice(1, null);
         busy = true;
@@ -174,6 +200,7 @@ class HorizonApp extends Application.AppBase {
     }
 
     function sent(ok) {
+        segna(ok ? "invio riuscito" : "invio non riuscito");
         busy = false;
         if (ok) { sentOk++; linkOk = true; linkT = System.getTimer(); } else { errors++; }
         if (queue.size() > 0) { send(); }
@@ -201,7 +228,8 @@ class HorizonApp extends Application.AppBase {
 
     // i dati dei sensori in un dizionario piccolo (le chiavi corte occupano meno nella trasmissione)
     function dati() {
-        var d = {"t" => "d", "v" => 1};
+        segna("lettura dei sensori");
+        var d = {"t" => "d", "v" => 2};
         if (pos != null && pos.position != null && pos.accuracy != null && pos.accuracy >= Position.QUALITY_POOR) {
             var ll = pos.position.toDegrees();
             d.put("la", ll[0]);
@@ -213,7 +241,7 @@ class HorizonApp extends Application.AppBase {
             if (pos.when != null) { d.put("w", pos.when.value()); }
         }
         if (sens != null) {
-            if (sens.pressure != null) { d.put("p", sens.pressure); }
+            if (sens.pressure != null) { d.put("ps", sens.pressure); }        // pressione riportata al livello del mare (come un QNH)
             if (sens.altitude != null) { d.put("ba", sens.altitude); }
             if (sens.heading != null) { d.put("mh", Math.toDegrees(sens.heading)); }
             if (sens.heartRate != null) { d.put("hr", sens.heartRate); }
@@ -224,8 +252,13 @@ class HorizonApp extends Application.AppBase {
             d.put("ox", oxH);
             d.put("oxa", oxHT > 0 ? Time.now().value() - oxHT : -1);      // età della misura in secondi
         }
+        // pressione vera dell'aria dove si è (per la quota con il QNH dello strumento)
+        var ai = Activity.getActivityInfo();
+        if (ai != null && (ai has :ambientPressure) && ai.ambientPressure != null) { d.put("p", ai.ambientPressure); }
         var st = System.getSystemStats();
         if (st != null && st.battery != null) { d.put("bt", st.battery.toNumber()); }
+        if (st != null) { d.put("mu", st.usedMemory); d.put("mt", st.totalMemory); }
+        if (nTick < 60 && prevPasso != null) { d.put("pv", prevPasso); if (prevMem != null) { d.put("pm", prevMem); } }
         return d;
     }
 

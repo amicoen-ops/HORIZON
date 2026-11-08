@@ -28,6 +28,7 @@ class HorizonView extends WatchUi.View {
     // un errore nel disegno non deve chiudere l'app: si scrive e si va avanti
     function onUpdate(dc) {
         try {
+            app.segna("disegno");
             disegna(dc);
         } catch (e) {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
