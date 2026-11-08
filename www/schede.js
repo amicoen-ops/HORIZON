@@ -14,6 +14,11 @@ const TUTTE=[['phGs','Velocità (GS)'],['phAlt','Quota'],['phVs','Vario'],['phTr
   ['hzCQnh','QNH'],['hzCUtc','Ora UTC']];
 const NUOVE={hzCAgl:'ALTEZZA',hzCHw:'VENTO PRUA',hzCFuel:'AUTONOMIA',hzCEta:'ARRIVO',hzCQnh:'QNH',hzCUtc:'ORA UTC'};
 const DEF={full:['phGs','phAlt','phVs','phTrk','phWind','phDest','phTime','phSun'],simple:['phGs','phAlt','phVs','phTrk']};
+// HORIZON 2 con l'orologio Garmin: caselle del pilota (battito, saturazione) e pressione dell'orologio
+const H2=!!(window.Capacitor&&Capacitor.isPluginAvailable&&Capacitor.isPluginAvailable('Garmin'));
+if(H2){ TUTTE.push(['hzCHr','Battito (orologio)'],['hzCOx','Saturazione SpO₂ (orologio)'],['hzCPr','Pressione (orologio)']);
+  Object.assign(NUOVE,{hzCHr:'BATTITO',hzCOx:'SpO₂',hzCPr:'PRESSIONE'});
+  DEF.full=['phGs','phAlt','phVs','phTrk','phWind','phDest','hzCHr','hzCOx']; }
 const KEY={full:'ia517p_cards',simple:'ia517p_cards_s'};
 const ok=id=>TUTTE.some(t=>t[0]===id);
 function lista(m){ const L=lsGet(KEY[m],null); return Array.isArray(L)&&L.filter(ok).length?L.filter(ok).slice(0,8):DEF[m].slice(); }
@@ -36,6 +41,12 @@ function nuove(g){
   else card('hzCEta','---','nessuna destinazione');
   card('hzCQnh',String(Math.round(QNH)),'hPa · tocca per cambiare');
   { const d=new Date(); card('hzCUtc',d.toISOString().slice(11,16)+'Z',d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+' locali'); }
+  if(H2){ const F=PH.fenix||{}, d=F.d, ok=d&&Date.now()-F.t<5000;
+    card('hzCHr',ok&&d.hr!=null?Math.round(d.hr)+' bpm':'---',ok?'dall\'orologio':'orologio non collegato');
+    const o=ok&&d.ox!=null?Math.round(d.ox):null, a=ok&&d.oxa!=null?d.oxa:null;
+    card('hzCOx',o!=null?o+' %':'---',o==null?(ok?'Pulse Ox spento sull\'orologio':'orologio non collegato'):(a>120?'misura di '+Math.round(a/60)+' min fa':'adesso'));
+    { const e=document.getElementById('hzCOx'); if(e){ e.classList.toggle('warn',o!=null&&o<92&&o>=88); e.classList.toggle('bad',o!=null&&o<88); } }
+    card('hzCPr',ok&&d.p!=null?(d.p/100).toFixed(1):'---','hPa · dall\'orologio'); }
 }
 { const prev=PH.info; PH.info=function(g){ const r=prev.apply(this,arguments); try{ nuove(g); }catch(e){ PH._cardErr=String(e); } return r; }; }
 // tocchi sulle caselle
@@ -73,7 +84,7 @@ function cfgWire(el){
 
 { const s=document.createElement('style'); s.textContent=`
   .ph-card.hz-off{display:none!important}
-  .ph-card.warn b{color:#ffc531}
+  .ph-card.warn b{color:#ffc531} .ph-card.bad b{color:#ff5a5a}
   body.ph-simple .ph-cards[data-n="4"],body.ph-simple .ph-cards[data-n="3"],body.ph-simple .ph-cards[data-n="2"]{grid-template-columns:repeat(var(--n,4),minmax(0,1fr))}
   body.ph-simple .ph-card b{font-size:clamp(18px,5vw,28px)} body.ph-simple .ph-card span{font-size:12px}
   .hz-cl{display:flex;flex-direction:column;gap:6px}
