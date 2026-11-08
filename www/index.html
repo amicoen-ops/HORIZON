@@ -3089,6 +3089,8 @@ PH.status=function(){
     [PH.glo.port?(PH.glo.fix&&Date.now()-PH.glo.fix.recv<3000?'ok':'warn'):(PH.glo.want?'bad':'warn'),'Garmin GLO 2',
       PH.glo.port?(PH.glo.fix?`${PH.glo.fix.sats??'?'} sat · HDOP ${PH.glo.fix.hdop??'?'} · ${PH.glo.hz} Hz`:'collegato, nessun fix'):(PH.glo.want?'in attesa di ricollegarsi':(PH.glo.err||'non collegato'))],
     ['ok','Posizione in uso',PH.demo?'simulata':(PH.SRC_NOME[PH.src]||'nessuna')+' · scelta '+({auto:'la più precisa',phone:'solo telefono',glo:'solo GLO 2',fenix:'solo orologio'}[PH.srcPref]||PH.srcPref)],
+    ['ok','Precisione delle fonti',['phone','glo'].concat(PH.fenix?['fenix']:[]).map(k=>{ const f=PH.fixes&&PH.fixes[k], ok=PH.srcFresh&&PH.srcFresh(f);
+      return (PH.SRC_NOME[k]||k)+' '+(ok?'±'+(f.acc<10?f.acc.toFixed(1):Math.round(f.acc))+' m'+(k===PH.src?' (in uso)':''):'—'); }).join(' · ')],
     [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz'+(PH.mDtI?` (dichiarati ${Math.round(1/PH.mDtI)})`:'')+' · '+PH.gyroTxt()+' · schermo '+PH.scrAng()+'°'+(PH.accSign<0?' · segno iOS':''):'nessun dato'],
     [PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?'ok':'warn','Bussola',PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?`${String(Math.round(PH.mag.hdg)).padStart(3,'0')}° vera · ${PH.magInUse()?'in uso':(PH.compassMode==='never'?'spenta':'in volo usa la traccia GPS')}${PH.mag.acc!=null&&PH.mag.acc<2?' · da calibrare (muovi a otto)':''}`:(PH.mag.iosNeed?'inclina un momento il telefono in avanti (quasi in piano) per trovare il nord':(PH.mag.err?'non disponibile: '+PH.mag.err:'nessun dato'))],
     [PH.mountCal?'ok':'warn','Montaggio',PH.mountCal?('livellato'+(PH.groundPitch?` · a terra ${PH.groundPitch}°`:'')):'telefono verticale (predefinito)'],

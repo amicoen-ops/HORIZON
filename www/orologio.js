@@ -60,6 +60,16 @@ setInterval(()=>{ if(!PH.fenix.stato.collegato) return;
 { const prev=PH.alert; PH.alert=function(key,level,text){ const b=PH.alerts[key]; const r=prev.apply(this,arguments);
     if(PH.alerts[key]!==b && PH.fenixCfg.avvisi && PH.fenix.stato.collegato) G.invia({msg:{t:'a',l:level==='W'?'W':'C',x:String(text).slice(0,40)}}).catch(()=>{});
     return r; }; }
+// Impostazioni › Stato (e dati tecnici delle segnalazioni): i sensori dell'orologio accanto a quelli del telefono
+{ const prev=PH.status; if(prev) PH.status=function(){ const r=prev.apply(this,arguments); try{
+    const s=PH.fenix.stato||{}, d=PH.fenix.d, ok=d&&Date.now()-PH.fenix.t<5000, q={4:'buona',3:'usabile',2:'debole',1:'scarsa',0:'nessuna'};
+    const rows=[[s.collegato?(ok?'ok':'warn'):'bad','Orologio Garmin',s.collegato?`${s.nome||'collegato'} · ${ok?'dati adesso':'dati di '+Math.round((Date.now()-PH.fenix.t)/1000)+' s fa'} · ${PH.fenix.n} messaggi${d&&d.bt!=null?' · batteria '+d.bt+'%':''}${d&&d.mu!=null?' · memoria '+Math.round(d.mu/1024)+'/'+Math.round(d.mt/1024)+' KB':''}`:(s.errore||'non collegato')]];
+    if(d){ rows.push([ok&&d.q>=3?'ok':'warn','Orologio: GPS',d.la!=null?`qualità ${q[d.q]||d.q} (≈ ±${({4:4,3:10,2:25,1:60})[d.q]||'?'} m) · ${d.sp!=null?Math.round(d.sp*3.6)+' km/h':''}${d.al!=null?' · quota '+Math.round(d.al/FT2M)+' ft':''}`:'nessun fix'],
+        [d.p!=null?'ok':'warn','Orologio: barometro',d.p!=null?`${(d.p/100).toFixed(1)} hPa · quota con QNH ${QNH}: ${Math.round(44330.77*(1-Math.pow(d.p/(QNH*100),0.190263))/FT2M)} ft${d.ps!=null?' · QNH dall\'orologio '+Math.round(d.ps/100):''}`:'nessun dato'],
+        [d.mh!=null?'ok':'warn','Orologio: bussola',d.mh!=null?`${String(Math.round(wrap360(d.mh))).padStart(3,'0')}° magnetica${PH.fenixCfg.bussola?' · in uso':' · non usata (solo con l\'orologio fermo)'}`:'nessun dato'],
+        [d.hr!=null?'ok':'warn','Orologio: pilota',`battito ${d.hr!=null?Math.round(d.hr)+' bpm':'—'} · SpO₂ ${d.ox!=null?Math.round(d.ox)+'%'+(d.oxa>120?' ('+Math.round(d.oxa/60)+' min fa)':''):'—'}`]);
+      if(d.pv&&!/^(chiusa normalmente|pronta)$/.test(d.pv)) rows.push(['warn','Orologio: ultima chiusura',d.pv+(d.pm?' · memoria '+d.pm:'')]); }
+    r.rows.push(...rows); }catch(e){} return r; }; }
 // posizione in uso, nello Stato e nella casella QUOTA
 { const prev=PH.statoHtml; if(prev) PH.statoHtml=function(){ const h=prev.apply(this,arguments); return (PH.fenix.stato.collegato?`<i class="${fresco()?'o':'w'}">⌚</i>`:'')+h; }; }
 
