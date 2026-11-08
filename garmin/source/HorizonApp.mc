@@ -48,9 +48,17 @@ class HorizonApp extends Application.AppBase {
     }
 
     // scatola nera: dove si trova l'app adesso (resta salvato se l'orologio la chiude per un errore)
+    // in memoria gli ultimi passi; si salvano una volta al secondo (scrivere a ogni passo stancherebbe l'orologio)
+    var traccia = [];
     function segna(p) {
         passo = p;
-        try { Application.Storage.setValue("passo", p); } catch (e) { }
+        traccia.add(p);
+        if (traccia.size() > 8) { traccia = traccia.slice(traccia.size() - 8, null); }
+    }
+    function salvaTraccia(fine) {
+        var t = "";
+        for (var i = 0; i < traccia.size(); i++) { t += (i > 0 ? " > " : "") + traccia[i]; }
+        try { Application.Storage.setValue("passo", fine != null ? fine : t); } catch (e) { }
     }
 
     function onStart(state) {
@@ -59,6 +67,7 @@ class HorizonApp extends Application.AppBase {
             prevMem = Application.Storage.getValue("mem");
         } catch (e) { }
         segna("avvio");
+        salvaTraccia("avvio");
         startGps();
         try {
             var L = [Sensor.SENSOR_HEARTRATE];
@@ -76,7 +85,7 @@ class HorizonApp extends Application.AppBase {
     }
 
     function onStop(state) {
-        segna("chiusa normalmente");
+        salvaTraccia("chiusa normalmente");
         if (timer != null) { timer.stop(); }
         Position.enableLocationEvents(Position.LOCATION_DISABLE, method(:onPos));
         Sensor.enableSensorEvents(null);
@@ -172,6 +181,8 @@ class HorizonApp extends Application.AppBase {
         if (busy && now - busyT > 15000) { busy = false; }
         if (linkOk && now - linkT > 8000) { linkOk = false; }
         nTick++;
+        salvaTraccia(null);               // i passi dell'ultimo secondo: se l'app si chiude da sola, restano qui
+        traccia = [];
         segna("secondo");
         if (nTick % 10 == 0) {
             var ms = System.getSystemStats();
