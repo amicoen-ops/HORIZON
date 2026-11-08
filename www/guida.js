@@ -160,6 +160,7 @@ const G=[
     <p><b>Quota GPS</b>: si può tarare su un campo noto (Impostazioni › Quota GPS). QNH dal METAR o dal menu.</p>
     <p><b>Senza internet</b>: campi, rotte, velivoli e diario sono sul telefono; terreno, mappe e spazi aerei funzionano se li hai scaricati prima (Impostazioni › Volare senza internet).</p>`},
   {id:'impostazioni',t:'Impostazioni utili',h:`
+    <p>In cima <b>Prima di partire</b>: velivolo, LIVELLA, posizione e GLO 2, bussola, quota GPS, tipo di volo, spazi aerei, terreno senza internet, radio e check list, ognuno con lo stato (✓ a posto, ! da fare) e un tasto grande che porta all'azione. In volo (e in simulazione) in cima c'è <b>In volo</b>: voce, interfaccia, orizzonte e bussola più pronti o più morbidi, frequenze, con tasti molto grandi per la turbolenza; in volo tutti i tasti delle pagine diventano più grandi. Le altre sezioni si aprono e si chiudono toccando il titolo.</p>
     <ul><li><b>Interfaccia</b>: Completa o Semplice (solo orizzonte, avvisi sempre attivi).</li>
     <li><b>Tipo di volo</b>: VDS basico, VDS avanzato o VFR: decide zone vietate, limiti di quota e avvisi.</li>
     <li><b>Avvisi</b>: voce (pista, circuito, terreno, spazi aerei, tramonto), vibrazione, schermo sempre acceso.</li>
@@ -259,6 +260,7 @@ function preRows(){
     [PH.mountCal?ok:no,'LIVELLA',PH.mountCal?'montaggio misurato.':'telefono montato e aereo fermo: premi LIVELLA (accanto a GPS · ASSETTO · TERRENO · NET).'],
     [ok,'Se l\'orizzonte si ferma o fa cose strane','guarda fuori e gli strumenti di bordo; a terra: Info › Segnala con i dati tecnici, ci dice quanto è durato.'],
   ]; }
+PH.preRows=preRows;
 PH.preflight=function(manual){
   if(document.getElementById('phPre')) return;
   if(!manual && (PH.preflightOff() || document.getElementById('phTerms'))){ PH.donateNag&&PH.donateNag(); return; }
