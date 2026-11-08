@@ -1358,10 +1358,11 @@ function drawMap(g){
       ctx.lineWidth=3*k; ctx.strokeStyle='rgba(0,0,0,.75)'; const nm=(p.name||p.id).toUpperCase().slice(0,12);
       ctx.strokeText(nm,s2.x+r2*1.4,s2.y); ctx.fillText(nm,s2.x+r2*1.4,s2.y); });
   }
-  if(PH){ PH.drawTrack(toS); PH.glideRing(toS,acA,sc); }
+  if(PH){ try{ PH.mapUnder&&PH.mapUnder(toS,sc,ac); }catch(e){} PH.drawTrack(toS); PH.glideRing(toS,acA,sc); }   // livelli sotto i campi (spazi aerei)
   // campi volo
   ctx.textBaseline='middle';
   for(const f of FIELDS){
+    if(PH && PH.lyr && PH.lyr.campi===false && NAV.dest!==f) continue;            // livello Campi spento (la destinazione resta)
     const p=toS(f.E,f.N); if(!onS(p)) continue;
     if(ZOOMS[zi]>60 && NAV.dest!==f){ const ic=f.kind==='aero'; ctx.fillStyle=KIND_COL[f.kind]||'#e8f6ee'; ctx.beginPath(); ctx.arc(p.x,p.y,R*(ic?0.011:0.007),0,7); ctx.fill();
       if(ic && ZOOMS[zi]<=180){ ctx.font=font(R*0.034,'700'); ctx.textAlign='left'; ctx.lineWidth=3*k; ctx.strokeStyle='rgba(0,0,0,.75)'; ctx.strokeText(f.short,p.x+R*0.016,p.y-R*0.012); ctx.fillText(f.short,p.x+R*0.016,p.y-R*0.012); }
@@ -4018,6 +4019,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.116","Mappa: spazi aerei disegnati con colori per classe, nome e limiti; quelli lontani dalla tua quota (oltre ±1000 ft) attenuati. Nuovo tasto ◧ LIVELLI sopra lo zoom, con tasti grandi: spazi, traffico, campi, punti VFR, planata e mappa di base. Gli avvisi restano sempre."],
   ["1.0.115","EMERGENZA: tieni premuto SOS (accanto a LIVELLA) o ALTRO › EMERGENZA. L'app sceglie il campo migliore raggiungibile in planata con vento e terreno, fa il DIRECT TO, lo dice a voce, mostra una barra rossa con prua, km e margine, il MAYDAY già scritto, 121.500 e 7700. Sulla mappa la zona di planata ha la forma vera (vento e terreno) invece del cerchio. Check list: nuova fase «Emergenza: piantata motore»."],
   ["1.0.114","Briefing: il profilo e il giudizio sugli spazi usano le quote del piano (quelle calcolate e armonizzate), non più la crociera uguale per tutta la rotta. Una CTA con base 2500 ft non risulta più «vietata» se il piano ti fa passare sotto a 2400 ft: è segnalata in giallo con il margine."],
   ["1.0.113","Bussola corretta da sola a ogni corsa di decollo: sull'asse pista la traccia GPS è la prua vera, l'app la confronta con la bussola del telefono (col motore a piena potenza) e aggiorna la correzione, senza domande. Si spegne in Impostazioni › Bussola."],
@@ -4850,14 +4852,14 @@ PH.trfDraw=function(){
 
 // traffico sulla mappa mobile: stessa scala e stessa rotazione (traccia in alto) di drawMap
 PH.trfMap=function(){
-  const T=PH.TRF, ev=T.view; if(!T.on || !ev || !ev.length || !ctx) return;
+  const T=PH.TRF, ev=T.view; if(!T.on || !ev || !ev.length || !ctx || (PH.lyr&&PH.lyr.trf===false)) return;   // livello spento: gli avvisi restano
   const pan=PH.pan, t0=pan?0:((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000, sc=1.3*R/rng, ax=CX, ay=CY+(pan?0:0.3*R), ct=Math.cos(t0), st=Math.sin(t0);
   const pE=pan?pan.E:0, pN=pan?pan.N:0, main=ctx===PH.ctxMain; if(main) T.mapHits=[];
-  ctx.save(); ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2); ctx.clip();
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,H); ctx.clip();                  // mappa a tutto riquadro
   const s=Math.max(8,R*0.05);
   for(const e of ev.slice().reverse()){
     if(e.me || (e.dz===e.dz && Math.abs(e.dz)>6000*FT2M)) continue;
-    const qx=e.x-pE, qy=e.y-pN, x=ax+(qx*ct-qy*st)*sc, y=ay-(qx*st+qy*ct)*sc; if(Math.hypot(x-CX,y-CY)>R*1.02) continue;
+    const qx=e.x-pE, qy=e.y-pN, x=ax+(qx*ct-qy*st)*sc, y=ay-(qx*st+qy*ct)*sc; if(x<-s||x>W+s||y<-s||y>H+s) continue;
     if(main) T.mapHits.push({id:e.t.id,x,y});
     const near=e.dz===e.dz && Math.abs(e.dz)<PH.TRF_LIM && e.d<3000;
     const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(PH.sqOf&&PH.sqOf(e.t)?'#6dff8f':(e.age>30||e.t.ground||e.t.kmh<25?'#9aa4af':(near?'#ffe08a':'#4fd2ff'))));
@@ -5054,4 +5056,5 @@ requestAnimationFrame(frame);
 <script src="stimati.js"></script>
 <script src="impostazioni.js"></script>
 <script src="emergenza.js"></script>
+<script src="livelli.js"></script>
 </body></html>
