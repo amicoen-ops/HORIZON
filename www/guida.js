@@ -205,6 +205,7 @@ const G=[
     <p><b>Senza internet</b>: campi, rotte, velivoli e diario sono sul telefono; terreno, mappe e spazi aerei funzionano se li hai scaricati prima (Impostazioni › Volare senza internet).</p>`},
   {id:'orologio',t:'Orologio Garmin (HORIZON 2)',h:`
     <p>Solo in <b>HORIZON 2 (prova)</b>, l'app che si installa accanto a HORIZON. Sull'orologio (fenix 7 e simili) gira l'app <b>HORIZON Link</b>: si collega al telefono tramite Garmin Connect, che deve essere installata e con l'orologio associato.</p>
+    <p><b>Installare HORIZON Link sull'orologio</b>: dall'app <b>Connect IQ</b> del telefono (app beta dello sviluppatore, si aggiorna da lì), oppure col cavo: file <i>HORIZON-Link-fenix7.prg</i> della Release «HORIZON 2» di GitHub, copiato nella cartella GARMIN/APPS dell'orologio (dal computer, o dal telefono con un file manager che apre l'orologio in modalità MTP).</p>
     ${PH.guidaTasti()}
     <ul><li><b>START</b> = OK della manopola (premi): menu, conferme, DIRECT TO.</li>
     <li><b>SU</b> e <b>GIÙ</b> = ruota la manopola a sinistra e a destra: zoom della mappa, scelta nei menu, bug di prua.</li>

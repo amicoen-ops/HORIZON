@@ -20,12 +20,32 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # SDK Connect IQ e file dei dispositivi dall'immagine pubblica ghcr.io/matco/connectiq-tester
-      # (chiave da sviluppatore nuova a ogni compilazione: per installare a mano il file .prg va bene)
+      # Chiave da sviluppatore Garmin: sempre la stessa (lo store Connect IQ accetta gli aggiornamenti solo con la stessa
+      # chiave). Sta nel progetto cifrata con la password della chiave dell'APK (secret KEYSTORE_PASSWORD), come
+      # keystore/strumento.keystore.enc. La prima volta si crea qui e si salva sul ramo che ha compilato.
+      - name: Chiave da sviluppatore Garmin
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -f garmin/devkey.der.enc ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in garmin/devkey.der.enc -out garmin/key.der -pass env:KEYSTORE_PASSWORD
+            echo "chiave fissa del progetto"
+          else
+            openssl genrsa -out /tmp/key.pem 4096
+            openssl pkcs8 -topk8 -inform PEM -outform DER -in /tmp/key.pem -out garmin/key.der -nocrypt
+            openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in garmin/key.der -out garmin/devkey.der.enc -pass env:KEYSTORE_PASSWORD
+            git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add garmin/devkey.der.enc
+            git commit -m "Orologio: chiave da sviluppatore Garmin (cifrata) [skip ci]"
+            git push origin HEAD:${GITHUB_REF_NAME} && echo "::notice::chiave nuova salvata sul ramo ${GITHUB_REF_NAME}" || echo "::warning::chiave non salvata: vale solo per questa compilazione"
+          fi
+
+      # SDK Connect IQ e file dei dispositivi dall'immagine pubblica ghcr.io/matco/connectiq-tester.
+      # Esce un .prg per ogni orologio (da copiare a mano) e il pacchetto .iq per lo store Connect IQ (app beta).
       - name: App per l'orologio (Connect IQ)
         run: |
-          openssl genrsa -out /tmp/key.pem 4096
-          openssl pkcs8 -topk8 -inform PEM -outform DER -in /tmp/key.pem -out garmin/key.der -nocrypt
+          sed -i -E "s/(<iq:application [^>]*)>/\1 version=\"1.0.${{ github.run_number }}\">/" garmin/manifest.xml
+          grep -o '<iq:application[^>]*>' garmin/manifest.xml
           docker run --rm -v "$PWD/garmin":/app -w /app --entrypoint /bin/bash ghcr.io/matco/connectiq-tester:latest -c '
             set -e
             D=/root/.Garmin/ConnectIQ/Devices
@@ -37,13 +57,18 @@ jobs:
             for id in $(grep -o "product id=\"[^\"]*\"" manifest.xml | cut -d\" -f2); do
               if monkeyc -d $id -f monkey.jungle -o out/HORIZON-Link-$id.prg -y key.der -l 0 -w; then ok=1; else echo "::error::compilazione per $id non riuscita"; fi
             done
-            [ $ok = 1 ]'
+            [ $ok = 1 ]
+            # pacchetto per lo store (tutti i dispositivi del manifest, versione di rilascio)
+            monkeyc -e -r -f monkey.jungle -o out/HORIZON-Link.iq -y key.der -l 0 -w || echo "::warning::pacchetto .iq non riuscito"'
+          rm -f garmin/key.der
           ls -la garmin/out
 
       - uses: actions/upload-artifact@v4
         with:
           name: horizon-link-orologio
-          path: garmin/out/*.prg
+          path: |
+            garmin/out/*.prg
+            garmin/out/*.iq
 
   telefono:
     runs-on: ubuntu-latest
@@ -116,6 +141,8 @@ jobs:
             Versione di prova con l'orologio Garmin. Non è sul Play Store e non sostituisce HORIZON: si installa accanto.
             · Telefono: scarica e installa il file HORIZON2-….apk.
             · Orologio fenix 7: collega l'orologio al computer col cavo USB e copia HORIZON-Link-fenix7.prg nella cartella GARMIN/APPS; scollega e apri l'app «HORIZON Link».
+            · Store Connect IQ (app beta, si installa dall'app Connect IQ del telefono): carica HORIZON-Link.iq nel portale sviluppatori Garmin.
           files: |
             art/horizon2-telefono/*.apk
             art/horizon-link-orologio/*.prg
+            art/horizon-link-orologio/*.iq
