@@ -129,7 +129,7 @@ PH.emergOpen=function(){
     d.innerHTML=`<div class="ph-sheet-h hz-emh"><button type="button" id="hzEmB">◀ Strumento</button><b>⚠ EMERGENZA</b></div>
     <div class="ph-imp">
       <section class="hz-emc">${cur&&e.f?`<div class="hz-emt">${esc(e.f.name)}</div><div class="hz-ems">PRUA ${String(Math.round(cur.brg)).padStart(3,'0')}° · ${(cur.d/1000).toFixed(1).replace('.',',')} km · ${cur.ok?'<span class="ok">ARRIVI CON +'+Math.round(cur.marg/10)*10+' ft</span>':'<span class="no">AL LIMITE: VALUTA UN ALTRO CAMPO O UN PRATO</span>'}</div>
-        <small>${fq.length?'Frequenza del campo '+esc(Number(fq[0][2]).toFixed(3))+' · ':''}velocità di planata ${Math.round(par().tas*3.6)} km/h · ${par().gNote?'efficienza non impostata: uso 8 (Impostazioni › Velivoli)':'efficienza '+par().g}</small>`
+        <small>${fq.length?'Frequenza del campo '+esc(Number(fq[0][2]).toFixed(3))+' · ':''}velocità di planata ${Math.round(par().tas*3.6)} km/h · ${par().gNote?'efficienza non impostata: uso 8 (Impostazioni › Velivoli)':'efficienza '+par().g}</small>${PH.ventoHtml&&e.f.ends&&e.f.ends.length?'<div style="margin-top:8px">'+PH.ventoHtml(e.f,PH.ventoAl(e.f),{size:120,inVolo:true})+'</div>':''}`
         :'<div class="hz-emt">Nessun campo raggiungibile nei dati</div><small>Cerca un prato ampio, controvento, senza fili. Tieni la velocità di planata.</small>'}</section>
       <section><h3>MAYDAY (da leggere)</h3><p class="hz-may">«${esc(mayday(e))}»</p>
         <p class="ph-sub">Sulla frequenza in uso, oppure <b>121.500</b>${fi?' o '+esc(fi[1]||'FIS')+' <b>'+esc(Number(fi[2]).toFixed(3))+'</b>':''}. Transponder <b>7700</b>.</p></section>

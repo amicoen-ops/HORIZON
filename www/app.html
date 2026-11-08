@@ -81,6 +81,9 @@
   .fuel .row{display:flex;justify-content:space-between;gap:10px;font-size:14.5px}
   .fuel .row span:first-child{color:var(--dim)}
   .fuel .row.sum{border-top:1px solid var(--line);padding-top:6px;font-weight:700}
+  .catp{display:inline-block;padding:1px 7px;border-radius:6px;color:#05121a;font:800 12px system-ui,sans-serif;letter-spacing:.03em;vertical-align:middle}
+  .tafs{display:flex;flex-wrap:wrap;gap:2px;align-items:center;margin:6px 0} .tq{display:inline-flex;align-items:center;justify-content:center;width:24px;height:22px;border-radius:4px;font-style:normal} .tq b{font:700 10px system-ui;color:#05121a} .tq.nd{background:#2a3540}
+  .wrr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.07)} .wrr>b{min-width:70px}
   .pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-weight:700;font-size:14px;width:fit-content}
   .pill.ok{background:rgba(47,210,122,.14);color:var(--ok)} .pill.warn{background:rgba(255,197,49,.14);color:var(--warn)} .pill.bad{background:rgba(255,90,90,.15);color:var(--bad)}
   .arr{display:flex;flex-direction:column;gap:8px}
@@ -297,6 +300,10 @@
         <div class="arr" id="wxDest"></div>
       </section>
       <section class="card">
+        <h2>Lungo la rotta (TAF all'ora di passaggio)</h2>
+        <div id="wxTaf"></div>
+      </section>
+      <section class="card">
         <h2>Vento al campo: fonti</h2>
         <ol class="steps">
           <li><b>METAR ufficiali</b> degli aeroporti (Caselle, Biella, Aosta...): da aviationweather.gov, aperti e incollati qui sotto.</li>
@@ -496,8 +503,15 @@ function arrivalHTML(f,wind,src){
     ${n&&n.obst?`<div class="sub">Ostacoli: ${esc(n.obst)}</div>`:''}
     ${n&&n.text?`<div class="sub">${esc(n.text)}</div>`:''}
     ${elevLine(f)}
-    <div class="sub">Piste ${f.rw.map(r=>r.le+'/'+r.he+' '+r.L+' m '+(r.paved?'asfalto':'erba')).join(', ')}</div>`;
+    <div class="sub">Piste ${f.rw.map(r=>r.le+'/'+r.he+' '+r.L+' m '+(r.paved?'asfalto':'erba')).join(', ')}</div>${ventoPista(f,wind)}${catArrivo(f)}`;
 }
+// disegno del vento sulla pista (da vento.js dello strumento) e categoria VFR all'arrivo dal TAF più vicino
+function ventoPista(f,wind){ try{ const P=PHONE&&parent.PH; if(!P||!P.ventoSvg||!wind) return '';
+  const col={ok:'#3ddc84',att:'#ffc531',no:'#ff5a5a'}, T=P.ventoTestate(f,wind);
+  return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px">${P.ventoSvg(f,wind,120)}<div style="flex:1;min-width:170px">${T.map((t,i)=>`<div style="color:${col[t.st]};font-weight:${i?600:800}">${esc(t.id)} · ${t.head>=0?'contrario':'IN CODA'} ${Math.round(Math.abs(t.head))} · traverso ${Math.round(Math.abs(t.crossG))}${Math.round(Math.abs(t.crossG))?(t.cross>0?' da dx':' da sx'):''} km/h${i===0&&t.st!=='no'?' · migliore':''}</div>`).join('')}<div class="sub">Traverso massimo del velivolo ${+(ACP().xwind)||20} km/h</div></div></div>`; }catch(e){ return ''; } }
+function catArrivo(f){ try{ if(!LIVE_METAR.taf) return ''; let b=null,bd=4e4; for(const id in LIVE_METAR.taf){ const st=byId(id); if(!st) continue; const d=dist(f,st).d; if(d<bd){ bd=d; b={st,raw:LIVE_METAR.taf[id]}; } }
+  if(!b) return ''; const c=compute(), eta=new Date(new Date(PLAN.dep||Date.now()).getTime()+c.min*60e3), r=tafAt(parseTaf(b.raw),eta); if(!r||!r.cat) return '';
+  return `<div class="sub" style="margin-top:6px">All'arrivo (${eta.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}) TAF ${esc(b.st.id)}: ${catPill(r.cat)}${r.worst?' a tratti '+catPill(r.worst.cat):''}${r.cat!=='VFR'||r.worst?' <b class="warn">controlla prima di partire</b>':''}</div>`; }catch(e){ return ''; } }
 
 // mappa della rotta
 const cv=$('map'), ctx=cv.getContext('2d');
@@ -538,22 +552,107 @@ function drawMap(c){
 // ---------------- meteo (esempi) ----------------
 const STATIONS={LIMF:{lat:45.2008,lon:7.6497,name:'Torino Caselle'},LIMC:{lat:45.6306,lon:8.7281,name:'Milano Malpensa'},LIMW:{lat:45.7385,lon:7.3687,name:'Aosta'}};
 const METARS=['LIMF 271450Z 19002KT CAVOK 16/07 Q1020','LIMC 271450Z 18003KT 130V220 CAVOK 16/08 Q1020 NOSIG','LIMW 271450Z 09007KT 060V120 CAVOK 16/06 Q1020'];
+// un gruppo del METAR o del TAF applicato alle condizioni o: vento, visibilità, nubi, fenomeni
+function wxTok(o,x){ let m;
+  if((m=x.match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?(KT|MPS)$/))){ const f=m[5]==='KT'?1.852:3.6; o.vrb=m[1]==='VRB'; o.dir=o.vrb?null:+m[1]; o.kmh=+m[2]*f; o.gust=m[4]?+m[4]*f:null; return true; }
+  if((m=x.match(/^(\d{3})V(\d{3})$/))){ o.vrange=`${m[1]}°–${m[2]}°`; return true; }
+  if(x==='CAVOK'){ o.vis='CAVOK'; o.visM=10000; o.cl=null; o.ceil=null; o.wx=null; return true; }
+  if(/^\d{4}$/.test(x)){ o.visM=+x>=9999?10000:+x; o.vis=+x>=9999?'≥10 km':(+x/1000).toFixed(1)+' km'; return true; }
+  if((m=x.match(/^(P)?(\d{1,2})SM$/))){ o.visM=Math.round(+m[2]*1609); o.vis=(o.visM/1000).toFixed(1)+' km'; return true; }
+  if(x==='NSC'||x==='SKC'||x==='NCD'||x==='CLR'){ o.cl=null; o.ceil=null; return true; }
+  if((m=x.match(/^(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU)?/))){ if(!o._cl){ o.cl=[]; o.ceil=null; o._cl=1; }
+    o.cl.push(`${{FEW:'poche',SCT:'sparse',BKN:'molte',OVC:'coperto'}[m[1]]} ${+m[2]*100} ft${m[3]?' '+m[3]:''}`);
+    if((m[1]==='BKN'||m[1]==='OVC')&&(o.ceil==null||+m[2]*100<o.ceil)) o.ceil=+m[2]*100; if(m[3]) o.cb=true; return true; }
+  if((m=x.match(/^VV(\d{3})$/))){ o.ceil=+m[1]*100; o.cl=['cielo invisibile, verticale '+(+m[1]*100)+' ft']; return true; }
+  if(x==='NSW'){ o.wx=null; return true; }
+  if(/^(\+|-|VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?(DZ|RA|SN|SG|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)*$/.test(x)&&/[A-Z]{2}/.test(x)&&x.length<=9&&!/^(NOSIG|AUTO|COR|AMD|RMK|TEMPO|BECMG|PROB\d+|FM\d+)$/.test(x)){ o.wx=(o.wx&&o._wx?o.wx+' ':'')+x; o._wx=1; return true; }
+  return false; }
 function parseMetar(s){
   s=s.replace(/^(METAR|SPECI)\s+/,'');
   const t=s.trim().split(/\s+/), o={id:t[0],raw:s};
   for(const x of t.slice(1)){
     let m;
+    if(x==='RMK'||x==='TEMPO'||x==='BECMG'||x==='NOSIG') break;
     if((m=x.match(/^(\d{2})(\d{2})(\d{2})Z$/))) o.time=`${m[2]}:${m[3]} UTC`;
-    else if((m=x.match(/^(\d{3}|VRB)(\d{2,3})(G(\d{2,3}))?(KT|MPS)$/))){ const f=m[5]==='KT'?1.852:3.6; o.vrb=m[1]==='VRB'; o.dir=o.vrb?null:+m[1]; o.kmh=+m[2]*f; if(m[4]) o.gust=+m[4]*f; }
-    else if((m=x.match(/^(\d{3})V(\d{3})$/))) o.vrange=`${m[1]}°–${m[2]}°`;
-    else if(x==='CAVOK') o.vis='CAVOK';
-    else if(/^\d{4}$/.test(x)) o.vis=x==='9999'?'≥10 km':(+x/1000).toFixed(1)+' km';
-    else if((m=x.match(/^(FEW|SCT|BKN|OVC)(\d{3})/))) (o.cl=o.cl||[]).push(`${{FEW:'poche',SCT:'sparse',BKN:'molte',OVC:'coperto'}[m[1]]} ${+m[2]*100} ft`);
     else if((m=x.match(/^(M?\d{2})\/(M?\d{2})$/))){ o.t=+m[1].replace('M','-'); o.dp=+m[2].replace('M','-'); }
     else if((m=x.match(/^Q(\d{4})$/))) o.qnh=+m[1];
+    else wxTok(o,x);
   }
+  delete o._cl; delete o._wx; o.cat=vfrCat(o);
   return o;
 }
+// categoria del volo a vista, come i colori delle app meteo: visibilità e base delle nubi (BKN, OVC o verticale)
+const CAT_TXT={VFR:'VFR',MVFR:'VFR MARGINALE',IFR:'IFR',LIFR:'IFR BASSO'}, CAT_COL={VFR:'#3ddc84',MVFR:'#4f9bff',IFR:'#ff5a5a',LIFR:'#e05cff'};
+function vfrCat(o){ if(!o) return null; const v=o.visM, c=o.ceil;
+  if(v==null && c==null && o.vis!=='CAVOK') return null;
+  const vv=v==null?10000:v, cc=c==null?99999:c;
+  if(vv<1500||cc<500) return 'LIFR'; if(vv<5000||cc<1000) return 'IFR'; if(vv<8000||cc<=3000) return 'MVFR'; return 'VFR'; }
+const catPill=(c,small)=>c?`<span class="catp" style="background:${CAT_COL[c]}">${small?c:CAT_TXT[c]}</span>`:'';
+// TAF: gruppo di base e variazioni FM, BECMG, TEMPO e PROB; tafAt dà le condizioni a un'ora e il peggio possibile
+function tafDate(dd,hh,mm,ref){ const r=ref||new Date(); let d=new Date(Date.UTC(r.getUTCFullYear(),r.getUTCMonth(),+dd,+hh,+(mm||0)));
+  if(d-r>20*86400e3) d=new Date(Date.UTC(r.getUTCFullYear(),r.getUTCMonth()-1,+dd,+hh,+(mm||0)));
+  else if(r-d>20*86400e3) d=new Date(Date.UTC(r.getUTCFullYear(),r.getUTCMonth()+1,+dd,+hh,+(mm||0)));
+  return d; }
+function parseTaf(raw){
+  const t=String(raw||'').replace(/=\s*$/,'').replace(/^TAF\s+((AMD|COR)\s+)?/,'').trim().split(/\s+/);
+  const T={id:t[0],raw,groups:[]}; let i=1, cur=null;
+  if(/^\d{6}Z$/.test(t[i])) i++;
+  const per=x=>{ const m=x&&x.match(/^(\d{2})(\d{2})\/(\d{2})(\d{2})$/); return m?[tafDate(m[1],m[2]),tafDate(m[3],m[4])]:null; };
+  const p0=per(t[i]); if(p0){ T.from=p0[0]; T.to=p0[1]; i++; }
+  cur={type:'BASE',from:T.from,to:T.to,o:{}}; T.groups.push(cur);
+  for(;i<t.length;i++){ const x=t[i]; let m;
+    if(x==='RMK') break;
+    if((m=x.match(/^FM(\d{2})(\d{2})(\d{2})$/))){ cur={type:'FM',from:tafDate(m[1],m[2],m[3]),to:T.to,o:{}}; T.groups.push(cur); continue; }
+    if(x==='BECMG'||x==='TEMPO'||/^PROB\d{2}$/.test(x)){ let type=x, prob=null;
+      if(/^PROB/.test(x)){ prob=+x.slice(4); if(t[i+1]==='TEMPO'){ i++; } type='TEMPO'; }
+      const p=per(t[i+1]); if(p) i++;
+      cur={type,prob,from:p?p[0]:T.from,to:p?p[1]:T.to,o:{}}; T.groups.push(cur); continue; }
+    if(/^(TX|TN)/.test(x)) continue;
+    wxTok(cur.o,x); }
+  T.groups.forEach(g=>{ delete g.o._cl; delete g.o._wx; });
+  return T; }
+// striscia delle prossime 12 ore del TAF: un quadretto colorato per ora, a righe se in TEMPO peggiora
+function tafStrip(T,ore){ ore=ore||12; const now=new Date(), h0=new Date(Math.ceil(now.getTime()/3600e3)*3600e3); let out='';
+  for(let i=0;i<ore;i++){ const d=new Date(h0.getTime()+i*3600e3), r=tafAt(T,d); if(!r){ out+=`<i class="tq nd" title="fuori dal TAF"></i>`; continue; }
+    const c=CAT_COL[r.cat]||'#56636e', w=r.worst?CAT_COL[r.worst.cat]:null;
+    out+=`<i class="tq" style="background:${w?`repeating-linear-gradient(135deg,${c} 0 5px,${w} 5px 10px)`:c}" title="${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})} ${CAT_TXT[r.cat]||'n.d.'}${r.worst?' · a tratti '+CAT_TXT[r.worst.cat]:''}"><b>${String(d.getHours()).padStart(2,'0')}</b></i>`; }
+  return out+`<span class="sub">ora locale · a righe: a tratti peggiore (TEMPO/PROB)</span>`; }
+const WXIT={TS:'temporale',RA:'pioggia',SN:'neve',DZ:'pioviggine',FG:'nebbia',BR:'foschia',HZ:'caligine',SH:'rovesci',GR:'grandine',GS:'grandine piccola',FZ:'gelicidio',BL:'sollevato',VC:'nelle vicinanze',MI:'sottile',BC:'a banchi',PR:'parziale',DU:'polvere',SA:'sabbia',FU:'fumo',SQ:'groppi'};
+function wxIt(s){ return String(s||'').split(' ').map(x=>{ const pre=x[0]==='+'?'forte ':(x[0]==='-'?'debole ':''); const y=x.replace(/^[+-]/,''); const parts=y.match(/.{2}/g)||[]; return pre+parts.map(p=>WXIT[p]||p).join(' '); }).join(', '); }
+// meteo lungo la rotta all'ora prevista di passaggio: TAF della stazione più vicina (entro 40 km)
+function wxTafRoute(c){
+  if(!LIVE_METAR.taf||!Object.keys(LIVE_METAR.taf).length) return '<div class="sub">Servono i TAF: nell\'app installata si scaricano da soli con i METAR (aviationweather.gov).</div>';
+  const T={}; for(const id in LIVE_METAR.taf){ const st=byId(id); if(st) T[id]={st,taf:parseTaf(LIVE_METAR.taf[id])}; }
+  const dep=new Date(PLAN.dep||Date.now()), tas=Math.max(30,PLAN.tas); let cum=0; const rows=[];
+  c.pts.forEach((p,i)=>{ if(i) cum+=c.legs[i-1]?c.legs[i-1].d:0; const d=new Date(dep.getTime()+cum/1000/tas*3600e3);
+    let b=null, bd=4e4; for(const id in T){ const dd=dist(p,T[id].st).d; if(dd<bd){ bd=dd; b=T[id]; } }
+    const r=b?tafAt(b.taf,d):null;
+    rows.push(`<div class="wrr"><b>${esc(p.short||p.name||('P'+i))}</b><span>${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</span>${r?`${catPill(r.cat)}${r.worst?' <span class="sub">a tratti</span> '+catPill(r.worst.cat,1):''}<span class="sub">${esc(b.st.id)} a ${(bd/1000).toFixed(0)} km${r.o.wx?' · '+esc(wxIt(r.o.wx)):''}${r.o.kmh!=null?' · vento '+(r.o.vrb?'variabile':windDir(r.o.dir))+' '+Math.round(r.o.kmh)+' km/h':''}</span>`:'<span class="sub">nessun TAF entro 40 km</span>'}</div>`); });
+  return `<div class="sub">Partenza alle ${dep.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}, ${Math.round(PLAN.tas)} km/h. VDS: almeno 5 km di visibilità, fuori dalle nubi e in vista del suolo.</div>`+rows.join(''); }
+// METAR detto a parole, per la voce
+function metarFrase(w){ const f=byId(w.id), n=f?f.name:w.id.split('').join(' '); const p=[n+(w.time?', ore '+w.time.replace(':',' e ').replace(' UTC',' zulu'):'')];
+  if(w.kmh!=null) p.push(w.kmh<3?'vento calmo':(w.vrb?'vento variabile':'vento da '+String(w.dir).padStart(3,'0').split('').join(' ')+' gradi')+(w.kmh>=3?', '+Math.round(w.kmh)+' chilometri orari':'')+(w.gust?', raffiche '+Math.round(w.gust):''));
+  if(w.vis==='CAVOK') p.push('cavok'); else if(w.visM!=null) p.push('visibilità '+(w.visM>=10000?'oltre 10 chilometri':(w.visM/1000).toFixed(1).replace('.',' virgola ')+' chilometri'));
+  if(w.wx) p.push(wxIt(w.wx)); if(w.cl&&w.cl.length) p.push('nubi '+w.cl.join(', ').replace(/ ft/g,' piedi'));
+  if(w.t!=null) p.push('temperatura '+w.t+', rugiada '+w.dp); if(w.qnh) p.push('QNH '+String(w.qnh).split('').join(' '));
+  if(w.cat) p.push('condizioni '+CAT_TXT[w.cat].toLowerCase());
+  return p.join('. ')+'.'; }
+function metarVoce(box){ box.querySelectorAll('[data-say]').forEach(b=>b.addEventListener('click',()=>{ const w=(LIVE_METAR.list||[]).find(x=>x.id===b.dataset.say)||(PASTED_LIST||[]).find(x=>x.id===b.dataset.say); if(!w) return;
+  try{ if(PHONE&&parent.PH&&parent.PH.metarSay) parent.PH.metarSay(metarFrase(w)); else { const u=new SpeechSynthesisUtterance(metarFrase(w)); u.lang='it-IT'; speechSynthesis.cancel(); speechSynthesis.speak(u); } }catch(e){} })); }
+var PASTED_LIST=[];
+// i METAR vanno anche allo strumento: colori dei campi sulla mappa e vento sulla pista
+function metarPush(){ if(!PHONE) return; try{ parent.PH&&parent.PH.metarSet&&parent.PH.metarSet({t:LIVE_METAR.t,list:LIVE_METAR.list.map(w=>{ const f=byId(w.id); return f?{id:w.id,say:metarFrase(w),lat:f.lat,lon:f.lon,cat:w.cat,dir:w.dir,vrb:w.vrb,kmh:w.kmh,gust:w.gust,qnh:w.qnh,vis:w.vis,ceil:w.ceil,wx:w.wx,time:w.time,raw:w.raw,t:w.t}:null; }).filter(Boolean)}); }catch(e){} }
+function tafAt(T,d){
+  if(!T||!T.groups.length||(T.from&&d<T.from)||(T.to&&d>T.to)) return null;
+  let base=Object.assign({},T.groups[0].o); const temp=[];
+  for(const g of T.groups.slice(1)){
+    if(g.type==='FM'&&d>=g.from) base=Object.assign({},base,g.o);
+    else if(g.type==='BECMG'&&d>=g.from) base=Object.assign({},base,g.o);
+    else if(g.type==='TEMPO'&&d>=g.from&&d<g.to) temp.push(Object.assign({},base,g.o,{prob:g.prob})); }
+  const rank={VFR:0,MVFR:1,IFR:2,LIFR:3}, cat=vfrCat(base);
+  let worst=null; for(const x of temp){ const c=vfrCat(x); if(c&&(!worst||rank[c]>rank[worst.cat])) worst={cat:c,o:x}; }
+  if(worst&&cat&&rank[worst.cat]<=rank[cat]) worst=null;
+  return {o:base,cat,worst}; }
 const WX=METARS.map(parseMetar);
 function nearestWx(f){ let b=null,bd=1e12; WX.forEach(w=>{ const s=STATIONS[w.id]; const d=dist(f,s).d; if(d<bd){bd=d;b=w;} }); return {w:b,d:bd}; }
 function renderWx(){
@@ -834,6 +933,10 @@ function parseNotams(text){
     const e=t.match(/E\)\s*([\s\S]*?)(?:\n\s*[FG]\)|$)/); o.text=e?e[1].trim():'';
     return o; });
 }
+// NOTAM con posizione e raggio (riga Q) validi oggi: lo strumento li disegna sulla mappa
+window.IA517_notam=()=>{ try{ if(!NOTAM_TEXT.trim()) return []; const now=Date.now(), h12=now+12*3600e3;
+  return parseNotams(NOTAM_TEXT).filter(n=>n.lat!=null&&n.rNM!=null&&n.rNM<999&&(!n.from||n.from.getTime()<=h12)&&(n.perm||!n.to||n.to.getTime()>=now))
+    .map(n=>({id:n.id,lat:n.lat,lon:n.lon,r:Math.max(n.rNM,0.5)*1852,lo:n.lo,hi:n.hi,subj:QSUB[n.subj]||n.subj||'NOTAM',from:n.from?n.from.getTime():null,to:n.to?n.to.getTime():null,perm:n.perm,text:(n.text||'').slice(0,200)})); }catch(e){ return []; } };
 function distToRoute(p,samples){ let m=1e12; for(const s of samples){ const d=dist(p,s).d; if(d<m) m=d; } return m; }
 function analyzeNotams(samples,c){
   if(!NOTAM_TEXT.trim()) return [];
@@ -1212,15 +1315,16 @@ function renderWx(){
   $('metarOff').innerHTML=`<div class="sub">I METAR veri si leggono su aviationweather.gov: aprili, copia il testo e incollalo qui per decodificarli e mandare il QNH.</div>
     <div class="btnrow"><a class="btn" href="https://aviationweather.gov/data/metar/?ids=LIMF,LIMC,LIMW,LILE,LIMZ,LIMA,LILI&hours=0" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">Apri i METAR della zona</a></div>
     <textarea id="metarIn" rows="3" placeholder="Incolla qui i METAR, uno per riga">${esc(PASTED)}</textarea>`+
-    pm.map(w=>`<div class="metar"><div class="mh"><b>${esc(w.id)}</b>${w.qnh?`<button class="btn" type="button" data-q="${w.qnh}">Invia QNH ${w.qnh}</button>`:''}</div><div class="raw">${esc(w.raw)}</div>
+    pm.map(w=>`<div class="metar"><div class="mh"><b>${catPill(w.cat,1)} ${esc(w.id)}</b><span><button class="btn" type="button" data-say="${esc(w.id)}" aria-label="Leggi a voce">🔊</button>${w.qnh?` <button class="btn" type="button" data-q="${w.qnh}">Invia QNH ${w.qnh}</button>`:''}</span></div><div class="raw">${esc(w.raw)}</div>
       <div class="dec"><span>Vento <b>${w.vrb?'variabile':windDir(w.dir,1)} · ${Math.round(w.kmh||0)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
       <span>Nubi <b>${w.cl?w.cl.join(', '):(w.vis==='CAVOK'?'nessuna':'n.d.')}</b></span><span>QNH <b>${w.qnh||'n.d.'}</b></span><span class="sub">${w.time||''}</span></div></div>`).join('');
-  $('metarOff').querySelectorAll('button[data-q]').forEach(b=>b.addEventListener('click',()=>sendQnh(+b.dataset.q)));
+  $('metarOff').querySelectorAll('button[data-q]').forEach(b=>b.addEventListener('click',()=>sendQnh(+b.dataset.q))); PASTED_LIST=pm; metarVoce($('metarOff'));
   $('metarIn').addEventListener('change',()=>{ PASTED=$('metarIn').value; store.set('ia517_metar_paste',PASTED); renderWx(); });
   }
   const f=byId(PLAN.dest);
   if(f){ const {w}=nearestWx(f), wind=w?{dir:w.dir,kmh:w.kmh}:null;
     $('wxDest').innerHTML=`<div style="margin-bottom:6px">${wxStamp(MODEL.t,'Meteo')}</div><div class="sub">${esc(f.name)}: ${w?'vento previsto dal modello sul campo':'meteo non ancora scaricato'}.</div>`+arrivalHTML(f,wind,'previsto'); }
+  try{ $('wxTaf').innerHTML=wxTafRoute(compute()); }catch(e){ $('wxTaf').innerHTML=''; }
 }
 // ---- METAR e TAF veri (aviationweather.gov): l'app nativa li legge senza i limiti del browser ----
 let LIVE_METAR={t:0,list:[],taf:{},err:'',busy:false};
@@ -1243,7 +1347,7 @@ async function fetchMetar(force){
     let taf={}; try{ const rt=await parent.IA517.http('https://aviationweather.gov/api/data/taf?ids='+ids+'&format=raw');
       if(rt.status===200) rt.text.split(/\n(?=TAF |[A-Z]{4} \d{6}Z)/).forEach(b=>{ const m=b.replace(/^TAF\s+(AMD\s+|COR\s+)?/,'').match(/^([A-Z]{4})\s/); if(m && !taf[m[1]]) taf[m[1]]=b.trim(); }); }catch(e){}
     LIVE_METAR={t:Date.now(),list,taf,err:'',busy:false};
-    store.set('ia517_metar_live',LIVE_METAR);
+    store.set('ia517_metar_live',LIVE_METAR); metarPush();
   }catch(e){ LIVE_METAR.busy=false; LIVE_METAR.err=(e&&e.message)||'non raggiungibile'; }
   renderWx();
 }
@@ -1251,14 +1355,14 @@ function renderLiveMetar(){
   const age=Math.round((Date.now()-LIVE_METAR.t)/60000), nm=id=>{ const f=byId(id); return f?f.name:''; };
   $('metarOff').innerHTML=`<div style="margin:4px 0 8px">${wxStamp(LIVE_METAR.t,'METAR')}</div><div class="sub">Da aviationweather.gov${LIVE_METAR.err?` · <span class="warn">${esc(LIVE_METAR.err)}</span>`:''}. Aeroporti vicini ai campi del piano e della zona.</div>
     <div class="btnrow"><button class="btn" type="button" id="metarRefresh">${LIVE_METAR.busy?'Aggiorno…':'Aggiorna METAR'}</button></div>`+
-    LIVE_METAR.list.map(w=>`<div class="metar"><div class="mh"><b>${esc(w.id)}${nm(w.id)?' · '+esc(nm(w.id)):''}</b>${w.qnh?`<button class="btn" type="button" data-q="${w.qnh}">Invia QNH ${w.qnh}</button>`:''}</div><div class="raw">${esc(w.raw)}</div>
+    LIVE_METAR.list.map(w=>`<div class="metar"><div class="mh"><b>${catPill(w.cat,1)} ${esc(w.id)}${nm(w.id)?' · '+esc(nm(w.id)):''}</b><span><button class="btn" type="button" data-say="${esc(w.id)}" aria-label="Leggi a voce">🔊</button>${w.qnh?` <button class="btn" type="button" data-q="${w.qnh}">Invia QNH ${w.qnh}</button>`:''}</span></div><div class="raw">${esc(w.raw)}</div>
       <div class="dec"><span>Vento <b>${w.vrb?'variabile':windDir(w.dir,1)} · ${Math.round(w.kmh||0)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
       <span>Nubi <b>${w.cl?w.cl.join(', '):(w.vis==='CAVOK'?'nessuna':'n.d.')}</b></span><span>QNH <b>${w.qnh||'n.d.'}</b></span><span class="sub">osservato ${w.time||''}</span></div>
-      ${LIVE_METAR.taf[w.id]?`<details><summary>TAF</summary><div class="raw">${esc(LIVE_METAR.taf[w.id])}</div></details>`:''}</div>`).join('');
-  $('metarOff').querySelectorAll('button[data-q]').forEach(b=>b.addEventListener('click',()=>sendQnh(+b.dataset.q)));
+      ${LIVE_METAR.taf[w.id]?`<div class="tafs">${tafStrip(parseTaf(LIVE_METAR.taf[w.id]))}</div><details><summary>TAF</summary><div class="raw">${esc(LIVE_METAR.taf[w.id])}</div></details>`:''}${w.wx?`<div class="sub">Fenomeni: ${esc(wxIt(w.wx))}</div>`:''}</div>`).join('');
+  $('metarOff').querySelectorAll('button[data-q]').forEach(b=>b.addEventListener('click',()=>sendQnh(+b.dataset.q))); metarVoce($('metarOff'));
   $('metarRefresh').addEventListener('click',()=>fetchMetar(true));
 }
-(()=>{ const old=store.get('ia517_metar_live',null); if(old && old.list && Date.now()-old.t<3*3600e3) LIVE_METAR=Object.assign(old,{busy:false}); })();
+(()=>{ const old=store.get('ia517_metar_live',null); if(old && old.list && Date.now()-old.t<3*3600e3){ LIVE_METAR=Object.assign(old,{busy:false}); LIVE_METAR.list.forEach(w=>{ if(w.raw) Object.assign(w,parseMetar(w.raw)); }); setTimeout(metarPush,1500); } })();
 if(PHONE && parent.IA517 && parent.IA517.native){ setTimeout(()=>fetchMetar(false),1500); setInterval(()=>fetchMetar(false),5*60000); }
 // quando cambia il piano si aggiorna anche il meteo dei campi interessati
 const _updateOrig=update;
