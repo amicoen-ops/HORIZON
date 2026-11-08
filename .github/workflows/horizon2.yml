@@ -1,0 +1,120 @@
+name: Compila HORIZON 2 (prova)
+
+# HORIZON 2: app a parte (it.amicoen.horizon2, «HORIZON 2») con il collegamento all'orologio Garmin, più l'app
+# «HORIZON Link» per l'orologio (cartella garmin/). Non va sul Play Store e non tocca la versione dei tester:
+# si installa accanto a HORIZON. Su main pubblica una Release «HORIZON 2 …» (pre-release); sul ramo di lavoro
+# lascia i file come artifact della corsa.
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths: ['garmin/**', 'android/**', 'www/**', '.github/workflows/horizon2.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  orologio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      # SDK Connect IQ e file dei dispositivi dall'immagine pubblica ghcr.io/matco/connectiq-tester
+      # (chiave da sviluppatore nuova a ogni compilazione: per installare a mano il file .prg va bene)
+      - name: App per l'orologio (Connect IQ)
+        run: |
+          openssl genrsa -out /tmp/key.pem 4096
+          openssl pkcs8 -topk8 -inform PEM -outform DER -in /tmp/key.pem -out garmin/key.der -nocrypt
+          docker run --rm -v "$PWD/garmin":/app -w /app --entrypoint /bin/bash ghcr.io/matco/connectiq-tester:latest -c '
+            set -e
+            D=/root/.Garmin/ConnectIQ/Devices
+            echo "Dispositivi fenix/epix nel kit:"; ls $D | grep -E "^(fenix7|epix2)" || true
+            # nel manifest restano solo i dispositivi presenti nel kit
+            for id in $(grep -o "product id=\"[^\"]*\"" manifest.xml | cut -d\" -f2); do [ -d "$D/$id" ] || sed -i "/product id=\"$id\"/d" manifest.xml; done
+            mkdir -p out
+            ok=0
+            for id in $(grep -o "product id=\"[^\"]*\"" manifest.xml | cut -d\" -f2); do
+              if monkeyc -d $id -f monkey.jungle -o out/HORIZON-Link-$id.prg -y key.der -l 0 -w; then ok=1; else echo "::error::compilazione per $id non riuscita"; fi
+            done
+            [ $ok = 1 ]'
+          ls -la garmin/out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: horizon-link-orologio
+          path: garmin/out/*.prg
+
+  telefono:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Dipendenze
+        run: npm ci --no-audit --no-fund
+
+      - name: Versione e nome dell'app
+        run: |
+          echo "window.IA517_BUILD={version:'2.0.${{ github.run_number }}',build:'${{ github.run_number }}',channel:'h2'};" > www/version.js
+          sed -i 's#<string name="app_name">HORIZON</string>#<string name="app_name">HORIZON 2</string>#' android/app/src/main/res/values/strings.xml
+          sed -i 's#<string name="title_activity_main">HORIZON</string>#<string name="title_activity_main">HORIZON 2</string>#' android/app/src/main/res/values/strings.xml
+
+      - name: Pagine dentro l'app
+        run: npx cap sync android
+
+      - name: Chiave di firma
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in keystore/strumento.keystore.enc -out keystore/strumento.keystore -pass env:KEYSTORE_PASSWORD
+
+      - name: Compila e firma HORIZON 2
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 2.0.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew assembleRelease -Ph2 --no-daemon 2>&1 | tee ../build-h2.log
+          cp app/build/outputs/apk/release/app-release.apk ../HORIZON2-2.0.${{ github.run_number }}.apk
+
+      - name: Errori di compilazione
+        if: failure()
+        run: grep -n -E "error:|ERROR|What went wrong|e: " build-h2.log | head -60 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: horizon2-telefono
+          path: HORIZON2-*.apk
+
+  pubblica:
+    if: github.ref == 'refs/heads/main'
+    needs: [orologio, telefono]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: art
+      - name: Release HORIZON 2
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: horizon2-${{ github.run_number }}
+          name: HORIZON 2 (prova) ${{ github.run_number }}
+          prerelease: true
+          body: |
+            Versione di prova con l'orologio Garmin. Non è sul Play Store e non sostituisce HORIZON: si installa accanto.
+            · Telefono: scarica e installa il file HORIZON2-….apk.
+            · Orologio fenix 7: collega l'orologio al computer col cavo USB e copia HORIZON-Link-fenix7.prg nella cartella GARMIN/APPS; scollega e apri l'app «HORIZON Link».
+          files: |
+            art/horizon2-telefono/*.apk
+            art/horizon-link-orologio/*.prg

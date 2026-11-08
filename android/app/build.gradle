@@ -1,10 +1,14 @@
 apply plugin: 'com.android.application'
 
+// HORIZON 2 (prova): ./gradlew -Ph2 … compila un'app a parte (it.amicoen.horizon2) con il collegamento all'orologio Garmin.
+// Senza -Ph2 la compilazione è quella di sempre (APK, Play Store): niente codice né librerie Garmin.
+def H2 = project.hasProperty('h2')
+
 android {
     namespace = "it.amicoen.horizon"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "it.amicoen.horizon"
+        applicationId H2 ? "it.amicoen.horizon2" : "it.amicoen.horizon"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")
@@ -24,6 +28,7 @@ android {
             keyPassword System.getenv("KEYSTORE_PASSWORD")
         }
     }
+    if (H2) { sourceSets { main { java.srcDirs += 'src/h2/java' } } }
     buildTypes {
         release {
             signingConfig signingConfigs.release
@@ -51,6 +56,7 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    if (H2) { implementation "com.garmin.connectiq:ciq-companion-app-sdk:2.4.0@aar" }   // orologio Garmin (solo HORIZON 2)
 }
 
 apply from: 'capacitor.build.gradle'

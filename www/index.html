@@ -4178,6 +4178,7 @@ PH.checkUpdate=async function(manual){
       const r=await U.playCheck();
       if(r.error && !r.available){ out.state='errore'; out.msg=r.error; }
       else Object.assign(out,{state:r.available?'nuova':'ok',build:r.versionCode||0,latest:r.available?'1.0.'+r.versionCode:b.version,stale:r.staleDays}); }
+    else if(b.channel==='h2'){ out.state='ok'; out.msg='HORIZON 2 (prova): le versioni nuove sono su GitHub, Release «HORIZON 2»'; }
     else if(b.channel==='web'){
       const r=await fetch('version.js?chk='+Date.now(),{cache:'no-store'}); if(!r.ok) throw new Error('risposta '+r.status);
       const t=await r.text(), bu=(t.match(/build:'([^']*)'/)||[])[1]||'', ve=(t.match(/version:'([^']*)'/)||[])[1]||'';
@@ -4271,7 +4272,7 @@ PH.repMail=function(rep){
   const ua=navigator.userAgent, m=ua.match(/Android\s+([\d.]+);\s*([^;)]+?)(?:\s+Build|\))/), ios=ua.match(/(iPhone|iPad)[^)]*OS\s+([\d_]+)/);
   const tel=m?`${m[2].trim()} · Android ${m[1]}`:ios?`${ios[1]} · iOS ${ios[2].replace(/_/g,'.')}`:(PH.isIOS?'iPhone':'browser');
   const acL=(diag.match(/^Velivolo:\s*(.+)$/m)||[])[1]||'—';
-  const canale={apk:'APK da GitHub',play:'Google Play',web:'web / iPhone'}[b.channel]||b.channel;
+  const canale={apk:'APK da GitHub',play:'Google Play',web:'web / iPhone',h2:'HORIZON 2 (prova)'}[b.channel]||b.channel;
   const short=rep.text.replace(/\s+/g,' ').trim(), cut=short.length>70?short.slice(0,70)+'…':short;
   return {access_key:PH_INFO.w3f, from_name:'HORIZON · segnalazioni', subject:`HORIZON · ${rep.kind} · ${b.version} — ${cut}`,
     replyto:rep.reply||undefined,
@@ -5113,4 +5114,5 @@ requestAnimationFrame(frame);
 <script src="vento.js"></script>
 <script src="schede.js"></script>
 <script src="voce.js"></script>
+<script src="orologio.js"></script>
 </body></html>

@@ -33,7 +33,7 @@ jobs:
           rm -f sito/capacitor.js
           sed -i 's#<script src="capacitor.js"></script>##' sito/index.html
           # impronta delle pagine: cambia solo quando cambia l'app, così il controllo all'avvio propone di ricaricare solo se serve
-          h=$(cat www/index.html www/app.html www/regole.js www/carburante.js www/licenza.js www/guida.js www/squadriglia.js www/frequenze.js www/radio.js www/stimati.js www/impostazioni.js www/emergenza.js www/livelli.js www/note.js www/schermo.js www/carta.js www/vento.js www/schede.js www/voce.js www/spazi3d.js | sha1sum | cut -c1-8)
+          h=$(cat www/index.html www/app.html www/regole.js www/carburante.js www/licenza.js www/guida.js www/squadriglia.js www/frequenze.js www/radio.js www/stimati.js www/impostazioni.js www/emergenza.js www/livelli.js www/note.js www/schermo.js www/carta.js www/vento.js www/schede.js www/voce.js www/orologio.js www/spazi3d.js | sha1sum | cut -c1-8)
           d=$(git log -1 --format=%cd --date=format:%d.%m.%Y)
           echo "window.IA517_BUILD={version:'web ${d}',build:'${h}',channel:'web'};" > sito/version.js
           # spazi aerei d'Italia da openAIP (CC BY-NC 4.0): copia sullo stesso sito, leggibile anche dal browser

@@ -29,3 +29,8 @@
 -keep class it.ia517.strumento.MainActivity { *; }
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
 -dontwarn com.google.errorprone.annotations.**
+
+# HORIZON 2: orologio Garmin (libreria Connect IQ e modulo caricato per nome)
+-keep class com.garmin.** { *; }
+-dontwarn com.garmin.**
+-keep class it.amicoen.horizon.GarminPlugin { *; }
