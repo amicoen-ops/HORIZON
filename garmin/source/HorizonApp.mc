@@ -53,7 +53,7 @@ class HorizonApp extends Application.AppBase {
     function segna(p) {
         passo = p;
         traccia.add(p);
-        if (traccia.size() > 8) { traccia = traccia.slice(traccia.size() - 8, null); }
+        if (traccia.size() > 12) { traccia = traccia.slice(traccia.size() - 12, null); }
     }
     function salvaTraccia(fine) {
         var t = "";
@@ -69,12 +69,8 @@ class HorizonApp extends Application.AppBase {
         segna("avvio");
         salvaTraccia("avvio");
         startGps();
-        try {
-            var L = [Sensor.SENSOR_HEARTRATE];
-            if (Sensor has :SENSOR_ONBOARD_PULSE_OXIMETRY) { L.add(Sensor.SENSOR_ONBOARD_PULSE_OXIMETRY); }
-            Sensor.setEnabledSensors(L);
-        } catch (e) {
-        }
+        // niente sensori esterni né Pulse Ox continuo: il battito del polso arriva da solo, la SpO2 dallo storico
+        // dell'orologio (Pulse Ox «tutto il giorno» acceso nelle impostazioni del fenix). Meno carico, meno chiusure.
         Sensor.enableSensorEvents(method(:onSensor));
         if (Communications has :registerForPhoneAppMessages) {
             Communications.registerForPhoneAppMessages(method(:onPhone));
@@ -181,14 +177,13 @@ class HorizonApp extends Application.AppBase {
         if (busy && now - busyT > 15000) { busy = false; }
         if (linkOk && now - linkT > 8000) { linkOk = false; }
         nTick++;
-        salvaTraccia(null);               // i passi dell'ultimo secondo: se l'app si chiude da sola, restano qui
-        traccia = [];
+        if (nTick % 5 == 0) { salvaTraccia(null); traccia = []; }   // gli ultimi passi: se l'app si chiude da sola, restano qui
         segna("secondo");
         if (nTick % 10 == 0) {
             var ms = System.getSystemStats();
             try { Application.Storage.setValue("mem", ms.usedMemory.toString() + "/" + ms.totalMemory.toString()); } catch (e) { }
         }
-        if (nTick % 30 == 1) { segna("storico SpO2"); storicoOx(); }
+        if (nTick % 60 == 5) { segna("storico SpO2"); storicoOx(); }
         if (queue.size() > 4) { queue = queue.slice(queue.size() - 4, null); }   // coda corta: i dati vecchi non servono
         if (queue.size() == 0 && !busy) { queue.add(dati()); }
         send();
