@@ -78,7 +78,7 @@ function voloHtml(){
     <button type="button" data-iv="ui" class="${sem?'on':''}">${sem?'INTERFACCIA SEMPLICE':'INTERFACCIA COMPLETA'}<small>tocca per cambiare</small></button>
     <button type="button" data-iv="sm-">ORIZZONTE<small>più pronto</small></button><button type="button" data-iv="sm+">ORIZZONTE<small>più morbido (${esc(PH.smoothTxt?PH.smoothTxt():'')})</small></button>
     <button type="button" data-iv="hs-">BUSSOLA<small>più pronta</small></button><button type="button" data-iv="hs+">BUSSOLA<small>più morbida (${esc(PH.hdgSmoothTxt?PH.hdgSmoothTxt():'')})</small></button>
-    <button type="button" data-iv="freq" class="w2">📻 FREQUENZE</button></div>
+    <button type="button" data-iv="sole" class="${PH.sole?'on':''}">☀ PIENO SOLE<small>${PH.sole?'acceso':'spento'}</small></button><button type="button" data-iv="freq">📻 FREQUENZE</button></div>
     <p class="ph-sub">Tasti grandi per la turbolenza. Le altre impostazioni sono sotto, chiuse: a terra trovi in cima «Prima di partire».</p>`;
 }
 function voloWire(sec){
@@ -88,6 +88,7 @@ function voloWire(sec){
     if(k==='sm-') passo('phSm',-1); if(k==='sm+') passo('phSm',1);
     if(k==='hs-') passo('phHs',-1); if(k==='hs+') passo('phHs',1);
     if(k==='freq'){ PH.freqOpen&&PH.freqOpen(); return; }
+    if(k==='sole'&&PH.soleSet) PH.soleSet(!PH.sole);
     const c=sec.querySelector('.hz-sb'); if(c){ c.innerHTML=voloHtml(); voloWire(sec); } }); }
 
 function sezione(box,titolo,html,wire,first){

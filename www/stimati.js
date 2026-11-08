@@ -100,6 +100,7 @@ function html(){
   #phDest{cursor:pointer}`;
   document.head.appendChild(st); }
 
+PH.stimHtml=html;                                                   // anche per il pannello accanto all'orizzonte (tablet)
 PH.stimOpen=function(){
   let d=document.getElementById('hzSt'); if(d) d.remove();
   d=document.createElement('div'); d.className='ph-sheet'; d.id='hzSt';

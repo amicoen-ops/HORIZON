@@ -445,8 +445,8 @@ const C={white:'#ffffff',cyan:'#33e1ff',green:'#19e38a',amber:'#ffd21e',mag:'#ff
 function font(px,w){ return `${w||''} ${Math.round(px)}px Rajdhani, "Barlow Semi Condensed", sans-serif`; }
 function roundClip(){ ctx.beginPath(); ctx.arc(CX,CY,R,0,7); ctx.clip(); }
 // mappa a tutto riquadro (non nel tondo): rettangolo con gli angoli appena arrotondati
-function mapClip(){ const r=R*0.05; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(1,1,W-2,H-2,r); else ctx.rect(1,1,W-2,H-2); ctx.clip(); }
-function mapFrame(){ ctx.save(); ctx.lineWidth=2*k; ctx.strokeStyle='#30363f'; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(1,1,W-2,H-2,R*0.05); else ctx.rect(1,1,W-2,H-2); ctx.stroke(); ctx.restore(); }
+function mapClip(){ const r=Math.max(0,R*0.05), w=Math.max(1,W-2), h=Math.max(1,H-2); ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(1,1,w,h,r); else ctx.rect(1,1,w,h); ctx.clip(); }
+function mapFrame(){ ctx.save(); ctx.lineWidth=2*k; ctx.strokeStyle='#30363f'; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(1,1,Math.max(1,W-2),Math.max(1,H-2),Math.max(0,R*0.05)); else ctx.rect(1,1,Math.max(1,W-2),Math.max(1,H-2)); ctx.stroke(); ctx.restore(); }
 const rho=hm=>1.225*Math.pow(Math.max(0.3,1-2.2558e-5*hm),4.2559);
 const tasOf=(iasKmh,altFt)=>iasKmh/3.6*Math.sqrt(1.225/rho(altFt*FT2M));   // m/s
 
@@ -3137,7 +3137,7 @@ PH.layout=function(){
   el('unit2').hidden=!PH.split; el('unit2').style.width=size+'px';
 };
 PH.drawSplit=function(g){
-  if(!PH.split || !PH.view2) return;
+  if(!PH.split || !PH.view2 || el('unit2').hidden || PH.view2.W<50) return;   // riquadro nascosto (pannello stimati) o non ancora misurato
   const V2=PH.view2, sv={ctx,W,H,CX,CY,R,F,k};
   ctx=V2.ctx; W=V2.W; H=V2.H; CX=W/2; CY=H/2; R=Math.min(W,H)/2-2; F=R/Math.tan(26*Math.PI/180); k=R/240;
   try{ ctx.clearRect(0,0,W,H); if(PAGE==='pfd') drawMap(g); else drawPFD(g); }
@@ -4033,6 +4033,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.119","Tema PIENO SOLE (Impostazioni › Interfaccia o «In volo»): testi bianchi e più spessi, più contrasto, per leggere col sole sullo schermo. Tablet in orizzontale: accanto all'orizzonte la mappa oppure gli stimati."],
   ["1.0.118","Traffico: scia tratteggiata delle ultime posizioni (2 minuti), per vedere dove va. Avvisi degli spazi aerei regolabili in Impostazioni › Avvisi: anticipo 1–3 minuti, margine di quota, categorie (es. spegnere i controllati nel VDS avanzato con autorizzazione); vietati, regolamentati e parchi avvisano sempre."],
   ["1.0.117","Punti di riporto VFR sulla mappa (pieni gli obbligatori) e nel riporto di posizione degli stimati. Nuova pagina NOTE ENTE (ALTRO o stimati): QNH, squawk (solo cifre 0–7), quota autorizzata, punto di ingresso e frequenza con tasti grandi, frase di readback pronta e QNH mandato allo strumento con un tocco."],
   ["1.0.116","Mappa: spazi aerei disegnati con colori per classe, nome e limiti; quelli lontani dalla tua quota (oltre ±1000 ft) attenuati. Nuovo tasto ◧ LIVELLI sopra lo zoom, con tasti grandi: spazi, traffico, campi, punti VFR, planata e mappa di base. Gli avvisi restano sempre."],
@@ -5081,4 +5082,5 @@ requestAnimationFrame(frame);
 <script src="emergenza.js"></script>
 <script src="livelli.js"></script>
 <script src="note.js"></script>
+<script src="schermo.js"></script>
 </body></html>
