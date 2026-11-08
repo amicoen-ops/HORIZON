@@ -2169,7 +2169,7 @@ PH={
   geoid:lsGet('ia517p_geoid',47), altOfsBy:lsGet('ia517p_altofs2',{phone:lsGet('ia517p_altofs',0),glo:0}), altOfs:0, altCal:lsGet('ia517p_altcal',null),
   srcPref:lsGet('ia517p_src','auto'), src:null, phoneFix:null, glo:{port:null,fix:null,gga:null,want:lsGet('ia517p_glo',false),n:0,hz:0,err:''},
   perf:{avg:0,max:0,n:0,stalls:0,lastRaf:0}, trail:[], fps:lsGet('ia517p_fps',30), hbPrev:lsGet('ia517p_hb',null),
-  compassMode:lsGet('ia517p_compass','ground'), decl:lsGet('ia517p_decl',3), hdgSmooth:lsGet('ia517p_hdgsmooth',4), magDev:lsGet('ia517p_magdev',0), mag:{hdg:null,t:0,abs:false},
+  compassMode:lsGet('ia517p_compass','ground'), decl:lsGet('ia517p_decl',3), hdgSmooth:lsGet('ia517p_hdgsmooth',4), magDev:lsGet('ia517p_magdev',0), magAutoOn:lsGet('ia517p_magauto',true), magAutoLast:lsGet('ia517p_magauto_last',null), magBuf:[], mag:{hdg:null,t:0,abs:false},
   ui:lsGet('ia517p_ui','full'), terrQ:lsGet('ia517p_terrq','auto'), terrLvl:2, terrLow:0, terrHigh:0,
   trkRate:0, trkRateT:0, trkPrev:null, gyroT:0, gyroOk:false, gyroSus:false, turnSrc:'giroscopio',
   ahrs:new PhMahony(), vario:new PhVario(3), ahrsInit:false, smooth:lsGet('ia517p_smooth',3), attF:null, hdg:null, slipF:0, gsPrev:null, dvdt:0,
@@ -2261,6 +2261,25 @@ PH.magFromR=function(Rm,src){
   PH.mag.raw=PH.mag.hdg==null?h:wrap360(PH.mag.raw+angDiff(h,PH.mag.raw)*Math.min(kf,0.25*(tau>0?1:4)));
   PH.mag.hdg=PH.mag.raw; PH.mag.t=now; PH.mag.src=src;
 };
+// bussola corretta da sola alla corsa di decollo: sulle ruote l'aereo va dritto sull'asse, quindi la traccia GPS è la prua
+// vera. Con 20–55 km/h, traccia stabile (<1,5°/s), bussola fresca e affidabile si raccolgono le differenze; finita la corsa,
+// con almeno 5 campioni coerenti (scarto < 8°) si aggiorna la correzione. Nessuna domanda e nessun avviso: si vede in
+// Impostazioni (Bussola e Prima di partire). Col motore a piena potenza: le stesse condizioni in cui serve a terra.
+PH.magAuto=function(){
+  if(!PH.magAutoOn || PH.demo || PH.sim || !S.gpsReal) { PH.magBuf.length=0; return; }
+  const now=performance.now(), gs=S.gs||0, fresh=PH.mag.mRaw!=null && now-PH.mag.t<800 && !(PH.mag.acc!=null&&PH.mag.acc<2);
+  const corsa=gs>=20 && gs<=55 && S.trk!=null && Math.abs(PH.trkRate||0)<1.5 && fresh && Math.abs(PH.vario&&PH.vario.v||0)<1.5;
+  if(corsa){ PH.magBuf.push(angDiff(wrap360(S.trk-(+PH.decl||0)),PH.mag.mRaw)); if(PH.magBuf.length>60) PH.magBuf.shift(); return; }
+  const b=PH.magBuf; if(!b.length) return; PH.magBuf=[];
+  if(b.length<5) return;
+  let sx=0,sy=0; for(const d of b){ sx+=Math.cos(d*D2R); sy+=Math.sin(d*D2R); }
+  const m=Math.atan2(sy,sx)*R2D, sd=Math.sqrt(b.reduce((a,d)=>a+angDiff(d,m)**2,0)/b.length);
+  if(sd>8) return;                                                          // campioni sparsi: corsa non dritta o bussola disturbata
+  const dev=Math.round(m), old=+PH.magDev||0;
+  PH.magAutoLast={t:Date.now(),dev,n:b.length,sd:+sd.toFixed(1)}; lsSet('ia517p_magauto_last',PH.magAutoLast);
+  if(Math.abs(angDiff(dev,old))>=3){ PH.magDev=dev; lsSet('ia517p_magdev',dev); PH.mag.hdg=null; }
+  PH.act&&PH.act(`bussola dal decollo ${dev>0?'+':''}${dev}° (${b.length} campioni, ±${sd.toFixed(1)}°)`);
+};
 PH.magInUse=function(){ return PH.mag.hdg!=null && performance.now()-PH.mag.t<1500 && !PH.demo &&
   (PH.compassMode==='always' || (PH.compassMode==='ground' && !(S.gpsReal && S.gs>25))); };
 // verso dello schermo: 0 verticale, 90 o 270 orizzontale
@@ -2282,7 +2301,9 @@ PH.accCheck=function(a){
 PH.onRotate=function(){ const ang=PH.scrAng(); if(ang===PH.lastAng) return; PH.lastAng=ang;
   PH.ahrsInit=false; PH.attF=null; PH.aAvg=[0,0,0]; PH.act('schermo '+ang+'°'); };
 PH.hdgSmoothTxt=function(){ const v=PH.hdgSmooth; return v<=0?'immediata':(v*0.25).toFixed(2).replace(/0$/,'').replace('.',',')+' s'; };
-PH.magDevTxt=function(){ const d=+PH.magDev||0; return d?`Correzione rispetto alla bussola di bordo: ${d>0?'+':''}${d}°. Rifalla se sposti il telefono o il supporto.`:'Nessuna correzione: se la prua a terra non coincide con la bussola di bordo, premi «Allinea».'; };
+PH.magDevTxt=function(){ const d=+PH.magDev||0, a=PH.magAutoLast;
+  const auto=a?` Ultima verifica al decollo: ${new Date(a.t).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}, ${a.dev>0?'+':''}${a.dev}° (${a.n} campioni).`:(PH.magAutoOn?' Si correggerà da sola alla prossima corsa di decollo.':'');
+  return (d?`Correzione della bussola: ${d>0?'+':''}${d}°.`:'Nessuna correzione.')+auto; };
 PH.smoothTxt=function(){ const v=PH.smooth; return v<=0?'immediato':(v/10).toFixed(1).replace('.',',')+' s'; };
 PH.resetMount=function(){ PH.M=[[0,0,-1],[1,0,0],[0,-1,0]]; PH.mountCal=false; try{ localStorage.removeItem('ia517p_mount'); }catch(e){} PH.ahrsInit=false; toast('MONTAGGIO: TELEFONO VERTICALE'); };
 
@@ -2513,6 +2534,7 @@ PH.applyFix=function(fx){
     PH.trkRate+=(rt-PH.trkRate)*Math.min(1,dtF/1.5); PH.trkRateT=now; }
   else if(gs<=8){ PH.trkRate=0; }
   PH.trkPrev=(gs>8&&trk!=null&&trk===trk)?trk:null;
+  try{ PH.magAuto(); }catch(e){}
   // prua: riallineata alla traccia (corretta con il vento stimato) quando si va abbastanza veloci
   if(S.gs>25 && S.trk!=null){
     let tgt=S.trk;
@@ -3245,6 +3267,7 @@ PH.renderImp=function(){
     <label class="ph-fld ph-range"><span>Bussola più morbida: <b id="phHsV">${PH.hdgSmoothTxt()}</b></span><input id="phHs" type="range" min="0" max="10" step="1" value="${PH.hdgSmooth}"></label>
     <p class="ph-sub">Con il motore acceso le vibrazioni fanno saltare la bussola del telefono: più a destra la prua è più ferma ma segue le virate a terra con un po' di ritardo. In volo, sopra 25 km/h, la prua viene dalla traccia GPS.</p>
     <div class="ph-btns"><button class="ph-btn" id="phMagAl" type="button">Allinea alla bussola di bordo</button><button class="ph-btn" id="phMagZero" type="button">Togli la correzione</button></div>
+    <label class="ph-chk"><input type="checkbox" id="phMagAuto" ${PH.magAutoOn?'checked':''}> Correggi da sola a ogni corsa di decollo (traccia GPS sull'asse pista)</label>
     <p class="ph-sub" id="phMagDevTxt">${PH.magDevTxt()}</p>
   </section>
   <section><h3>Quota GPS</h3>
@@ -3312,6 +3335,7 @@ PH.renderImp=function(){
     const m=v==null?NaN:parseFloat(String(v).replace(',','.')); if(!(m>=0&&m<=360)) return;
     PH.magDev=Math.round(angDiff(m,PH.mag.mRaw)); lsSet('ia517p_magdev',PH.magDev); PH.mag.hdg=null; el('phMagDevTxt').textContent=PH.magDevTxt();
     toast('BUSSOLA ALLINEATA: CORREZIONE '+(PH.magDev>0?'+':'')+PH.magDev+'°'); PH.act&&PH.act('bussola allineata '+PH.magDev); };
+  el('phMagAuto').onchange=e=>{ PH.magAutoOn=e.target.checked; lsSet('ia517p_magauto',PH.magAutoOn); el('phMagDevTxt').textContent=PH.magDevTxt(); };
   el('phMagZero').onclick=()=>{ PH.magDev=0; lsSet('ia517p_magdev',0); PH.mag.hdg=null; el('phMagDevTxt').textContent=PH.magDevTxt(); toast('CORREZIONE BUSSOLA TOLTA'); };
   el('phDecl').onchange=()=>{ const v=+el('phDecl').value; if(v>=-30&&v<=30){ PH.decl=v; lsSet('ia517p_decl',v); } };
   el('phAltSet').onclick=()=>{ const v=+el('phAltKnown').value, src=PH.src||'phone';
@@ -3994,6 +4018,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.113","Bussola corretta da sola a ogni corsa di decollo: sull'asse pista la traccia GPS è la prua vera, l'app la confronta con la bussola del telefono (col motore a piena potenza) e aggiorna la correzione, senza domande. Si spegne in Impostazioni › Bussola."],
   ["1.0.112","Impostazioni riordinate: in cima «Prima di partire» con lo stato di ogni cosa da sistemare a terra e un tasto grande per farla; in volo in cima «In volo» con i soli comandi utili e tasti molto grandi; le altre sezioni si chiudono. In volo tutti i tasti delle pagine diventano più grandi, per la turbolenza."],
   ["1.0.111","Bussola: nuovo cursore «Bussola più morbida» (Impostazioni) contro le vibrazioni del motore, e «Allinea alla bussola di bordo» per correggere la deviazione del telefono (metallo, motore, supporti magnetici)."],
   ["1.0.110","Quote del piano armonizzate: poche quote di crociera invece di un gradino a ogni tratta (si cambia solo quando serve, senza superare limite VDS e basi delle zone). Briefing: le zone R e pericolose si possono segnare «non attive oggi» dopo aver controllato AIP, AUP e NOTAM; per quel giorno rotta, calcolo e avvisi le ignorano."],
