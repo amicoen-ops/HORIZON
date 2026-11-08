@@ -718,8 +718,17 @@ function pip(p,poly){ let ins=false; for(let i=0,j=poly.length-1;i<poly.length;j
   if(((a.lat>p.lat)!==(b.lat>p.lat)) && (p.lon < (b.lon-a.lon)*(p.lat-a.lat)/(b.lat-a.lat)+a.lon)) ins=!ins; } return ins; }
 
 // profilo verticale: salita ~600 ft/km dalla partenza, discesa ~400 ft/km verso l'arrivo
-function profileAt(x,tot,e0,e1){ return Math.min(PLAN.cruiseFt, e0+1000+600*x, e1+1000+400*(tot-x)); }
+// quota di ogni tratta dal piano (la stessa del calcolo: sotto le basi delle zone da evitare, armonizzata). Prima il
+// briefing usava la crociera uguale per tutta la rotta: con una CTA che parte proprio a 2500 ft e la crociera a 2500 ft
+// giudicava «dentro la CTA» una rotta che il piano faceva volare a 2400.
+let PROF_LEGS=null;
+function profileAt(x,tot,e0,e1){ let c=PLAN.cruiseFt;
+  if(PROF_LEGS){ const L=PROF_LEGS.find(l=>x>=l.x0-1e-6&&x<=l.x1+1e-6); if(L&&L.ft!=null) c=L.ft; }
+  return Math.min(c, e0+1000+600*x, e1+1000+400*(tot-x)); }
 function runBriefing(c){
+  PROF_LEGS=null;
+  try{ const R=pvCompute(false); if(R&&R.info&&R.info.length===c.legs.length&&R.info.every(L=>L&&L.altFt!=null)){ let acc=0;
+    PROF_LEGS=c.legs.map((l,i)=>{ const o={x0:acc/1000,x1:(acc+l.d)/1000,ft:R.info[i].altFt}; acc+=l.d; return o; }); } }catch(e){ PROF_LEGS=null; }
   const samples=[]; let acc=0;
   c.legs.forEach(l=>{ const n=Math.max(2,Math.ceil(l.d/250)); for(let i=0;i<=n;i++){ if(i===0&&samples.length) continue; const t=i/n;
     samples.push({lat:l.a.lat+(l.b.lat-l.a.lat)*t, lon:l.a.lon+(l.b.lon-l.a.lon)*t, x:(acc+l.d*t)/1000}); } acc+=l.d; });
