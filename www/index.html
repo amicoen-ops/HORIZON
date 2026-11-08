@@ -2169,7 +2169,7 @@ PH={
   geoid:lsGet('ia517p_geoid',47), altOfsBy:lsGet('ia517p_altofs2',{phone:lsGet('ia517p_altofs',0),glo:0}), altOfs:0, altCal:lsGet('ia517p_altcal',null),
   srcPref:lsGet('ia517p_src','auto'), src:null, phoneFix:null, glo:{port:null,fix:null,gga:null,want:lsGet('ia517p_glo',false),n:0,hz:0,err:''},
   perf:{avg:0,max:0,n:0,stalls:0,lastRaf:0}, trail:[], fps:lsGet('ia517p_fps',30), hbPrev:lsGet('ia517p_hb',null),
-  compassMode:lsGet('ia517p_compass','ground'), decl:lsGet('ia517p_decl',3), mag:{hdg:null,t:0,abs:false},
+  compassMode:lsGet('ia517p_compass','ground'), decl:lsGet('ia517p_decl',3), hdgSmooth:lsGet('ia517p_hdgsmooth',4), magDev:lsGet('ia517p_magdev',0), mag:{hdg:null,t:0,abs:false},
   ui:lsGet('ia517p_ui','full'), terrQ:lsGet('ia517p_terrq','auto'), terrLvl:2, terrLow:0, terrHigh:0,
   trkRate:0, trkRateT:0, trkPrev:null, gyroT:0, gyroOk:false, gyroSus:false, turnSrc:'giroscopio',
   ahrs:new PhMahony(), vario:new PhVario(3), ahrsInit:false, smooth:lsGet('ia517p_smooth',3), attF:null, hdg:null, slipF:0, gsPrev:null, dvdt:0,
@@ -2252,9 +2252,14 @@ PH.magFromR=function(Rm,src){
   let w=toE(toDev(PH.M[0]));                                               // asse avanti dell'aereo
   if(Math.abs(w[2])>0.85) w=toE(toDev([0,1,0]));                           // telefono in piano: conta il lato alto dello schermo
   if(Math.hypot(w[0],w[1])<0.2) return;
-  const h=wrap360(Math.atan2(w[0],w[1])*R2D+(+PH.decl||0));                // magnetico -> vero con la declinazione
-  PH.mag.raw=PH.mag.hdg==null?h:wrap360(PH.mag.raw+angDiff(h,PH.mag.raw)*0.25);
-  PH.mag.hdg=PH.mag.raw; PH.mag.t=performance.now(); PH.mag.src=src;
+  const hm=wrap360(Math.atan2(w[0],w[1])*R2D);                               // magnetico (come lo legge il telefono)
+  PH.mag.mRaw=hm;
+  const h=wrap360(hm+(+PH.magDev||0)+(+PH.decl||0));                       // + deviazione (allineata alla bussola di bordo) + declinazione = vera
+  // filtro regolabile (Impostazioni › Bussola più morbida): le vibrazioni del motore fanno saltare il magnetometro
+  const now=performance.now(), dt=PH.mag.t?Math.min(1,(now-PH.mag.t)/1000):0.05, tau=Math.max(0,+PH.hdgSmooth||0)*0.25;
+  const kf=tau>0?1-Math.exp(-dt/tau):1;
+  PH.mag.raw=PH.mag.hdg==null?h:wrap360(PH.mag.raw+angDiff(h,PH.mag.raw)*Math.min(kf,0.25*(tau>0?1:4)));
+  PH.mag.hdg=PH.mag.raw; PH.mag.t=now; PH.mag.src=src;
 };
 PH.magInUse=function(){ return PH.mag.hdg!=null && performance.now()-PH.mag.t<1500 && !PH.demo &&
   (PH.compassMode==='always' || (PH.compassMode==='ground' && !(S.gpsReal && S.gs>25))); };
@@ -2276,6 +2281,8 @@ PH.accCheck=function(a){
 };
 PH.onRotate=function(){ const ang=PH.scrAng(); if(ang===PH.lastAng) return; PH.lastAng=ang;
   PH.ahrsInit=false; PH.attF=null; PH.aAvg=[0,0,0]; PH.act('schermo '+ang+'°'); };
+PH.hdgSmoothTxt=function(){ const v=PH.hdgSmooth; return v<=0?'immediata':(v*0.25).toFixed(2).replace(/0$/,'').replace('.',',')+' s'; };
+PH.magDevTxt=function(){ const d=+PH.magDev||0; return d?`Correzione rispetto alla bussola di bordo: ${d>0?'+':''}${d}°. Rifalla se sposti il telefono o il supporto.`:'Nessuna correzione: se la prua a terra non coincide con la bussola di bordo, premi «Allinea».'; };
 PH.smoothTxt=function(){ const v=PH.smooth; return v<=0?'immediato':(v/10).toFixed(1).replace('.',',')+' s'; };
 PH.resetMount=function(){ PH.M=[[0,0,-1],[1,0,0],[0,-1,0]]; PH.mountCal=false; try{ localStorage.removeItem('ia517p_mount'); }catch(e){} PH.ahrsInit=false; toast('MONTAGGIO: TELEFONO VERTICALE'); };
 
@@ -3235,6 +3242,10 @@ PH.renderImp=function(){
     <p class="ph-sub">La prua viene dalla bussola del telefono, corretta in prua vera con la declinazione magnetica. In volo, sopra 25 km/h, conta la traccia GPS corretta col vento, perché nell'abitacolo motore e metallo disturbano la bussola. Se la bussola sbaglia, calibrala muovendo il telefono a otto per qualche secondo, lontano da oggetti di metallo.</p>
     <div class="ph-seg" id="phCmp">${[['ground','A terra e lento'],['always','Sempre'],['never','Mai']].map(([k2,l])=>`<button data-c="${k2}" aria-pressed="${PH.compassMode===k2}">${l}</button>`).join('')}</div>
     <div class="ph-btns"><label class="ph-fld">Declinazione magnetica (°, Est positiva; Piemonte ≈ +3)<input id="phDecl" type="number" step="0.5" value="${PH.decl}"></label></div>
+    <label class="ph-fld ph-range"><span>Bussola più morbida: <b id="phHsV">${PH.hdgSmoothTxt()}</b></span><input id="phHs" type="range" min="0" max="10" step="1" value="${PH.hdgSmooth}"></label>
+    <p class="ph-sub">Con il motore acceso le vibrazioni fanno saltare la bussola del telefono: più a destra la prua è più ferma ma segue le virate a terra con un po' di ritardo. In volo, sopra 25 km/h, la prua viene dalla traccia GPS.</p>
+    <div class="ph-btns"><button class="ph-btn" id="phMagAl" type="button">Allinea alla bussola di bordo</button><button class="ph-btn" id="phMagZero" type="button">Togli la correzione</button></div>
+    <p class="ph-sub" id="phMagDevTxt">${PH.magDevTxt()}</p>
   </section>
   <section><h3>Quota GPS</h3>
     <p class="ph-sub">L'app non usa il barometro: la quota è quella GPS (±10–30 m), riportata al livello del mare con il geoide e tarata da sola quando sei fermo su un campo di quota nota. Non usarla al posto dell'altimetro.</p>
@@ -3295,6 +3306,13 @@ PH.renderImp=function(){
   el('phFlType').querySelectorAll('button').forEach(b=>b.onclick=()=>{ IA517_RULES.set(b.dataset.p); el('phFlType').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.renderAsp();
     try{ const w=el('phAppFrame').contentWindow; w.IA517_profChanged&&w.IA517_profChanged(); }catch(e){} const pr=IA517_RULES.PROFILES[b.dataset.p]; toast('TIPO DI VOLO: '+(pr?pr.short:b.dataset.p)); });
   el('phCmp').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.compassMode=b.dataset.c; lsSet('ia517p_compass',PH.compassMode); el('phCmp').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); stat(); });
+  el('phHs').oninput=e=>{ PH.hdgSmooth=+e.target.value; lsSet('ia517p_hdgsmooth',PH.hdgSmooth); el('phHsV').textContent=PH.hdgSmoothTxt(); };
+  el('phMagAl').onclick=()=>{ if(PH.mag.mRaw==null){ toast('BUSSOLA DEL TELEFONO NON DISPONIBILE'); return; }
+    const v=prompt('Aereo fermo, motore acceso, telefono nel supporto: quanto segna la bussola di bordo (gradi magnetici)?','');
+    const m=v==null?NaN:parseFloat(String(v).replace(',','.')); if(!(m>=0&&m<=360)) return;
+    PH.magDev=Math.round(angDiff(m,PH.mag.mRaw)); lsSet('ia517p_magdev',PH.magDev); PH.mag.hdg=null; el('phMagDevTxt').textContent=PH.magDevTxt();
+    toast('BUSSOLA ALLINEATA: CORREZIONE '+(PH.magDev>0?'+':'')+PH.magDev+'°'); PH.act&&PH.act('bussola allineata '+PH.magDev); };
+  el('phMagZero').onclick=()=>{ PH.magDev=0; lsSet('ia517p_magdev',0); PH.mag.hdg=null; el('phMagDevTxt').textContent=PH.magDevTxt(); toast('CORREZIONE BUSSOLA TOLTA'); };
   el('phDecl').onchange=()=>{ const v=+el('phDecl').value; if(v>=-30&&v<=30){ PH.decl=v; lsSet('ia517p_decl',v); } };
   el('phAltSet').onclick=()=>{ const v=+el('phAltKnown').value, src=PH.src||'phone';
     if(!isFinite(PH.mslRaw)){ toast('ASPETTA IL GPS E RIPROVA'); return; } if(!(v>-100&&v<5000)){ toast('QUOTA NON VALIDA'); return; }
@@ -3976,6 +3994,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.111","Bussola: nuovo cursore «Bussola più morbida» (Impostazioni) contro le vibrazioni del motore, e «Allinea alla bussola di bordo» per correggere la deviazione del telefono (metallo, motore, supporti magnetici)."],
   ["1.0.110","Quote del piano armonizzate: poche quote di crociera invece di un gradino a ogni tratta (si cambia solo quando serve, senza superare limite VDS e basi delle zone). Briefing: le zone R e pericolose si possono segnare «non attive oggi» dopo aver controllato AIP, AUP e NOTAM; per quel giorno rotta, calcolo e avvisi le ignorano."],
   ["1.0.109","Nomi dei punti anche per quelli creati da «Calcola rotta» (R1, R2…) e per quelli già salvati come P1: riapri la rotta e premi Fatto. Al salvataggio l'app aspetta qualche secondo che i nomi arrivino. Riporto di posizione: niente più «Campo utente». Vista 3D: altezza sul terreno dell'aereo dal rilievo fine."],
   ["1.0.108","Vista 3D degli spazi aerei: terreno più scuro, niente più pareti finte sul bordo della zona (i grandi CTA e TMA non fanno più da scatola), FILTRI (solo gli spazi della rotta, categorie, «Nascondi» sul singolo spazio), ✈ SEGUI per seguire il proprio aereo in simulazione con la scia e gli spazi in cui si è dentro."],
