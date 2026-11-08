@@ -141,6 +141,7 @@
   .it{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;padding:10px 0;border-bottom:1px solid #1f2830;min-width:0}
   .it:last-child{border-bottom:0}
   .it .cls{font-family:var(--f-display);font-weight:700;font-size:12px;padding:2px 7px;border-radius:6px;border:1px solid currentColor;align-self:start;white-space:nowrap}
+  .it>.btn{grid-column:1/-1;justify-self:start;white-space:normal;text-align:left;max-width:100%}
   .it .t{font-weight:700;min-width:0}
   .it .s,.it .v{grid-column:2;font-size:13.5px;min-width:0}
   .it .s{color:var(--dim)} .it .v{font-weight:600}
@@ -862,7 +863,7 @@ function renderBriefing(c){
       <span class="t">${esc(x.a.name||'senza nome')}</span>
       <span class="s">${x.segs.map(s=>`km ${s[0].toFixed(1)}–${s[1].toFixed(1)}`).join(', ')} · da ${esc(x.a.lo.txt)} a ${esc(x.a.hi.txt)}</span>
       <span class="v ${x.status}">${esc(x.verdict)}</span>
-      ${RU.inattivabile&&RU.inattivabile(x.a)?`<button class="btn" type="button" data-inatt="${i}" style="margin-top:6px">${RU.inattiva(x.a)?'↺ Segna di nuovo attiva':'Non attiva oggi (verificato su AIP, AUP, NOTAM)'}</button>`:''}</div>`).join(''):'<div class="sub">La rotta non attraversa spazi aerei del file caricato.</div>';
+      ${RU.inattivabile&&RU.inattivabile(x.a)?`<button class="btn" type="button" data-inatt="${i}" style="margin-top:6px;grid-column:1/-1;justify-self:start;white-space:normal;text-align:left;max-width:100%">${RU.inattiva(x.a)?'↺ Segna di nuovo attiva':'Non attiva oggi (verificato su AIP, AUP, NOTAM)'}</button>`:''}</div>`).join(''):'<div class="sub">La rotta non attraversa spazi aerei del file caricato.</div>';
   $('aspList').querySelectorAll('[data-inatt]').forEach(bt=>bt.addEventListener('click',()=>{ const a=b.asp[+bt.dataset.inatt].a, on=!IA517_RULES.inattiva(a);
     if(on && !confirm(`${a.name||a.cls}: confermi che OGGI è disattivata? Controlla AIP, AUP e NOTAM. Il segno vale solo per oggi.`)) return;
     IA517_RULES.setInattiva(a,on); PV.key=null; toast(on?'Segnata non attiva per oggi: rotta e avvisi la ignorano':'Di nuovo attiva'); update(); }));
