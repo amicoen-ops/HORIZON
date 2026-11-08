@@ -51,19 +51,12 @@ jobs:
           for cc in it fr ch at si; do curl -sSfL --max-time 120 -o oa/${cc}_apt.json https://storage.openaip.net/openaip-system-exports/${cc}_apt.json || echo "openAIP campi $cc non raggiungibili"; done
           python3 tools/carburante_openaip.py oa sito/dati/carburante.json || echo "carburante non aggiornato"
           ls -la sito sito/dati
-      - name: Versione 2 di prova in /v2/ (dai sorgenti del ramo v2)
+      # La vecchia «v2» del ramo v2 era rimasta indietro: ora /v2/ porta alla versione attuale (HORIZON 2 è l'app
+      # Android di prova con l'orologio Garmin, compilata dagli stessi file della versione 1 più il collegamento).
+      - name: /v2/ porta alla versione attuale
         run: |
-          git fetch --depth 1 origin v2 && mkdir -p v2src && git --work-tree=v2src checkout origin/v2 -- sorgenti LICENSE NOTE-TERZE-PARTI || { echo "ramo v2 non disponibile"; exit 0; }
-          pip install --quiet pillow
-          python3 v2src/sorgenti/build_android.py
-          mkdir -p sito/v2 && cp -r v2src/sorgenti/www_build/. sito/v2/
-          rm -f sito/v2/capacitor.js sito/v2/LEGGIMI.md
-          h=$(cat sito/v2/index.html sito/v2/app.html sito/v2/carburante.js | sha1sum | cut -c1-8)
-          echo "window.IA517_BUILD={version:'v2 web',build:'${h}',channel:'web',line:'v2'};" > sito/v2/version.js
-          sed -i -E "s/\"(short_)?name\": *\"[^\"]*\"/\"\1name\": \"HORIZON v2\"/g" sito/v2/manifest.webmanifest
-          cp -r sito/dati sito/v2/dati
-          git checkout HEAD -- . 2>/dev/null || true
-          ls -la sito/v2
+          mkdir -p sito/v2
+          printf '%s\n' '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=../"><title>HORIZON</title><a href="../">HORIZON</a>' > sito/v2/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
