@@ -72,9 +72,9 @@ class HorizonView extends WatchUi.View {
         var hr = (app.sens != null && app.sens.heartRate != null) ? app.sens.heartRate.toString() : "--";
         var o = app.ox();
         dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w * 0.36, h * 0.80, Graphics.FONT_SMALL, "HR " + hr, Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(w * 0.48, h * 0.80, Graphics.FONT_TINY, "HR " + hr + "  ", Graphics.TEXT_JUSTIFY_RIGHT);
         dc.setColor(o == null ? Graphics.COLOR_LT_GRAY : (o < 88 ? Graphics.COLOR_RED : (o < 92 ? Graphics.COLOR_YELLOW : Graphics.COLOR_BLUE)), Graphics.COLOR_TRANSPARENT);
-        dc.drawText(w * 0.66, h * 0.80, Graphics.FONT_SMALL, o == null ? "SpO2 --" : "SpO2 " + o.toNumber().toString() + "%", Graphics.TEXT_JUSTIFY_CENTER);
+        dc.drawText(w * 0.52, h * 0.80, Graphics.FONT_TINY, o == null ? "SpO2 --" : "SpO2 " + o.toNumber().toString() + "%", Graphics.TEXT_JUSTIFY_LEFT);
     }
 }
 
