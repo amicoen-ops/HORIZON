@@ -9,6 +9,7 @@ import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Position;
 import Toybox.System;
+import Toybox.Timer;
 import Toybox.WatchUi;
 
 class HorizonView extends WatchUi.View {
@@ -90,13 +91,54 @@ class HorizonView extends WatchUi.View {
     }
 }
 
-// tasti: START = OK, SU = ruota a sinistra, GIÙ = ruota a destra, SU tenuto (menu) = cambia pagina
+// tasti: START = OK, SU = ruota a sinistra, GIÙ = ruota a destra, SU tenuto (menu) = cambia pagina,
+// GIÙ + BACK insieme (i due tasti in basso) = cambia pagina, BACK da solo = esci.
+// GIÙ e BACK aspettano un attimo (0,35 s) prima di agire: se nel frattempo arriva l'altro tasto è la combinazione.
 class HorizonDelegate extends WatchUi.BehaviorDelegate {
     var app;
+    var tDown = 0;
+    var tEsc = 0;
+    var comboT = -10000;
+    var pend = null;
+    var pendT = null;
 
     function initialize(a) {
         BehaviorDelegate.initialize();
         app = a;
+        pendT = new Timer.Timer();
+    }
+
+    function onKeyPressed(evt) {
+        var k = evt.getKey(), now = System.getTimer();
+        if (k == WatchUi.KEY_DOWN) { tDown = now; }
+        else if (k == WatchUi.KEY_ESC) { tEsc = now; }
+        var d = tDown - tEsc;
+        if (tDown > 0 && tEsc > 0 && d < 400 && d > -400 && now - comboT > 800) {
+            comboT = now;
+            annulla();
+            app.key("pg");
+            return true;
+        }
+        return false;
+    }
+
+    function annulla() {
+        pendT.stop();
+        pend = null;
+    }
+
+    function rimanda(cosa) {
+        annulla();
+        pend = cosa;
+        pendT.start(method(:esegui), 350, false);
+    }
+
+    function esegui() as Void {
+        var p = pend;
+        pend = null;
+        if (p == null || System.getTimer() - comboT < 800) { return; }
+        if (p.equals("r")) { app.key("r"); }
+        else if (p.equals("esci")) { System.exit(); }
     }
 
     function onSelect() {
@@ -110,7 +152,14 @@ class HorizonDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onNextPage() {
-        app.key("r");
+        if (System.getTimer() - comboT < 800) { return true; }
+        rimanda("r");
+        return true;
+    }
+
+    function onBack() {
+        if (System.getTimer() - comboT < 800) { return true; }
+        rimanda("esci");
         return true;
     }
 

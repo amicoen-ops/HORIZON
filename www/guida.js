@@ -91,7 +91,7 @@ PH.guidaTasti=function(){
     ${tasto(90,112,-1,'SU','◀ manopola','#33e1ff','tieni: PAGINA')}
     ${tasto(96,176,-1,'GIÙ','▶ manopola','#33e1ff')}
     ${tasto(264,62,1,'START','OK (premi)','#3ddc84')}
-    ${tasto(264,176,1,'BACK','esci dall\'app','#ffc531')}
+    ${tasto(264,170,1,'BACK','esci dall\'app','#ffc531','con GIÙ: PAGINA')}
   </svg>`; };
 const G=[
   {id:'inizio',t:'Primi passi',h:`
@@ -209,8 +209,8 @@ const G=[
     ${PH.guidaTasti()}
     <ul><li><b>START</b> = OK della manopola (premi): menu, conferme, DIRECT TO.</li>
     <li><b>SU</b> e <b>GIÙ</b> = ruota la manopola a sinistra e a destra: zoom della mappa, scelta nei menu, bug di prua.</li>
-    <li><b>SU tenuto</b> (menu dell'orologio) = cambia pagina, orizzonte o mappa.</li>
-    <li><b>BACK</b> = esci dall'app sull'orologio. <b>LIGHT</b> = luce, come sempre.</li></ul>
+    <li><b>SU tenuto</b> (menu dell'orologio), oppure <b>GIÙ + BACK insieme</b> (i due tasti in basso) = cambia pagina, orizzonte o mappa.</li>
+    <li><b>BACK</b> da solo = esci dall'app sull'orologio (dopo un attimo, per distinguerlo dalla combinazione). <b>LIGHT</b> = luce, come sempre.</li></ul>
     <p>Tasti fisici: in turbolenza si premono a colpo sicuro, senza cercare il punto giusto sullo schermo.</p>
     <p>Sull'orologio: velocità, quota, vario e destinazione dallo strumento. Con un avviso (terreno, spazi aerei, traffico) vibra e lo scrive: rosso se urgente, giallo se informativo.</p>
     <p>Dall'orologio allo strumento: <b>GPS</b> (fonte di posizione in più: Impostazioni › Posizione, la più precisa oppure solo orologio), <b>barometro</b> (quota con il QNH, come l'altimetro di bordo), <b>bussola</b> (solo con l'orologio fermo sul cruscotto: al polso si muove con il braccio), battito, saturazione SpO₂ e batteria. In HORIZON 2 le caselle BATTITO e SpO₂ sono tra quelle di partenza (anche PRESSIONE si può aggiungere, Impostazioni › Interfaccia); la SpO₂ è gialla sotto il 92% e rossa sotto l'88%. Per la SpO₂ sull'orologio va acceso il Pulse Ox (Impostazioni › Salute e benessere › Pulse Ox › Tutto il giorno): consuma batteria. Se non misura in diretta, si vede l'ultima misura con la sua età. Tutto in Impostazioni › Orologio Garmin.</p>`},
