@@ -55,7 +55,7 @@ G.avvia().then(s=>{ PH.fenix.stato=s||{}; }).catch(e=>{ PH.fenix.stato={errore:S
 // allo strumento: dati da mostrare sull'orologio, una volta al secondo
 setInterval(()=>{ if(!PH.fenix.stato.collegato) return;
   let dt=''; try{ if(NAV.dest){ const b=distBrg(S,NAV.dest); dt=`${NAV.dest.short.slice(0,10)} ${(b.d/1000).toFixed(1)} km ${String(Math.round(b.brg)).padStart(3,'0')}°`; } }catch(e){}
-  G.invia({msg:{t:'s',gs:Math.round(S.gs||0),al:Math.round(S.alt||0),vs:+(S.vs||0).toFixed(1),dt}}).catch(()=>{}); },1000);
+  G.invia({msg:{t:'s',gs:Math.round(S.gs||0),al:Math.round(S.alt||0),vs:+(S.vs||0).toFixed(1),dt}}).catch(()=>{}); },2000);   // ogni 2 s: il collegamento passa da Garmin Connect, non va intasato
 // avvisi: quando lo strumento parla, l'orologio vibra e lo scrive
 { const prev=PH.alert; PH.alert=function(key,level,text){ const b=PH.alerts[key]; const r=prev.apply(this,arguments);
     if(PH.alerts[key]!==b && PH.fenixCfg.avvisi && PH.fenix.stato.collegato) G.invia({msg:{t:'a',l:level==='W'?'W':'C',x:String(text).slice(0,40)}}).catch(()=>{});

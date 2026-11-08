@@ -147,11 +147,14 @@ class HorizonApp extends Application.AppBase {
 
     function tick() as Void {
         var now = System.getTimer();
-        if (busy && now - busyT > 4000) { busy = false; }        // risposta persa: si riprova
+        // l'invio passa da Garmin Connect e può metterci parecchi secondi: mai un secondo invio finché il primo non risponde
+        // (troppi invii in attesa fanno chiudere l'app); dopo 15 s senza risposta si riprova
+        if (busy && now - busyT > 15000) { busy = false; }
         if (linkOk && now - linkT > 8000) { linkOk = false; }
         nTick++;
         if (nTick % 30 == 1) { storicoOx(); }
-        if (queue.size() == 0) { queue.add(dati()); }
+        if (queue.size() > 4) { queue = queue.slice(queue.size() - 4, null); }   // coda corta: i dati vecchi non servono
+        if (queue.size() == 0 && !busy) { queue.add(dati()); }
         send();
         WatchUi.requestUpdate();
     }

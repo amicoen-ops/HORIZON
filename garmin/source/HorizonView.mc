@@ -25,7 +25,18 @@ class HorizonView extends WatchUi.View {
         return v.toFloat().format("%." + dec + "f");
     }
 
+    // un errore nel disegno non deve chiudere l'app: si scrive e si va avanti
     function onUpdate(dc) {
+        try {
+            disegna(dc);
+        } catch (e) {
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            dc.clear();
+            dc.drawText(dc.getWidth() / 2, dc.getHeight() / 2, Graphics.FONT_SMALL, "HORIZON Link", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
+    }
+
+    function disegna(dc) {
         var w = dc.getWidth(), h = dc.getHeight(), cx = w / 2;
         var now = System.getTimer();
         // avviso dello strumento
