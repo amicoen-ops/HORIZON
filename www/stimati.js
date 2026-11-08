@@ -32,6 +32,7 @@ function gsOn(trk){
 // posizione detta come la vuole l'ente: distanza e settore dal campo più vicino
 function posizione(){
   if(S.lat==null) return null;
+  try{ const v=PH.vrpPos&&PH.vrpPos(); if(v) return {txt:v}; }catch(e){}            // vicino a un punto di riporto VFR: si usa quello
   let best=null; for(const f of FIELDS){ if(f.kind==='wp'||/^campo utente\b/i.test(f.name||'')) continue;   /* i campi senza nome non dicono niente all'ente */ const d=distBrg(f,S).d; if(!best||d<best.d) best={f,d}; }
   if(!best||best.d>25000) return {txt:`${Math.abs(S.lat).toFixed(2)}${S.lat>=0?'N':'S'} ${Math.abs(S.lon).toFixed(2)}${S.lon>=0?'E':'W'}`};
   if(best.d<1500) return {txt:'sopra '+best.f.name,f:best.f};
@@ -80,7 +81,8 @@ function html(){
       :`<section><h3>Stimati</h3><p class="ph-sub">Nessuna rotta o destinazione: fai un Direct To o attiva una rotta e qui compaiono stimati e ore di passaggio.</p></section>`}
     <section><h3>Autonomia</h3><div class="ph-row"><span><b>${endur!=null?MIN(endur):'—'}</b>${fuel?` · ${Math.round(fuel.L)} L a ${fuel.burn} L/h`:''}</span><small>${fuel?esc(fuel.how):''}</small></div>
       <p class="ph-sub">Si dice in ore e minuti (es. «autonomia 2 ore e 10»); se serve, correggi il carburante in ALTRO › CARBURANTE.</p></section>
-    <div class="ph-btns"><button class="ph-btn" type="button" id="hzStF">Frequenze</button></div>
+    ${PH.noteLine&&PH.noteLine()?`<section><h3>Note dell'ente</h3><p class="hz-rip" style="font-size:17px">${esc(PH.noteLine())}</p></section>`:''}
+    <div class="ph-btns"><button class="ph-btn" type="button" id="hzStF">Frequenze</button><button class="ph-btn" type="button" id="hzStN">📝 Note ente</button></div>
   </div>`;
 }
 { const st=document.createElement('style');
@@ -104,7 +106,8 @@ PH.stimOpen=function(){
   const draw=()=>{ const y=d.querySelector('.ph-imp')?d.querySelector('.ph-imp').scrollTop:0; d.innerHTML=html();
     d.querySelector('.ph-imp').scrollTop=y;
     document.getElementById('hzStB').onclick=()=>{ clearInterval(tm); d.remove(); };
-    document.getElementById('hzStF').onclick=()=>{ PH.freqOpen&&PH.freqOpen(); }; };
+    document.getElementById('hzStF').onclick=()=>{ PH.freqOpen&&PH.freqOpen(); };
+    document.getElementById('hzStN').onclick=()=>{ clearInterval(tm); d.remove(); PH.noteOpen&&PH.noteOpen(); }; };
   document.body.appendChild(d); draw();
   const tm=setInterval(()=>{ if(!document.getElementById('hzSt')){ clearInterval(tm); return; } try{ draw(); }catch(e){} },5000);
   PH.act&&PH.act('stimati');
