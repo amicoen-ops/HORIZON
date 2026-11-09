@@ -4,7 +4,8 @@ name: Licenze per posta
 #  · richieste nuove di licenza → risponde con prezzi e link PayPal (fuori dall'app);
 #  · mail con l'etichetta M, A o P (messa a mano dall'autore dopo il pagamento) → crea il codice, lo manda al pilota,
 #    lo annota nel registro cifrato sul ramo «licenze» (anche nome e mail del pilota), sposta la mail in «Gestite»
-#    e manda all'autore la mail «Riepilogo licenze» con la tabella di tutte (anche a richiesta: input «riepilogo»).
+#    una volta al giorno (e a richiesta: input «riepilogo») manda all'autore la mail «Riepilogo licenze» con la tabella
+#    di tutte, che finisce nell'etichetta «Archivio generale licenze».
 # Serve il segreto GMAIL_LICENZE (password per le app di horizonlicenses); senza, la corsa non fa niente.
 # Progetto pubblico: nei log solo conteggi.
 on:
@@ -56,12 +57,14 @@ jobs:
           umask 077; T=$(mktemp -d)
           dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
           dec reg/licenze/chiave_privata.pem.enc $T/priv.pem; dec reg/licenze/registro.json.enc $T/reg.json
-          PRIVATA=$T/priv.pem PUBBLICA=reg/licenze/chiave_pubblica.txt REGISTRO=$T/reg.json REVOCATE=reg/licenze/revocate.json RIEPILOGO="$GITHUB_STEP_SUMMARY" \
+          PRIVATA=$T/priv.pem PUBBLICA=reg/licenze/chiave_pubblica.txt REGISTRO=$T/reg.json REVOCATE=reg/licenze/revocate.json ULTIMO_RIEPILOGO=reg/licenze/ultimo_riepilogo.txt RIEPILOGO="$GITHUB_STEP_SUMMARY" \
             python3 tools/posta_licenze.py || ERR=1
           # il registro si salva anche se la corsa si è fermata a metà: i codici già mandati restano annotati
           if ! cmp -s <(dec reg/licenze/registro.json.enc /dev/stdout) $T/reg.json; then
             openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in $T/reg.json -out reg/licenze/registro.json.enc -pass env:KEYSTORE_PASSWORD
-            cd reg; git add -A; git commit -qm "Licenze: codici mandati per posta [skip ci]"; git push -q origin HEAD:licenze; cd ..
           fi
+          cd reg
+          if [ -n "$(git status --porcelain)" ]; then git add -A; git commit -qm "Licenze: registro e riepilogo [skip ci]"; git push -q origin HEAD:licenze; fi
+          cd ..
           rm -rf $T
           [ -z "$ERR" ]

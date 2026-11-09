@@ -26,6 +26,7 @@ import licenze
 
 TIPI = {'M': 'mensile', 'A': 'annuale', 'P': 'perenne'}
 DA_GESTIRE, GESTITE, DA_VEDERE, INBOX = 'Da gestire', 'Gestite', 'Da vedere', '\\Inbox'
+ARCHIVIO = 'Archivio generale licenze'
 PASSI_PAYPAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'licenze', 'paypal-passi.png')
 PREZZI = {'M': 5, 'A': 30, 'P': 150}
 TEL = re.compile(r'(?<![A-Z0-9])([A-Z2-9]{4})-([A-Z2-9]{4})-([A-Z2-9]{4})(?![A-Z0-9])')
@@ -248,7 +249,7 @@ def riepilogo(posta, registro, revocate):
              + ''.join(f'<th {td}>{h}</th>' for h in ('N.', 'Tipo', 'Pilota', 'Telefono', 'Emessa', 'Scade', 'Stato')) + '</tr>'
              + ''.join(righe).replace('<td>', f'<td {td}>') + '</table>'
              '<p style="color:#666;font-size:13px">Per revocare: GitHub › Actions › Licenze › Run workflow › revoca, con il numero.<br>'
-             'Per avere questo riepilogo quando vuoi: GitHub › Actions › Licenze per posta › Run workflow › «riepilogo».</p>')
+             'Arriva una volta al giorno. Per averlo subito: GitHub › Actions › Licenze per posta › Run workflow › «riepilogo».</p>')
     r = EmailMessage()
     r['From'] = email.utils.formataddr(('HORIZON', posta.utente)); r['To'] = posta.utente
     r['Subject'] = f'HORIZON · Riepilogo licenze · {oggi.strftime("%d/%m/%Y")}'
@@ -307,9 +308,16 @@ def main():
         # le nostre risposte nella stessa conversazione: l'etichetta M/A/P messa a mano la prendono anche loro
         for uid in posta.cerca(f'label:{tipo.lower()} from:me'): posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE])
     if recupera_indirizzi(posta, registro, pub): json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)
-    if conti['codici'] or env.get('MANDA_RIEPILOGO') == 'true':
+    # 3. riepilogo: uno al giorno (al primo giro del giorno) o a richiesta; finisce in «Archivio generale licenze»
+    import datetime
+    oggi = datetime.date.today().isoformat(); fu = env.get('ULTIMO_RIEPILOGO')
+    ultimo = open(fu).read().strip() if fu and os.path.exists(fu) else ''
+    if ultimo != oggi or env.get('MANDA_RIEPILOGO') == 'true':
         revocate = set(json.load(open(env['REVOCATE'])).get('revocate', [])) if env.get('REVOCATE') and os.path.exists(env['REVOCATE']) else set()
         riepilogo(posta, registro, revocate); conti['riepilogo'] = 1
+        if fu: open(fu, 'w').write(oggi + '\n')
+    for uid in posta.cerca('subject:(HORIZON Riepilogo licenze) -label:archivio-generale-licenze'):
+        posta.etichetta(uid, aggiungi=[ARCHIVIO], togli=[INBOX])        # quello appena mandato lo sposta il giro dopo
     posta.imap.logout()
 
     riga = f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"
