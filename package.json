@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
-  "author": "Enrico D'Amico <amicoen@gmail.com>",
+  "author": "Enrico D'Amico <horizonlicenses@gmail.com>",
   "description": "Strumento di volo I-A517 per telefono e tablet Android",
   "scripts": { "sync": "npx cap sync android" },
   "dependencies": {

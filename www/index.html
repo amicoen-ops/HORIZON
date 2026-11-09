@@ -2428,7 +2428,7 @@ PH.recFinish=async function(){ const R=PH.rec; if(!R) return; PH.rec=null; const
     await Promise.race([PH.sendReport(rep),new Promise((_,no)=>setTimeout(()=>no(new Error('nessuna risposta in 20 s')),20000))]);
     set('ok','Inviata per posta ('+R.rows.length+' righe). Grazie.'); toast('REGISTRAZIONE INVIATA');
   }catch(err){ const m=String(err&&err.message||err).slice(0,120); PH.logErr&&PH.logErr('registrazione sensori: '+m);
-    set('file','Invio automatico non riuscito ('+m+'). Si apre la condivisione: scegli Gmail e invia il file ad amicoen@gmail.com.');
+    set('file','Invio automatico non riuscito ('+m+'). Si apre la condivisione: scegli Gmail e invia il file a '+PH_INFO.mail+'.');
     toast('INVIO NON RIUSCITO: SCEGLI GMAIL');
     try{ await PH.download('HORIZON-sensori-'+new Date().toISOString().slice(0,19).replace(/[T:]/g,'-')+'.txt',txt||R.rows.join('\n'),'text/plain'); }catch(e){} } };
 PH.recUi=function(){ const b=el('phRecGo'), m=el('phRecMsg'); if(!b||!m) return; const st=PH.recState;
@@ -4058,15 +4058,16 @@ PH.simDemWait=function(now){
 // =====================================================================================
 const PH_INFO={
   author:'Enrico D\'Amico',
-  mail:'amicoen@gmail.com',                       // le segnalazioni arrivano qui (FormSubmit, poi posta)
+  mail:'horizonlicenses@gmail.com',                // posta di HORIZON: segnalazioni e licenze (Web3Forms, poi FormSubmit, poi posta)
   paypal:'https://www.paypal.me/amicoen',
   web:'https://amicoen-ops.github.io/HORIZON/',
-  w3f:'11d0883a-25d2-4be5-aa08-d0f6ce0623d3',                                         // chiave pubblica Web3Forms (vuota: FormSubmit, poi condivisione)
+  w3f:'d6ca2a97-72cb-4c5f-bbe2-629935434f20',                                         // chiave pubblica Web3Forms (vuota: FormSubmit, poi condivisione)
   releases:'https://api.github.com/repos/amicoen-ops/HORIZON/releases/latest',
   termsVersion:2,                                 // 2: aggiunta la licenza
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.138","Nuova casella di HORIZON: segnalazioni, registrazioni e domande arrivano a horizonlicenses@gmail.com."],
   ["1.0.130","Posizione: «La più precisa» sceglie da sola tra GPS del telefono e Garmin GLO 2 quella con la precisione migliore in quel momento (cambia solo se l'altra è meglio del 30% per 5 secondi, subito se quella in uso perde il segnale); in Impostazioni › Posizione la precisione di ognuna in tempo reale. Oppure «Solo GLO 2» o «Solo telefono»."],
   ["1.0.128","Vista 3D su rotte lunghe: la scena copre un tratto di circa 100 km alla volta, con terreno e spazi aerei ben visibili; ◀ TRATTO ▶ per passare al tratto dopo, e con ▶ ROTTA, SEGUI o un volo rivisto si passa da sola al tratto successivo."],
   ["1.0.127","Tablet: la riga centrale per allargare le finestre si vede solo sullo strumento, non più sopra Piano, Impostazioni e le altre pagine."],
@@ -4304,7 +4305,7 @@ PH.sendReport=async function(rep){
     if(PH.native&&PH.native.http){ const r=await PH.native.http.post({url,headers:h,data:body}); let d=r.data; if(typeof d==='string'){ try{ d=JSON.parse(d); }catch(e){} } return {status:r.status,d}; }
     const r=await fetch(url,{method:'POST',headers:h,body:JSON.stringify(body)}); let d=null; try{ d=await r.json(); }catch(e){} return {status:r.status,d}; };
   const yes=v=>v===true||v==='true';
-  if(PH_INFO.w3f){                                                         // Web3Forms: chiave pubblica, arriva per posta a Enry
+  if(PH_INFO.w3f){                                                         // Web3Forms: chiave pubblica, arriva per posta a horizonlicenses
     // dal WebView come da un browser (Web3Forms gratuito accetta solo invii da pagina web), il modulo nativo solo se fetch non passa
     const postW=async(url,body)=>{ try{ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)});
         let d=null; try{ d=await r.json(); }catch(e){} return {status:r.status,d}; }catch(e){ if(PH.native&&PH.native.http) return post(url,body); throw e; } };

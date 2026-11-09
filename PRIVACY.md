@@ -2,7 +2,7 @@
 
 Ultimo aggiornamento: 6 novembre 2026
 
-Titolare: Enrico D'Amico, amicoen@gmail.com
+Titolare: Enrico D'Amico, horizonlicenses@gmail.com
 
 L'app non ha account, pubblicità o strumenti di analisi. Non vende dati e non li cede a nessuno.
 
@@ -55,7 +55,7 @@ L'app è gratuita.
 
 ## Conservazione e cancellazione
 
-Le segnalazioni restano nella casella di posta del titolare finché servono a risolvere il problema. Le piste condivise e i conteggi dei campi restano nell'archivio del progetto, senza il codice del telefono quando entrano nelle mappe. Per farle cancellare, o per qualunque domanda, scrivi a amicoen@gmail.com.
+Le segnalazioni restano nella casella di posta del titolare finché servono a risolvere il problema. Le piste condivise e i conteggi dei campi restano nell'archivio del progetto, senza il codice del telefono quando entrano nelle mappe. Per farle cancellare, o per qualunque domanda, scrivi a horizonlicenses@gmail.com.
 
 ## Minori
 
@@ -74,4 +74,4 @@ If you say yes, the app also shares runways it detected (runway position, direct
 Location is used only while the app is open. Bluetooth is used only to connect the external GPS you choose.
 **Donations.** The app is free. On Google Play the optional "Buy me a coffee" is paid through Google Play billing, and the app never sees payment details. In the GitHub APK and web version donations go through PayPal, outside the app.
 
-Contact: amicoen@gmail.com
+Contact: horizonlicenses@gmail.com

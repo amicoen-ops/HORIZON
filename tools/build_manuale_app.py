@@ -105,7 +105,7 @@ s += [Spacer(1, 8 * mm), Paragraph("HORIZON · strumento di volo", H1),
           "gli strumenti di bordo, le carte, l'AIP, i NOTAM né il meteo ufficiale. Serve come ausilio alla consapevolezza della situazione. "
           "Il pilota in comando resta l'unico responsabile della condotta del volo."),
       Spacer(1, 6 * mm),
-      Paragraph("© 2026 Enrico D'Amico · tutti i diritti riservati · amicoen@gmail.com", SUB),
+      Paragraph("© 2026 Enrico D'Amico · tutti i diritti riservati · horizonlicenses@gmail.com", SUB),
       PageBreak()]
 
 # ---------------- INDICE ----------------
@@ -611,7 +611,7 @@ s += [P("Il pilota in comando resta l'unico responsabile della condotta del volo
         "L'app è fornita gratuitamente «così com'è», senza garanzie di alcun tipo.")]
 s += [Paragraph("Licenza", H3)]
 s += [P("© 2026 Enrico D'Amico. Tutti i diritti riservati: non è software libero. Puoi installare e usare l'app ufficiale per uso personale e non commerciale. "
-        "Per copiarla, modificarla, ridistribuirla, usarla a scopo di lucro o riusarne il codice serve il permesso scritto dell'autore (amicoen@gmail.com). "
+        "Per copiarla, modificarla, ridistribuirla, usarla a scopo di lucro o riusarne il codice serve il permesso scritto dell'autore (horizonlicenses@gmail.com). "
         "Una donazione non cambia queste condizioni. Le librerie di terze parti (Capacitor e plugin, MIT; AndroidX, Apache 2.0) restano sotto le proprie licenze.")]
 s += [Paragraph("Privacy", H3)]
 s += [P("Nessun account, pubblicità o analisi. Posizione, rotte, campi, diario e impostazioni restano sul telefono. Escono solo le richieste ai servizi di mappe, terreno e meteo "

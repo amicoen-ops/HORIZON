@@ -39,6 +39,6 @@ Ogni push su `main` avvia GitHub Actions: l'APK e l'AAB per il Play Store finisc
 © 2026 Enrico D'Amico. **Tutti i diritti riservati**: non è software libero né open source.
 
 - **Puoi** installare e usare l'app ufficiale (Play Store, Release o sito) per uso personale e non commerciale, alle condizioni indicate nell'app. L'app è gratuita: chi vuole può offrire un caffè da Google Play o donare con PayPal.
-- **Serve il permesso scritto** dell'autore (amicoen@gmail.com) per copiare, modificare, ridistribuire, vendere o riusare il codice.
+- **Serve il permesso scritto** dell'autore (horizonlicenses@gmail.com) per copiare, modificare, ridistribuire, vendere o riusare il codice.
 
 Testo completo in [LICENSE](LICENSE); componenti di terze parti in [NOTE-TERZE-PARTI](NOTE-TERZE-PARTI); privacy in [PRIVACY.md](PRIVACY.md).

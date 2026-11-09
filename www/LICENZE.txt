@@ -36,7 +36,7 @@ Gratuitamente, senza bisogno di chiedere:
   f) usare il nome "I-A517" o il nome dell'autore per presentare versioni
      non ufficiali.
 
-Per i permessi scrivi a amicoen@gmail.com.
+Per i permessi scrivi a horizonlicenses@gmail.com.
 
 
 3. COMPONENTI E DATI DI TERZE PARTI
@@ -83,7 +83,7 @@ Copyright (c) 2026 Enrico D'Amico. All rights reserved. Not open source.
 You may install and use the official app for personal, non-commercial use and
 view the source on GitHub. Copying, modifying, redistributing, selling or
 reusing any part of the Software requires the author's written permission
-(amicoen@gmail.com). Experimental, non-certified, provided "as is" without any
+(horizonlicenses@gmail.com). Experimental, non-certified, provided "as is" without any
 warranty; the pilot in command is solely responsible for the flight.
 Third-party components keep their own licenses (see NOTE-TERZE-PARTI).
 
