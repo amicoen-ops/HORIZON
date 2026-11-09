@@ -10,7 +10,7 @@
 // lo schema deciso (senza licenza niente uso dal vivo, mai blocchi in volo) si accende più avanti.
 (function(){
 'use strict';
-const PUB='__CHIAVE_LICENZE__';          // chiave pubblica (SPKI in base64), messa dal comando «Licenze › crea-chiave»
+const PUB='MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEXSBbCj2UpmVa0G3EbWC80ENkN4APnYTEOG7O8d+gMq5s7OV4Gp/hifcmn6/+5haoE3kDLEVBcIWgOg6RccD4KQ==';          // chiave pubblica (SPKI in base64), messa dal comando «Licenze › crea-chiave»
 const REVOCHE='https://raw.githubusercontent.com/amicoen-ops/HORIZON/licenze/licenze/revocate.json';
 const ALFA='0123456789ABCDEFGHJKMNPQRSTVWXYZ', EPOCA=Date.UTC(2026,0,1), DAY=86400000;
 const KC='ia517p_codice', KR='ia517p_revoche';
