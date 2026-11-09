@@ -320,7 +320,7 @@ def main():
     import time
     for prova in range(13 if conti.get('riepilogo') else 1):
         if prova: time.sleep(5); posta.imap.noop()
-        uids = posta.cerca('subject:(HORIZON Riepilogo licenze) label:inbox')
+        uids = posta.cerca('subject:(HORIZON Riepilogo licenze) in:inbox')
         for uid in uids: posta.etichetta(uid, aggiungi=[ARCHIVIO], togli=[INBOX])
         if uids and prova: break
     for uid in posta.cerca('subject:(HORIZON Riepilogo licenze) -label:archivio-generale-licenze'):
