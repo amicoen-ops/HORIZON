@@ -8,7 +8,7 @@
    "dispositivi": [
     {
      "tipo": "telefono",
-     "modello": "telefono Android dell'autore (modello da annotare)",
+     "modello": "Samsung Galaxy S23 FE (SM-S711B)",
      "sensore": "barometro (Android TYPE_PRESSURE)",
      "pressione_letta": 982.5,
      "qnh_calcolato_a_327m": 1021.5,
@@ -44,6 +44,16 @@
    "data": "2026-11-09",
    "dispositivo": "Garmin fenix 7 con HORIZON Link",
    "osservazione": "Dopo qualche minuto l'app dell'orologio a volte si chiudeva («IQ!»); dopo un riavvio dell'orologio non è più successo. Da tenere d'occhio: se ricapita, riga «Orologio: ultima chiusura» in Stato e file GARMIN/APPS/LOGS/CIQ_LOG.YML."
+  }
+ ],
+ "da_misurare": [
+  {
+   "modello": "Samsung Galaxy S23 (SM-S911B)",
+   "nota": "secondo telefono dell'autore (HORIZON 1): ha il barometro; misurarlo allo stesso modo per confronto con l'S23 FE"
+  },
+  {
+   "modello": "Samsung Galaxy S22 (tester Davide)",
+   "nota": "ha il barometro; da misurare quando aggiorna"
   }
  ]
 }
