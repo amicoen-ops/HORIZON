@@ -4105,8 +4105,10 @@ const PH_INFO={
   releases:'https://api.github.com/repos/amicoen-ops/HORIZON/releases/latest',
   termsVersion:2,                                 // 2: aggiunta la licenza
   owner:"Enrico D'Amico",
+  impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.161","Filigrana in basso su tutte le pagine (HORIZON © E. D'Amico, codice del telefono, impronta): resta in ogni schermata. Impronta dell'autore in Info e nelle segnalazioni. Avvertenze aggiornate con il barometro."],
   ["1.0.158","HORIZON 2: il barometro dell'orologio Garmin si corregge da solo sul barometro del telefono (i sensori da polso leggono anche 4–5 hPa di troppo o di meno, cioè 35–40 m); lo scarto resta salvato e si vede in Stato › Orologio: barometro."],
   ["1.0.153","Barometro del telefono (app Android, se il telefono lo ha): vario e cambi di quota dal barometro, molto più pronti e puliti; la quota vera resta tenuta giusta dal GPS, senza QNH. In Stato la riga «Barometro»; si spegne in Impostazioni › Quota."],
   ["1.0.145","Disegna la rotta: la mappa si vede anche con la carta VFR scaricata come mappa di base e, nella versione web (iPhone, iPad), anche se è scelta IGM o ortofoto (si usa OpenTopoMap)."],
@@ -4215,10 +4217,10 @@ const PH_CHANGES=[
 ];
 const PH_TERMS=`<p><b>Strumento sperimentale, non certificato.</b> Questa app non è un equipaggiamento approvato (EASA, ENAC o altre autorità) e non sostituisce alcuno strumento di bordo, carta aeronautica, documento ufficiale o briefing. Serve solo come ausilio alla consapevolezza della situazione.</p>
 <p><b>Il pilota in comando resta l'unico responsabile</b> della condotta del volo, della navigazione, della separazione dal terreno, dagli ostacoli, dagli altri aeromobili e dagli spazi aerei, e del rispetto delle norme, compreso il regolamento VDS/ULM (DPR 133/2010) dove applicabile.</p>
-<p><b>Limiti noti.</b> Il telefono non misura la velocità rispetto all'aria né la pressione: la velocità mostrata è quella al suolo, la quota è quella GPS con errori di decine di metri. L'assetto viene dai sensori del telefono e può essere sbagliato con supporti non rigidi, vibrazioni, accelerazioni o dopo un riavvio. GPS, sensori, Bluetooth e batteria possono smettere di funzionare senza preavviso. Campi, piste, quote, ostacoli, spazi aerei, terreno, mappe e meteo possono essere incompleti, sbagliati o non aggiornati; il meteo è una previsione di modello. Gli avvisi (terreno, spazi aerei, tramonto) possono mancare o arrivare in ritardo.</p>
+<p><b>Limiti noti.</b> Il telefono non misura la velocità rispetto all'aria: la velocità mostrata è quella al suolo. La quota è quella GPS, con errori di decine di metri; se il telefono ha il barometro i cambi di quota e il vario vengono da lì, ma la quota assoluta resta legata al GPS e la pressione in cabina può cambiare con la velocità. L'assetto viene dai sensori del telefono e può essere sbagliato con supporti non rigidi, vibrazioni, accelerazioni o dopo un riavvio. GPS, sensori, Bluetooth e batteria possono smettere di funzionare senza preavviso. Campi, piste, quote, ostacoli, spazi aerei, terreno, mappe e meteo possono essere incompleti, sbagliati o non aggiornati; il meteo è una previsione di modello. Gli avvisi (terreno, spazi aerei, tramonto) possono mancare o arrivare in ritardo.</p>
 <p><b>Uso in volo.</b> Fissa il telefono in modo che non intralci i comandi e non cada; non distrarti dal pilotaggio e dalla vista fuori. Verifica sempre AIP, NOTAM, carte e meteo ufficiali prima del volo.</p>
 <p><b>Nessuna garanzia.</b> L'app è fornita «così com'è», senza garanzie di alcun tipo, esplicite o implicite, di funzionamento, precisione o idoneità a uno scopo. Nei limiti consentiti dalla legge, l'autore declina ogni responsabilità per danni diretti o indiretti, a persone o cose, derivanti dall'uso o dall'impossibilità di usare l'app o i dati che mostra.</p>
-<p><b>Licenza.</b> © 2026 Enrico D'Amico, tutti i diritti riservati. Puoi installare e usare l'app ufficiale per uso personale e non commerciale. Copiarla, modificarla, ridistribuirla, venderla o riusarne il codice richiede il permesso scritto dell'autore. Le librerie di terze parti restano sotto le proprie licenze.</p>
+<p><b>Licenza.</b> © 2026 Enrico D'Amico, tutti i diritti riservati. Puoi installare e usare l'app ufficiale per uso personale e non commerciale. Copiarla, modificarla, ridistribuirla, venderla o riusarne il codice richiede il permesso scritto dell'autore. Le librerie di terze parti restano sotto le proprie licenze.</p><p class="ph-sub">Impronta dell'autore: <b>${PH_INFO.impronta}</b></p>
 <p><b>Dati personali.</b> Posizione, rotte, campi e diario di volo restano sul telefono. Escono solo le richieste ai servizi di mappe, terreno e meteo (con la zona visualizzata) e le segnalazioni che invii tu.</p>`;
 
 PH.version=function(){ const b=window.IA517_BUILD||{version:'1.0.0',build:'dev',channel:'web'}; return b; };
@@ -4319,7 +4321,7 @@ addEventListener('error',e=>PH.logErr((e.message||'errore')+' @'+(e.filename||''
 addEventListener('unhandledrejection',e=>PH.logErr('promise: '+(e.reason&&e.reason.message||e.reason)));
 PH.diag=function(){
   const b=PH.version(), s=PH.status();
-  return [`Versione ${b.version} (build ${b.build}, ${b.channel})`, navigator.userAgent, `Schermo ${innerWidth}×${innerHeight} @${devicePixelRatio}`,
+  return [`Versione ${b.version} (build ${b.build}, ${b.channel}) · ${PH_INFO.impronta}`, navigator.userAgent, `Schermo ${innerWidth}×${innerHeight} @${devicePixelRatio}`,
     ...s.rows.map(r=>`${r[1]}: ${r[2]}`), `Giroscopio: ${PH.gyroOk?'sì':'assente'} · virate da ${PH.turnSrc}${PH.gyroSus?' (il giroscopio non seguiva la virata)':''} · virata GPS ${(+PH.trkRate||0).toFixed(1)}°/s`, `Errori di disegno: ${FRAME_ERR||0}${FRAME_LAST_ERR?' · ultimo: '+FRAME_LAST_ERR:''}`,
     `Disegno: ${PH.perf.avg.toFixed(1)} ms per fotogramma · ${PH.fps} al secondo · blocchi ${PH.perf.stalls}`,
     `Sessione precedente, ultimo stato: ${PH.hbPrev?new Date(PH.hbPrev.t).toLocaleString('it-IT')+' · pagina '+PH.hbPrev.page+' · zoom '+PH.hbPrev.zoom+' km · mappa '+PH.hbPrev.base+' · '+PH.hbPrev.ms+' ms (max '+PH.hbPrev.max+') · blocchi '+PH.hbPrev.stalls+(PH.hbPrev.menu?' · menu aperto':'')+(PH.hbPrev.prompt?' · domanda a schermo':'')+' · terreno '+PH.hbPrev.dem+' · tessere in arrivo '+PH.hbPrev.tl:'—'}`,
@@ -5179,4 +5181,12 @@ requestAnimationFrame(frame);
 <script src="voce.js"></script>
 <script src="orologio.js"></script>
 <script src="riservato.js"></script>
+<!-- filigrana: «HORIZON © E. D'Amico» con il codice del telefono, su tutte le pagine e quindi in ogni schermata;
+     trasparente ai tocchi. Con il codice si sa da quale telefono viene una schermata girata in giro. -->
+<div id="hzFil" aria-hidden="true" style="position:fixed;left:max(4px,env(safe-area-inset-left));bottom:calc(2px + env(safe-area-inset-bottom));z-index:2147483000;pointer-events:none;user-select:none;font:600 8.5px system-ui,sans-serif;letter-spacing:.02em;color:#fff;opacity:.34;text-shadow:0 0 2px #000,0 0 1px #000;white-space:nowrap"></div>
+<script>
+(()=>{ const f=document.getElementById('hzFil');
+  const scrivi=()=>{ const L=window.IA517_LIC, dev=L&&L.dev||''; f.textContent='HORIZON © E. D\'Amico'+(dev?' · '+dev:'')+' · '+PH_INFO.impronta.slice(-6); };
+  scrivi(); setInterval(scrivi,5000); })();
+</script>
 </body></html>
