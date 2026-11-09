@@ -1,11 +1,14 @@
 {
- "revocate": [
-  2
- ],
+ "revocate": [],
  "storico": [
   {
    "numero": 2,
    "azione": "revoca",
+   "data": "2026-11-09"
+  },
+  {
+   "numero": 2,
+   "azione": "ripristino",
    "data": "2026-11-09"
   }
  ]
