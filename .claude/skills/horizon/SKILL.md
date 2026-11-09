@@ -59,6 +59,7 @@ Testi, commenti, commit e risposte all'autore: **in italiano**, frasi semplici, 
 - Al traffico da internet va solo la zona arrotondata a 0,1°, mai la posizione esatta.
 
 ## Licenza e vendita
+- **Decisione dell'autore (9/11/2026, da fare più avanti, NON ancora fatto):** licenze come SkyDemon, uguali su Play, APK e web. Nell'app c'è **solo** un campo «Inserisci codice» (in un menu riservato: 5 tocchi sul logo in Info), con lo stato della licenza; **nessun** prezzo, link PayPal o tasto per comprare o richiedere, in nessuna versione (regole di Google Play sui pagamenti esterni). Il pagamento avviene fuori dall'app (PayPal, 5 € mese / 30 € anno / 150 € perenne) e l'autore manda il codice per mail. Codice firmato (chiave privata solo dell'autore, verifica offline), legato al codice del telefono, tipo M/A/P, revocabile con una lista pubblicata. Da decidere: cosa resta libero dopo i 30 giorni (mai la sicurezza: orizzonte, avvisi, EMERGENZA, DIRECT TO) e cosa richiede il codice. Su Play resta «Offrimi un caffè».
 - **L'app è gratuita**: l'abbonamento è rinviato (`abbonamento:false` in `licenza.js`; il codice resta, spento). Sul Play Store c'è «Offrimi un caffè», prodotto a consumo `caffe`; su APK e web PayPal.
 - La licenza Polar per APK e web resta spenta finché `polarOrg` in `licenza.js` è un segnaposto.
 - Nella versione Play niente PayPal né inviti all'avvio: solo il tasto in Info, con Google Play Billing.
