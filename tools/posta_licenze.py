@@ -85,6 +85,7 @@ class Posta:
     def rispondi(self, msg, testo, html=None, immagini=None):
         a = msg.get('Reply-To') or msg.get('From')
         nome, indirizzo = email.utils.parseaddr(a)
+        self.ultimo = (dec(nome), indirizzo)
         if not indirizzo or indirizzo.lower() == self.utente.lower() or 'web3forms' in indirizzo.lower() or 'noreply' in indirizzo.lower():
             return False
         r = EmailMessage()
@@ -101,10 +102,13 @@ class Posta:
             parte = r.get_payload()[-1]
             for cid, percorso in (immagini or {}).items():      # immagini dentro la mail (cid:…): si vedono anche senza scaricare
                 parte.add_related(open(percorso, 'rb').read(), 'image', 'png', cid='<' + cid + '>', filename=os.path.basename(percorso))
+        self.manda(r)
+        return True
+
+    def manda(self, r):
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
             s.login(self.utente, self.password)
             s.send_message(r)
-        return True
 
 
 BOX = ('<div style="font:700 22px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.04em;background:#fff6d6;'
@@ -191,6 +195,68 @@ HORIZON · strumento di volo
     return testo, html
 
 
+def recupera_indirizzi(posta, registro, pub):
+    """Licenze mandate prima che il registro tenesse nome e mail: si ritrovano dalle mail inviate (il codice dice il numero)."""
+    manca = {r['numero'] for r in registro if r.get('origine') == 'posta' and not r.get('mail')}
+    if not manca: return False
+    cambiato = False
+    for uid in posta.cerca('in:sent subject:(HORIZON licenza)'):
+        msg = posta.leggi(uid)
+        if msg is None: continue
+        m = re.search(r'HZ1(?:-[0-9A-Z]{1,5})+', testo_di(msg))
+        if not m: continue
+        try: n = licenze.leggi(pub, m.group(0))['numero']
+        except Exception: continue
+        if n in manca:
+            nome, ind = email.utils.parseaddr(msg.get('To'))
+            for r in registro:
+                if r['numero'] == n: r['nome'], r['mail'] = dec(nome), ind; cambiato = True
+            manca.discard(n)
+    return cambiato
+
+
+def stato_di(r, revocate, oggi):
+    if r['numero'] in revocate: return 'revocata', '#c62828'
+    if not r.get('scade'): return 'attiva, senza scadenza', '#2e7d32'
+    import datetime
+    g = (datetime.date.fromisoformat(r['scade']) - oggi).days
+    if g < 0: return 'scaduta', '#9e9e9e'
+    if g <= 15: return f'scade tra {g} giorni', '#ef6c00'
+    return 'attiva', '#2e7d32'
+
+
+def riepilogo(posta, registro, revocate):
+    """Mail all'autore (alla casella di HORIZON) con la tabella di tutte le licenze."""
+    import datetime, html as H
+    oggi = datetime.date.today()
+    it = lambda d: '/'.join(reversed(d.split('-'))) if d else '—'
+    righe, testo, conta = [], [], {}
+    for r in sorted(registro, key=lambda r: -r['numero']):
+        st, col = stato_di(r, revocate, oggi)
+        k = {'revocata': 'revocate', 'scaduta': 'scadute'}.get(st, 'in scadenza' if st.startswith('scade') else 'attive')
+        conta[k] = conta.get(k, 0) + 1
+        chi = (r.get('nome') or '') + (f" <{r['mail']}>" if r.get('mail') else '') or r.get('origine', '')
+        tel = con_trattini(r['telefono'])
+        righe.append(f'<tr><td><b>{r["numero"]}</b></td><td>{TIPI.get(r["tipo"], r["tipo"])}</td><td>{H.escape(chi)}</td>'
+                     f'<td style="padding:6px 8px;border-bottom:1px solid #ddd;font-family:monospace;white-space:nowrap">{tel}</td><td>{it(r["emesso"])}</td><td>{it(r.get("scade"))}</td>'
+                     f'<td style="padding:6px 8px;border-bottom:1px solid #ddd;color:{col};font-weight:700">{st}</td></tr>')
+        testo.append(f"n. {r['numero']} · {TIPI.get(r['tipo'], r['tipo'])} · {chi} · {tel} · emessa {it(r['emesso'])} · scade {it(r.get('scade'))} · {st}")
+    sintesi = ' · '.join(f'{v} {k}' for k, v in conta.items()) or 'nessuna licenza'
+    td = 'style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:left"'
+    corpo = (f'<p><b>{len(registro)} licenze</b> · {sintesi}</p>'
+             f'<table style="border-collapse:collapse;font-size:14px"><tr style="background:#f0f3f7">'
+             + ''.join(f'<th {td}>{h}</th>' for h in ('N.', 'Tipo', 'Pilota', 'Telefono', 'Emessa', 'Scade', 'Stato')) + '</tr>'
+             + ''.join(righe).replace('<td>', f'<td {td}>') + '</table>'
+             '<p style="color:#666;font-size:13px">Per revocare: GitHub › Actions › Licenze › Run workflow › revoca, con il numero.<br>'
+             'Per avere questo riepilogo quando vuoi: GitHub › Actions › Licenze per posta › Run workflow › «riepilogo».</p>')
+    r = EmailMessage()
+    r['From'] = email.utils.formataddr(('HORIZON', posta.utente)); r['To'] = posta.utente
+    r['Subject'] = f'HORIZON · Riepilogo licenze · {oggi.strftime("%d/%m/%Y")}'
+    r.set_content(f'{len(registro)} licenze · {sintesi}\n\n' + '\n'.join(testo) + '\n')
+    r.add_alternative(html_di(corpo), subtype='html')
+    posta.manda(r)
+
+
 def main():
     env = os.environ
     posta = Posta(env['GMAIL_UTENTE'], env['GMAIL_LICENZE'])
@@ -234,12 +300,16 @@ def main():
             if not posta.rispondi(msg, *testo_codice(tipo, codice, info['scade'])):
                 posta.etichetta(uid, aggiungi=[DA_VEDERE, INBOX], togli=[tipo]); conti['da vedere'] += 1; continue
             registro.append({'numero': n, 'tipo': tipo, 'telefono': info['telefono'], 'emesso': info['emesso'],
-                             'scade': info['scade'], 'origine': 'posta'})
+                             'scade': info['scade'], 'origine': 'posta', 'nome': posta.ultimo[0], 'mail': posta.ultimo[1]})
             json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)      # subito: se dopo qualcosa va storto il numero resta usato
             fatti.add((tipo, tel)); conti['codici'] += 1
             posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE, INBOX])
         # le nostre risposte nella stessa conversazione: l'etichetta M/A/P messa a mano la prendono anche loro
         for uid in posta.cerca(f'label:{tipo.lower()} from:me'): posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE])
+    if recupera_indirizzi(posta, registro, pub): json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)
+    if conti['codici'] or env.get('MANDA_RIEPILOGO') == 'true':
+        revocate = set(json.load(open(env['REVOCATE'])).get('revocate', [])) if env.get('REVOCATE') and os.path.exists(env['REVOCATE']) else set()
+        riepilogo(posta, registro, revocate); conti['riepilogo'] = 1
     posta.imap.logout()
 
     riga = f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"

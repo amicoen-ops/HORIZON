@@ -3,13 +3,19 @@ name: Licenze per posta
 # Ogni 10 minuti legge la casella horizonlicenses (vedi tools/posta_licenze.py):
 #  · richieste nuove di licenza → risponde con prezzi e link PayPal (fuori dall'app);
 #  · mail con l'etichetta M, A o P (messa a mano dall'autore dopo il pagamento) → crea il codice, lo manda al pilota,
-#    lo annota nel registro cifrato sul ramo «licenze», sposta la mail in «Fatte».
+#    lo annota nel registro cifrato sul ramo «licenze» (anche nome e mail del pilota), sposta la mail in «Gestite»
+#    e manda all'autore la mail «Riepilogo licenze» con la tabella di tutte (anche a richiesta: input «riepilogo»).
 # Serve il segreto GMAIL_LICENZE (password per le app di horizonlicenses); senza, la corsa non fa niente.
 # Progetto pubblico: nei log solo conteggi.
 on:
   schedule:
     - cron: '*/10 * * * *'
   workflow_dispatch:
+    inputs:
+      riepilogo:
+        description: 'Manda alla casella di HORIZON la mail con la tabella di tutte le licenze'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -44,12 +50,13 @@ jobs:
           GMAIL_LICENZE: ${{ secrets.GMAIL_LICENZE }}
           GMAIL_UTENTE: horizonlicenses@gmail.com
           PAYPAL: https://www.paypal.me/amicoen
+          MANDA_RIEPILOGO: ${{ inputs.riepilogo }}
         run: |
           set -e
           umask 077; T=$(mktemp -d)
           dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
           dec reg/licenze/chiave_privata.pem.enc $T/priv.pem; dec reg/licenze/registro.json.enc $T/reg.json
-          PRIVATA=$T/priv.pem PUBBLICA=reg/licenze/chiave_pubblica.txt REGISTRO=$T/reg.json RIEPILOGO="$GITHUB_STEP_SUMMARY" \
+          PRIVATA=$T/priv.pem PUBBLICA=reg/licenze/chiave_pubblica.txt REGISTRO=$T/reg.json REVOCATE=reg/licenze/revocate.json RIEPILOGO="$GITHUB_STEP_SUMMARY" \
             python3 tools/posta_licenze.py || ERR=1
           # il registro si salva anche se la corsa si è fermata a metà: i codici già mandati restano annotati
           if ! cmp -s <(dec reg/licenze/registro.json.enc /dev/stdout) $T/reg.json; then
