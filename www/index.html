@@ -1076,6 +1076,8 @@ function drawVDI(g){
   ctx.fillText('V',x,CY-sp*2.5-R*0.04);
   ctx.restore();
 }
+// carattere che sta nella larghezza data: parte da «size» e scende finché il testo ci sta (mai sotto il 60%)
+function fitFont(t,maxW,size,weight){ let f=size; ctx.font=font(f,weight); while(f>size*0.6 && ctx.measureText(t).width>maxW){ f*=0.92; ctx.font=font(f,weight); } return f; }
 function infoBox(x,y,w,h,col){
   ctx.fillStyle=C.box; ctx.strokeStyle=col; ctx.lineWidth=1.6*k;
   ctx.beginPath(); ctx.roundRect(x,y,w,h,4*k); ctx.fill(); ctx.stroke();
@@ -1106,7 +1108,7 @@ function windBox(x,y,w,h,refHdg){
     ctx.beginPath(); ctx.moveTo(0,L); ctx.lineTo(0,-L*0.4); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(0,-L); ctx.lineTo(-L*0.45,-L*0.3); ctx.lineTo(L*0.45,-L*0.3); ctx.closePath(); ctx.fill();
     ctx.restore();
-    ctx.fillStyle=C.white; ctx.font=font(R*0.052,'700'); ctx.fillText(fmtWind(), x+h*0.95, ay);
+    ctx.fillStyle=C.white; fitFont(fmtWind(), w-h*1.15, R*0.052, '700'); ctx.fillText(fmtWind(), x+h*0.95, ay);
   } else { ctx.fillStyle='#8b93a0'; ctx.font=font(R*0.048,'600'); ctx.fillText('VENTO ---', x+h*0.3, ay); }
 }
 function phaseBanner(y){
@@ -1406,9 +1408,11 @@ function drawMap(g){
   ctx.fill(); ctx.stroke(); ctx.restore();
   // dati
   const bw=R*0.30, bh=R*0.105, ty=CY-R*0.86;
-  infoBox(CX-R*0.15,ty,R*0.30,bh,'#fff');
-  ctx.fillStyle='#fff'; ctx.font=font(R*0.068,'700'); ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(pan?'NORD ↑':(S.trk!=null?'TRK ':'PRUA ')+String(Math.round(wrap360(t*R2D))).padStart(3,'0')+'°',CX,ty+bh/2);
+  const tt=pan?'NORD ↑':(S.trk!=null?'TRK ':'PRUA ')+String(Math.round(wrap360(t*R2D))).padStart(3,'0')+'°';
+  ctx.font=font(R*0.068,'700'); const tw=Math.max(R*0.30, ctx.measureText(tt).width+R*0.06);   // il riquadro si allarga col testo
+  infoBox(CX-tw/2,ty,tw,bh,'#fff');
+  ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(tt,CX,ty+bh/2);
   const sy=CY-R*0.62;
   infoBox(CX-R*0.74,sy,R*0.28,bh,'#4a5260'); infoBox(CX+R*0.46,sy,R*0.28,bh,'#4a5260');
   ctx.font=font(R*0.06,'700'); ctx.fillStyle='#fff';
@@ -2090,7 +2094,7 @@ function rasterMap(ac){
   c2.putImageData(img,0,0);
   Object.assign(MR,{cE:ac.E,cN:ac.N,half,alt:acAlt,zi,inh:inhField()});
 }
-function fmtWind(){ return WIND.valid?`${String(Math.round(WIND.dir/10)*10).padStart(3,'0')}°/${Math.round(WIND.kmh)}${WIND.src==='prev'?' PREV':''}`:'---'; }
+function fmtWind(){ return WIND.valid?`${String(Math.round(WIND.dir/10)*10).padStart(3,'0')}°/${Math.round(WIND.kmh)}`:'---'; }   // previsto o stimato: è comunque una stima, la fonte è nella casella VENTO
 function renderMenuPos(){
   const q=PH&&PH.sim?'simulazione: '+PH.sim.name:PH&&PH.demo?'volo dimostrativo':(!S.gpsReal?'in attesa del GPS':(PH.src==='glo'?`GLO 2 · ${S.sats??'?'} sat · HDOP ${S.hdop??'?'}`:`GPS telefono ±${Math.round(PH.acc||0)} m`));
   el('menuPos').textContent=fmtCoord(S.lat,'N','S',2)+'  '+fmtCoord(S.lon,'E','W',3)+'  ·  '+q;
@@ -3181,7 +3185,7 @@ PH.info=function(g){
   { const h=el('phTrk'); if(h) h.querySelector('span').textContent=S.trk!=null?'TRK':'PRUA'; }
   card('phAlt',Math.round(S.alt)+' ft',PH.acc!=null&&!PH.demo?(PH.src==='glo'?`GLO 2 · ${S.sats??'?'} sat`:`GPS ±${Math.round(PH.acc)} m`)+(PH.altOfsBy[PH.src]?' · tarata':''):'');
   card('phVs',(S.vs>=0?'+':'')+S.vs.toFixed(1),'m/s');
-  card('phWind',WIND.valid?fmtWind().replace(' PREV',''):'---',WIND.valid?('da '+['N','NE','E','SE','S','SO','O','NO'][Math.round(((WIND.dir%360)+360)%360/45)%8]+' · '+(WIND.src==='prev'?'previsto':'stimato in volo')):'vira per stimarlo');
+  card('phWind',WIND.valid?fmtWind():'---',WIND.valid?('da '+['N','NE','E','SE','S','SO','O','NO'][Math.round(((WIND.dir%360)+360)%360/45)%8]+' · '+(WIND.src==='prev'?'previsto':'stimato in volo')):'vira per stimarlo');
   if(NAV.dest){ const d=NAV.app?g.s:g.dist, mins=Math.round((g.ete||0)/60);
     card('phDest',NAV.dest.short.slice(0,10),`${(d/1000).toFixed(d<10000?1:0)} km · ${mins<1?'<1':mins}'`); }
   else card('phDest','---','nessuna destinazione');
@@ -4067,7 +4071,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
-  ["1.0.144","Carta VFR open flightmaps anche nella versione web (Chrome, Safari; su iPhone/iPad dalla schermata Home): Impostazioni › Volare senza internet › «Scarica la carta VFR», circa 105 MB, poi funziona senza internet."],
+  ["1.0.144","Mappa: il vento è scritto senza «PREV» (è comunque una stima) e i riquadri di vento e PRUA/TRK tengono il testo dentro anche con caratteri grandi. Carta VFR open flightmaps anche nella versione web (Chrome, Safari; su iPhone/iPad dalla schermata Home): Impostazioni › Volare senza internet › «Scarica la carta VFR», circa 105 MB, poi funziona senza internet."],
   ["1.0.138","Nuova casella di HORIZON: segnalazioni, registrazioni e domande arrivano a horizonlicenses@gmail.com."],
   ["1.0.130","Posizione: «La più precisa» sceglie da sola tra GPS del telefono e Garmin GLO 2 quella con la precisione migliore in quel momento (cambia solo se l'altra è meglio del 30% per 5 secondi, subito se quella in uso perde il segnale); in Impostazioni › Posizione la precisione di ognuna in tempo reale. Oppure «Solo GLO 2» o «Solo telefono»."],
   ["1.0.128","Vista 3D su rotte lunghe: la scena copre un tratto di circa 100 km alla volta, con terreno e spazi aerei ben visibili; ◀ TRATTO ▶ per passare al tratto dopo, e con ▶ ROTTA, SEGUI o un volo rivisto si passa da sola al tratto successivo."],
