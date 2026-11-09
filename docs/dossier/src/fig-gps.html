@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: fonti di posizione e scelta della migliore (PH.fixIn, PH.srcPick, PH.applyFix)
+const D = new Diagram(1000, 560);
+D.box({id:'ph',x:16,y:20,w:270,h:110,k:'hw',t:'GPS del telefono',la:1,left:1,s:['navigator.geolocation.watchPosition','enableHighAccuracy, maximumAge 0','→ PH.onPos(p): fx.src = "phone"','msl = altitude − geoide (47 m)','acc = coords.accuracy (m)'],n:1});
+D.box({id:'glo',x:16,y:152,w:282,h:140,k:'nat',t:'Garmin GLO 2',la:1,left:1,s:['GloSerialPlugin: RFCOMM, UUID SPP','evento «nmea» ogni 100 ms o 40 righe','(web: Web Serial, 115200 baud)','→ PH.gloLine: checksum NMEA,','   GGA memorizzata, RMC → fx "glo"','acc = max(2,5 m; HDOP×3); senza GGA 8 m'],n:2});
+D.box({id:'fx',x:16,y:314,w:270,h:128,k:'watch',t:'Orologio Garmin (solo H2)',la:1,left:1,s:['GarminPlugin → evento «dati» (≈ 1 Hz)','orologio.js dati(d): solo qualità q ≥ 2','acc stimata: q 4→4 m, 3→10, 2→25, 1→60','quota: barometro con il QNH','(se «Quota dal barometro» è accesa)'],n:3});
+D.box({id:'in',x:330,y:150,w:210,h:96,k:'web',t:'PH.fixIn(fx)',la:1,s:['PH.fixes[fx.src] = fx','se PH.srcPick() === fx.src','   → PH.applyFix(fx)']});
+D.box({id:'pick',x:330,y:280,w:210,h:162,k:'data',t:'PH.srcPick()',la:1,s:['srcPref: auto · phone · glo · fenix','«auto»: solo fix freschi (< 2,5 s)','sceglie acc minore;','cambia fonte se l\'altra è','migliore del 30% per 5 s di fila,','o subito se quella in uso tace','(ia517p_src)']});
+D.box({id:'ap',x:584,y:60,w:400,h:340,k:'web',t:'PH.applyFix(fx)',la:1,s:[
+ 'S.lat, S.lon · S.gpsReal = true · PH.lastFix, PH.src',
+ 'S.gs (km/h) da fx.speed o da distanza/tempo tra fix',
+ 'S.trk se GS > 1,5 m/s; da fermo S.trk = null',
+ 'PH.dvdt: accelerazione lungo la traccia (± 4 m/s²)',
+ 'PH.trkRate: virata dalla traccia (GS > 8 m/s)',
+ 'PH.magAuto(): taratura bussola in corsa di decollo',
+ 'S.hdg riallineata alla traccia (> 25 km/h, vento)',
+ 'quota: PH.vario.correct(msl + taratura, dt)',
+ '   → S.alt (ft), S.vs (m/s)',
+ 'PH.autoCal: fermi 20 s su un campo noto → taratura',
+ 'PH.windSample: vento e TAS dalle virate',
+ 'PH.logFix: diario (decollo > 55 km/h per 5 s)',
+ 'LIVE.gps = LIVE.air = LIVE.baro = adesso',
+ '',
+ 'scadenze: GPS 3,5 s · velocità e quota 2,5 s',
+ '→ bandierine rosse, mai valori congelati'],ss:12.5});
+D.box({id:'out',x:16,y:478,w:968,h:62,k:'ext',t:'Chi usa S',s:['drawPFD / drawMap a 30 fps · caselle PH.info ogni 0,5 s · avvisi (terreno, spazi aerei, tramonto, traffico) ogni 1 s · orologio ogni 2 s · diario e tracce']});
+D.arrow('ph','in',{sides:'rl',fb:0.25,k:'web'});
+D.arrow('glo','in',{sides:'rl',fb:0.5,k:'web'});
+D.arrow('fx','in',{sides:'rl',fb:0.75,k:'web'});
+D.arrow('in','pick',{sides:'bt',both:true,k:'n'});
+D.arrow('in','ap',{sides:'rl',k:'web'});
+D.arrow('ap','out',{sides:'bt',k:'n'});
+D.render();
+</script>

@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: formato del codice di licenza HZ1
+const D = new Diagram(1000, 330);
+const cells=[[1,'ver','1'],[1,'tipo','M/A/P'],[2,'emesso','giorni da 1/1/2026'],[2,'scade','65535 = mai'],[3,'numero','24 bit'],[12,'telefono','12 caratteri ASCII']];
+let x=16; const u=21.5, y=40;
+D.text({x:16,y:26,t:'DATI · 21 byte (big-endian, struct «>BcHH» + 3 + 12)',b:1,c:'#0c447c',fs:13});
+for(const [n,lab,sub] of cells){ D.box({id:lab,x,y,w:n*u*2.1,h:62,k:'data',t:lab,s:[sub,n+(n>1?' byte':' byte')],fs:12.5,ss:10.5}); x+=n*u*2.1; }
+D.box({id:'sig',x:16,y:150,w:968,h:56,k:'nat',t:'FIRMA · 64 byte: r ‖ s (ECDSA P-256 su SHA-256 dei 21 byte di dati)',s:['tools/licenze.py: chiave privata dell\'autore · app: chiave pubblica SPKI in riservato.js (crypto.subtle.verify)']});
+D.box({id:'b32',x:16,y:230,w:968,h:72,k:'web',t:'85 byte → base32 Crockford (0-9 A-Z senza I L O U) = 136 caratteri',s:['`HZ1-XXXXX-XXXXX-XXXXX-…   (gruppi di 5; in lettura O→0, I/L→1, i trattini si ignorano)']});
+D.arrow([500,104],[500,150],{k:'n'}); D.arrow([500,206],[500,230],{k:'n'});
+D.render();
+</script>

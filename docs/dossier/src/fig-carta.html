@@ -1,0 +1,15 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: carta VFR open flightmaps, Android nativo contro web (worker sqlite-wasm + OPFS)
+const D = new Diagram(1000, 570);
+D.box({id:'ofm',x:280,y:12,w:440,h:66,k:'ext',t:'open flightmaps (Google Cloud Storage)',s:['`live/{AIRAC}/tiles/li/noninteractive/epsg3857/li_256.mbtiles','≈ 105 MB · zoom 4–11 · righe TMS'],ss:11});
+D.box({id:'cj',x:250,y:110,w:500,h:110,k:'web',t:'carta.js (pagina)',la:1,s:['PH.airac(): ciclo di 28 giorni dal 2/1/2020 (es. «2611»)','PH.cartaScarica(): prova AIRAC corrente, poi il precedente','PH.cartaTile(z,x,y) → PNG in base64 · base «ofm» con local:true','sceglie il plugin nativo (APK) oppure il worker (PH.cartaWebOk)']});
+D.group({x:12,y:250,w:470,h:250,t:'APP ANDROID',k:'nat'});
+D.box({id:'cp',x:28,y:280,w:438,h:206,k:'nat',t:'CartaPlugin.java',la:1,s:['scarica: solo URL di snapshots.openflightmaps.org,','  HttpURLConnection, file .part → rinomina in','  files/carte/li.mbtiles (eventi «progresso» ogni 0,4 s)','  rifiuta file < 1 MB','info: metadati version, description, bounds','tile: SQLiteDatabase in sola lettura,','  row = 2^z − 1 − y, Base64 NO_WRAP','cancella: chiude il database e toglie il file']});
+D.group({x:518,y:250,w:470,h:250,t:'VERSIONE WEB (browser, iPhone dalla Home)',k:'data'});
+D.box({id:'cw',x:534,y:280,w:438,h:206,k:'data',t:'carta-web.js (Worker di tipo module)',la:1,s:['sqlite3.js + sqlite3.wasm (sqlite-wasm 3.53.4)','VFS «opfs-sahpool» in /hz-carta (memoria del sito)','scarica: fetch in streaming → pool.importDb a pezzi','  (niente RAM), file /li@AIRAC.mbtiles,','  la vecchia si cancella solo a scarico finito','prima: storage.persist(), spazio libero ≥ 130 MB','tile: selectValue sulla tabella tiles → base64','messaggi {id, op, a} → {id, ok, r | e} · {prog}']});
+D.arrow('ofm','cj',{sides:'bt',k:'ext',t:'HTTPS (CORS *)'});
+D.arrow('cj','cp',{sides:'bt',fa:0.2,k:'nat',t:'Capacitor «Carta»',lp:[350,236]});
+D.arrow('cj','cw',{sides:'bt',fa:0.8,k:'data',t:'postMessage',lp:[650,236]});
+D.text({x:12,y:528,t:'In entrambi i casi drawMap disegna le tessere come le altre basi e senza internet la carta resta disponibile.\nAll\'avvio, se la base scelta è «ofm» ma la carta manca, si torna a OpenTopoMap.',fs:12,i:1});
+D.render();
+</script>

@@ -372,7 +372,7 @@ def main():
                     nome = f"{datetime.date.today().isoformat()}-{hashlib.sha256((msg.get('Message-ID') or str(uid)).encode()).hexdigest()[:12]}.txt"
                     open(os.path.join(env['PISTE'], nome), 'w').write('\n'.join(righe) + '\n')
                     conti['piste'] = conti.get('piste', 0) + len(righe)
-                posta.etichetta(uid, aggiungi=['"Piste lette"'], togli=[INBOX])
+                posta.etichetta(uid, aggiungi=['Piste lette'], togli=[INBOX])
             except Exception:
                 conti['errori'] = conti.get('errori', 0) + 1
 

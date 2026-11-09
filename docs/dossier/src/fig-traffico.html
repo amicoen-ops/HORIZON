@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: traffico GDL90 e da internet
+const D = new Diagram(1000, 520);
+D.box({id:'ss',x:16,y:16,w:230,h:84,k:'hw',t:'SafeSky · SkyEcho',s:['PilotAware · Stratux','GDL90 su UDP, porta 4000']});
+D.box({id:'pl',x:290,y:16,w:300,h:118,k:'nat',t:'Gdl90Plugin (Java)',la:1,s:['DatagramSocket :4000 (reuse, broadcast)','WifiManager.MulticastLock','thread «gdl90»: receive(4096 byte)','conta pacchetti, aerei, scartati']});
+D.box({id:'pa',x:630,y:16,w:354,h:118,k:'nat',t:'Gdl90Parser',la:1,s:['messaggi tra 0x7E, escape 0x7D (b ^ 0x20)','CRC-CCITT 0x1021 (2 byte in coda)','msg 10 = proprio aereo · msg 20 = traffico','lat/lon 24 bit · quota 25 ft − 1000','velocità kt · vario × 64 ft/min · nome']});
+D.box({id:'in',x:16,y:170,w:330,h:108,k:'web',t:'PH.gdlIn(o)',la:1,s:['proprio: PH.TRF.gdlOwn e scarto di quota gdlOfs','traffico: T.tg["G"+addr] (src «SafeSky»)','toglie lo stesso aereo arrivato da internet','PH.gdlLive(): dati da < 15 s']});
+D.box({id:'net',x:16,y:300,w:330,h:120,k:'ext',t:'Traffico da internet',la:1,s:['solo se GDL90 tace, ogni 6 s, con la rete','zona arrotondata a 0,1° (≈ 10 km)','OGN: live.glidernet.org/lxml.php (±0,5°)','adsb.lol: /v2/point/lat/lon/20','doppioni: vale la posizione più fresca']});
+D.box({id:'ev',x:400,y:170,w:290,h:250,k:'web',t:'PH.trfTick → PH.trfEval (1 Hz)',la:1,s:['posizione proiettata (al più 45 s)','scarta dati più vecchi di 180 s','riconosce il proprio aereo','  (stessa posizione e velocità 3 volte)','punto di massimo avvicinamento (CPA)','pericolo se entro 1000 ft di lato','  e di quota, adesso o entro 60 s:','  lvl 2 ≤ 30 s (rosso), lvl 1 (giallo)','→ T.view, T.alert']});
+D.box({id:'o1',x:730,y:170,w:254,h:72,k:'red',t:'PH.trfDraw',s:['triangolo «ORE n · ±ft»','su orizzonte e mappa']});
+D.box({id:'o2',x:730,y:258,w:254,h:72,k:'web',t:'PH.trfMap',s:['frecce colorate, quota relativa','scia di 2 minuti']});
+D.box({id:'o3',x:730,y:346,w:254,h:74,k:'web',t:'Pagina TRAFFICO',s:['radar 5/10/25 km · elenco','SQUADRIGLIA in verde']});
+D.arrow('ss','pl',{sides:'rl',k:'nat',t:'UDP'}); D.arrow('pl','pa',{sides:'rl',k:'nat',t:'parse()'});
+D.arrow('pa','in',{sides:'bt',fa:0.2,fb:0.8,k:'nat',t:'evento «traffico»',mid:152});
+D.arrow('in','ev',{sides:'rl',fa:0.5,fb:0.2,k:'web'}); D.arrow('net','ev',{sides:'rl',fb:0.75,k:'ext'});
+D.arrow('ev','o1',{sides:'rl',fa:0.15,k:'red'}); D.arrow('ev','o2',{sides:'rl',fa:0.5,k:'web'}); D.arrow('ev','o3',{sides:'rl',fa:0.85,k:'web'});
+D.text({x:16,y:452,t:'Il triangolo di pericolo non dipende dai livelli della mappa: spegnere il livello «traffico» toglie solo il disegno.',fs:12,i:1});
+D.text({x:16,y:472,t:'Volo dimostrativo: PH.trfDemo crea tre aerei finti (uno in rotta di collisione) per mostrare l\'avviso.',fs:12,i:1});
+D.render();
+</script>

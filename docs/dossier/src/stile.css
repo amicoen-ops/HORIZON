@@ -1,0 +1,4 @@
+/* HORIZON · dossier tecnico · stile comune dei diagrammi (come docs/licenze/paypal-passi.html: system-ui, blu #1a3a5c) */
+body{margin:0;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"DejaVu Sans",sans-serif}
+#fig{display:inline-block;padding:8px;background:#fff}
+svg{display:block;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"DejaVu Sans",sans-serif}

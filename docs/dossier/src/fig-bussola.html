@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: bussola (CompassPlugin, deviceorientation, orologio) → PH.mag
+const D = new Diagram(1000, 470);
+D.box({id:'a',x:16,y:16,w:300,h:84,k:'nat',t:'Android: CompassPlugin',la:1,s:['TYPE_ROTATION_VECTOR (o GEOMAGNETIC_…)','SENSOR_DELAY_GAME, al più ogni 50 ms','evento «rot» {R[9], acc 0..3}']});
+D.box({id:'b',x:16,y:116,w:300,h:70,k:'web',t:'Browser Android',la:1,s:['deviceorientationabsolute (α, β, γ)','→ matrice R (solo se manca il nativo)']});
+D.box({id:'c',x:16,y:202,w:300,h:84,k:'web',t:'iPhone / iPad',la:1,s:['deviceorientation + webkitCompassHeading','scarto tra α relativo e nord magnetico','(stimato col telefono non dritto)']});
+D.box({id:'d',x:16,y:302,w:300,h:70,k:'watch',t:'Orologio (H2, facoltativa)',la:1,s:['campo mh dei dati · solo orologio fermo','orologio.js bussola(hm)']});
+D.box({id:'m',x:360,y:16,w:300,h:270,k:'web',t:'PH.magFromR(R, fonte)',la:1,s:['asse avanti dell\'aereo PH.M[0]','→ assi del telefono (PH.scrAng)','→ Terra con R (Est, Nord, Su)','telefono in piano: conta l\'alto dello schermo','prua magnetica = atan2(E, N) → PH.mag.mRaw','+ deviazione PH.magDev + declinazione (3°)','filtro regolabile («bussola più morbida»):','  τ = hdgSmooth × 0,25 s','→ PH.mag.hdg, PH.mag.t, PH.mag.src']});
+D.box({id:'u',x:700,y:16,w:284,h:140,k:'web',t:'Uso in PH.onMotion',la:1,s:['PH.magInUse(): dato < 1,5 s e','  modo «ground» (GS ≤ 25 km/h)','  oppure «always»','prua = giroscopio integrato,','  riportata verso la bussola (τ 0,5 s)']});
+D.box({id:'t',x:700,y:176,w:284,h:196,k:'data',t:'PH.magAuto() (dal GPS)',la:1,s:['corsa di decollo: GS 20–55 km/h,','traccia stabile (< 1,5°/s), vario < 1,5','raccoglie traccia − prua magnetica','a fine corsa: ≥ 5 campioni con','dispersione < 8° → nuova PH.magDev','(cambia solo se differisce ≥ 3°)','ia517p_magdev · ia517p_magauto_last']});
+D.box({id:'o',x:360,y:302,w:300,h:70,k:'ext',t:'Uscite',s:['S.hdg (casella PRUA a terra, nastro di prua)','Impostazioni › Stato e «Prima di partire»']});
+D.arrow('a','m',{sides:'rl',fb:0.12,k:'nat'}); D.arrow('b','m',{sides:'rl',fb:0.4,k:'web'}); D.arrow('c','m',{sides:'rl',fb:0.7,k:'web'});
+D.arrow('d','m',{sides:'rl',fb:0.95,k:'watch',t:'bussola(hm)',lp:[338,318]});
+D.arrow('m','u',{sides:'rl',fb:0.5,k:'web'}); D.arrow('t','m',{sides:'lr',fa:0.3,fb:0.85,k:'data',t:'PH.magDev',lp:[680,250]});
+D.arrow('m','o',{sides:'bt',k:'n'});
+D.text({x:16,y:400,t:'Il telefono non ha un modulo «barometro» nell\'app: la quota viene dal GPS (o dal barometro dell\'orologio in HORIZON 2).',fs:12,i:1});
+D.text({x:16,y:420,t:'La bussola serve soprattutto a terra e lenti: in volo la prua viene dal giroscopio riallineato alla traccia GPS corretta col vento stimato.',fs:12,i:1});
+D.render();
+</script>
