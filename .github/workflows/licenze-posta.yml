@@ -49,6 +49,7 @@ jobs:
         id: posta
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          LICENZE_PASSWORD: ${{ secrets.LICENZE_PASSWORD }}
           GMAIL_LICENZE: ${{ secrets.GMAIL_LICENZE }}
           GMAIL_UTENTE: horizonlicenses@gmail.com
           PAYPAL: https://www.paypal.me/amicoen
@@ -56,7 +57,9 @@ jobs:
         run: |
           set -e
           umask 077; T="$RUNNER_TEMP/lic"; mkdir -p "$T"
-          dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
+          scegli(){ if [ -f "$1/cifratura-v2.txt" ]; then export LP="$LICENZE_PASSWORD"; else export LP="$KEYSTORE_PASSWORD"; fi; }   # password delle licenze: la nuova dopo «cambia-password»
+          scegli reg/licenze
+          dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:LP; }
           dec reg/licenze/chiave_privata.pem.enc "$T/priv.pem"; dec reg/licenze/registro.json.enc "$T/reg.json"
           if [ -f reg/licenze/prezzi.json.enc ]; then dec reg/licenze/prezzi.json.enc "$T/prezzi.json"; fi
           cp reg/licenze/ultimo_riepilogo.txt "$T/ultimo.txt" 2>/dev/null || true
@@ -69,17 +72,20 @@ jobs:
         if: always() && steps.ok.outputs.si == '1'
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          LICENZE_PASSWORD: ${{ secrets.LICENZE_PASSWORD }}
         run: |
           set -e
           T="$RUNNER_TEMP/lic"; [ -d "$T" ] || exit 0
-          dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
-          enc(){ openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
+          dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:LP; }
+          enc(){ openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:LP; }
           diverso(){ [ ! -f "$1" ] || ! cmp -s <(dec "$1" /dev/stdout) "$2"; }   # confronto in chiaro: il cifrato cambia sempre
-          cd reg; salvato=0
+          scegli(){ if [ -f "$1/cifratura-v2.txt" ]; then export LP="$LICENZE_PASSWORD"; else export LP="$KEYSTORE_PASSWORD"; fi; }   # password delle licenze: la nuova dopo «cambia-password»
+          cd reg; salvato=0; scegli licenze
           for prova in 1 2 3 4; do
             if [ "$prova" -gt 1 ]; then
               sleep $((prova * 3)); git fetch -q origin licenze; git reset -q --hard origin/licenze
-              dec licenze/registro.json.enc "$T/remoto.json"; python3 ../tools/registro_unisci.py "$T/remoto.json" "$T/reg.json" "$T/reg.json"
+              cp "$T/reg.json" "$T/nostro.json"; scegli licenze     # il ramo può essere appena passato alla password nuova
+              dec licenze/registro.json.enc "$T/remoto.json"; python3 ../tools/registro_unisci.py "$T/remoto.json" "$T/nostro.json" "$T/reg.json"
             fi
             if [ -f "$T/reg.json" ] && diverso licenze/registro.json.enc "$T/reg.json"; then enc "$T/reg.json" licenze/registro.json.enc; fi
             if [ -f "$T/prezzi.json" ] && diverso licenze/prezzi.json.enc "$T/prezzi.json"; then enc "$T/prezzi.json" licenze/prezzi.json.enc; fi

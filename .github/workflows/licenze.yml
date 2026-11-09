@@ -1,11 +1,13 @@
 name: Licenze
 
 # Codici di licenza di HORIZON (vedi tools/licenze.py). Si lancia a mano da GitHub › Actions › Licenze › Run workflow.
-#  · crea-chiave: una volta sola. Crea la chiave privata (cifrata con KEYSTORE_PASSWORD) e la pubblica, sul ramo «licenze».
+#  · crea-chiave: una volta sola. Crea la chiave privata (cifrata con la password delle licenze) e la pubblica, sul ramo «licenze».
 #  · genera: crea il codice per un telefono (tipo M/A/P), lo annota nel registro cifrato e lo scrive nel riepilogo della corsa.
 #  · revoca: aggiunge il numero di una licenza alla lista pubblica delle revocate (l'app la legge quando ha internet),
 #    con la data nello storico (solo numeri e date: la lista è pubblica); il riepilogo giornaliero lo mostra.
 #  · ripristina: toglie il numero dalla lista (revoca fatta per errore o per prova).
+#  · cambia-password: una volta sola, ricifra chiave privata, registro e stato con il segreto LICENZE_PASSWORD (dedicato alle
+#    licenze) al posto di KEYSTORE_PASSWORD; da lì tutti i workflow usano quello (file licenze/cifratura-v2.txt).
 # Il progetto è pubblico: nei campi qui sotto niente dati personali (nomi, mail). Il codice di licenza invece si può
 # mostrare: funziona solo sul telefono per cui è fatto.
 on:
@@ -14,7 +16,7 @@ on:
       azione:
         description: 'Cosa fare'
         type: choice
-        options: [genera, revoca, ripristina, crea-chiave]
+        options: [genera, revoca, ripristina, cambia-password, crea-chiave]
         default: genera
       tipo:
         description: 'Tipo: M mensile, A annuale, P perenne'
@@ -48,6 +50,7 @@ jobs:
       - name: Azione
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          LICENZE_PASSWORD: ${{ secrets.LICENZE_PASSWORD }}
           GMAIL_LICENZE: ${{ secrets.GMAIL_LICENZE }}
           GMAIL_UTENTE: horizonlicenses@gmail.com
           AZIONE: ${{ inputs.azione }}
@@ -57,8 +60,10 @@ jobs:
         run: |
           set -e
           cd reg; mkdir -p licenze; L=licenze; umask 077; T="$RUNNER_TEMP/lic"; mkdir -p "$T"
-          dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
-          enc(){ openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
+          scegli(){ if [ -f "$1/cifratura-v2.txt" ]; then export LP="$LICENZE_PASSWORD"; else export LP="$KEYSTORE_PASSWORD"; fi; }   # password delle licenze: la nuova dopo «cambia-password»
+          scegli $L
+          dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:LP; }
+          enc(){ openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:LP; }
           A=../tools/licenze_azione.py
           if [ "$AZIONE" = crea-chiave ]; then
             if [ -f $L/chiave_privata.pem.enc ]; then echo "::error::La chiave esiste già: non si ricrea (i codici già dati smetterebbero di valere)"; exit 1; fi
@@ -69,11 +74,27 @@ jobs:
             rm -rf "$T"; exit 0
           fi
           [ -f $L/chiave_privata.pem.enc ] || { echo "::error::Prima lancia «crea-chiave»"; exit 1; }
+          if [ "$AZIONE" = cambia-password ]; then
+            [ -n "$LICENZE_PASSWORD" ] || { echo "::error::Manca il segreto LICENZE_PASSWORD"; exit 1; }
+            [ ${#LICENZE_PASSWORD} -ge 24 ] || { echo "::error::LICENZE_PASSWORD troppo corta: almeno 24 caratteri casuali"; exit 1; }
+            [ ! -f $L/cifratura-v2.txt ] || { echo "Già fatto: le licenze usano già LICENZE_PASSWORD" >> "$GITHUB_STEP_SUMMARY"; exit 0; }
+            for f in $L/*.enc; do
+              openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$f" -out "$T/chiaro" -pass env:KEYSTORE_PASSWORD
+              openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in "$T/chiaro" -out "$f.nuovo" -pass env:LICENZE_PASSWORD
+              openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$f.nuovo" -out "$T/verifica" -pass env:LICENZE_PASSWORD
+              cmp -s "$T/chiaro" "$T/verifica" || { echo "::error::Verifica non riuscita su $f: niente cambiato"; exit 1; }
+              mv "$f.nuovo" "$f"
+            done
+            printf '%s\n' "I file .enc di questa cartella sono cifrati con il segreto LICENZE_PASSWORD (dal $(date -u +%F))." > $L/cifratura-v2.txt
+            git add -A; git commit -qm "Licenze: password dedicata [skip ci]"; git push -q origin HEAD:licenze
+            echo "## Password delle licenze cambiata" >> "$GITHUB_STEP_SUMMARY"; echo "Chiave privata, registro e stato ora sono cifrati con LICENZE_PASSWORD." >> "$GITHUB_STEP_SUMMARY"
+            rm -rf "$T"; exit 0
+          fi
           # l'azione si applica alla copia più recente del ramo; se il push trova il ramo cambiato (un altro giro ha
           # scritto), si riprende la copia nuova e si riapplica: niente si perde e niente si annulla in silenzio
           salvato=0; nulla=
           for prova in 1 2 3 4; do
-            if [ "$prova" -gt 1 ]; then sleep $((prova * 3)); git fetch -q origin licenze; git reset -q --hard origin/licenze; fi
+            if [ "$prova" -gt 1 ]; then sleep $((prova * 3)); git fetch -q origin licenze; git reset -q --hard origin/licenze; scegli $L; fi
             dec $L/registro.json.enc "$T/reg.json"
             case "$AZIONE" in
               genera) dec $L/chiave_privata.pem.enc "$T/priv.pem"; python3 $A genera "$T/reg.json" "$T/priv.pem" "$T/stato.json"
