@@ -6,10 +6,12 @@ Posta delle licenze, sulla casella horizonlicenses (IMAP e SMTP di Gmail con la 
 Lo lancia il workflow «Licenze per posta» ogni 10 minuti.
 
 1. Richieste nuove (oggetto con «HORIZON» e «licenza» e il codice del telefono, arrivate dall'app o scritte a mano):
-   risponde con i prezzi e il link PayPal, poi mette l'etichetta «Risposto».
+   risponde con i prezzi e il link PayPal, mette l'etichetta «Da gestire» e la toglie dalla Posta in arrivo.
+   Le risposte dei piloti («ho pagato…») restano in arrivo, con «Da gestire».
 2. Pagate: l'autore, visto il pagamento su PayPal, mette alla mail l'etichetta M, A o P. Qui si crea il codice di
    quel tipo per quel telefono, si risponde al pilota, si annota nel registro (cifrato, senza indirizzi) e la mail
-   passa a «Fatte». Se nella mail non c'è un codice del telefono valido va a «Da vedere».
+   passa a «Gestite», fuori dalla Posta in arrivo. Se nella mail non c'è un codice del telefono valido resta in arrivo
+   con «Da vedere».
 
 Il progetto è pubblico: nei log solo numeri, mai indirizzi o codici del telefono.
 Ambiente: GMAIL_UTENTE, GMAIL_LICENZE (password per le app), PRIVATA (pem), PUBBLICA (txt), REGISTRO (json),
@@ -23,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import licenze
 
 TIPI = {'M': 'mensile', 'A': 'annuale', 'P': 'perenne'}
+DA_GESTIRE, GESTITE, DA_VEDERE, INBOX = 'Da gestire', 'Gestite', 'Da vedere', '\\Inbox'
 PASSI_PAYPAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'licenze', 'paypal-passi.png')
 PREZZI = {'M': 5, 'A': 30, 'P': 150}
 TEL = re.compile(r'(?<![A-Z0-9])([A-Z2-9]{4})-([A-Z2-9]{4})-([A-Z2-9]{4})(?![A-Z0-9])')
@@ -74,9 +77,10 @@ class Posta:
             if isinstance(x, tuple): return email.message_from_bytes(x[1])
         return None
 
-    def etichetta(self, uid, aggiungi=None, togli=None):
-        if aggiungi: self.imap.uid('STORE', uid, '+X-GM-LABELS', '(' + aggiungi + ')')
-        if togli: self.imap.uid('STORE', uid, '-X-GM-LABELS', '(' + togli + ')')
+    def etichetta(self, uid, aggiungi=(), togli=()):
+        q = lambda e: e if e.startswith('\\') or ' ' not in e else '"' + e + '"'
+        if aggiungi: self.imap.uid('STORE', uid, '+X-GM-LABELS', '(' + ' '.join(q(e) for e in aggiungi) + ')')
+        if togli: self.imap.uid('STORE', uid, '-X-GM-LABELS', '(' + ' '.join(q(e) for e in togli) + ')')
 
     def rispondi(self, msg, testo, html=None, immagini=None):
         a = msg.get('Reply-To') or msg.get('From')
@@ -195,38 +199,47 @@ def main():
     pub = open(env['PUBBLICA']).read()
     conti = {'prezzi': 0, 'codici': 0, 'da vedere': 0, 'saltate': 0}
 
-    # 1. richieste nuove: prezzi e PayPal
-    for uid in posta.cerca('subject:(HORIZON licenza) newer_than:30d -from:me -label:risposto -label:fatte -label:m -label:a -label:p'):
+    # 0. etichette delle prime versioni: «Risposto» diventa «Da gestire», «Fatte» diventa «Gestite»
+    for uid in posta.cerca('label:risposto'): posta.etichetta(uid, aggiungi=[DA_GESTIRE], togli=['Risposto', INBOX])
+    for uid in posta.cerca('label:fatte'): posta.etichetta(uid, aggiungi=[GESTITE], togli=['Fatte', DA_GESTIRE, INBOX])
+
+    # 1. richieste nuove: prezzi e PayPal, poi «Da gestire» fuori dalla Posta in arrivo (si aspetta il pagamento)
+    for uid in posta.cerca('subject:(HORIZON licenza) newer_than:30d -from:me -label:da-gestire -label:gestite -label:da-vedere -label:m -label:a -label:p'):
         msg = posta.leggi(uid)
         if msg is None: continue
         ogg = dec(msg.get('Subject'))
         tel = tel_da(ogg) or tel_da(testo_di(msg))
         risposta = bool(msg.get('In-Reply-To')) or re.match(r'\s*(re|r|aw|sv)\s*:', ogg, re.I)
-        if tel and not risposta and posta.rispondi(msg, *testo_prezzi(tel, env['PAYPAL']), immagini={'passi-paypal': PASSI_PAYPAL}): conti['prezzi'] += 1
-        else: conti['saltate'] += 1
-        posta.etichetta(uid, aggiungi='Risposto')
+        if risposta:                                      # «ho pagato…»: resta in arrivo perché l'autore la veda
+            posta.etichetta(uid, aggiungi=[DA_GESTIRE]); conti['saltate'] += 1
+        elif tel and posta.rispondi(msg, *testo_prezzi(tel, env['PAYPAL']), immagini={'passi-paypal': PASSI_PAYPAL}):
+            posta.etichetta(uid, aggiungi=[DA_GESTIRE], togli=[INBOX]); conti['prezzi'] += 1
+        else:                                             # senza codice del telefono o senza indirizzo: la guarda l'autore
+            posta.etichetta(uid, aggiungi=[DA_VEDERE]); conti['da vedere'] += 1
 
-    # 2. pagate: etichetta M, A o P messa dall'autore
+    # 2. pagate: etichetta M, A o P messa dall'autore → codice, poi «Gestite» fuori dalla Posta in arrivo
     fatti = set()
     for tipo in 'MAP':
-        for uid in posta.cerca(f'label:{tipo.lower()} -label:fatte -from:me'):
+        for uid in posta.cerca(f'label:{tipo.lower()} -label:gestite -from:me'):
             msg = posta.leggi(uid)
             if msg is None: continue
             tel = tel_da(dec(msg.get('Subject'))) or tel_da(testo_di(msg))
+            if (tipo, tel) in fatti or (not tel and fatti and any(t == tipo for t, _ in fatti) and msg.get('In-Reply-To')):
+                posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE, INBOX]); continue   # altre mail della stessa conversazione
             if not tel:
-                posta.etichetta(uid, aggiungi='"Da vedere"', togli=tipo); conti['da vedere'] += 1; continue
-            if (tipo, tel) in fatti:                      # altre mail della stessa conversazione
-                posta.etichetta(uid, aggiungi='Fatte', togli=tipo); continue
+                posta.etichetta(uid, aggiungi=[DA_VEDERE, INBOX], togli=[tipo]); conti['da vedere'] += 1; continue
             n = max([r['numero'] for r in registro] + [0]) + 1
             codice = licenze.genera(priv, tipo, tel, n)
             info = licenze.leggi(pub, codice)
             if not posta.rispondi(msg, *testo_codice(tipo, codice, info['scade'])):
-                posta.etichetta(uid, aggiungi='"Da vedere"', togli=tipo); conti['da vedere'] += 1; continue
+                posta.etichetta(uid, aggiungi=[DA_VEDERE, INBOX], togli=[tipo]); conti['da vedere'] += 1; continue
             registro.append({'numero': n, 'tipo': tipo, 'telefono': info['telefono'], 'emesso': info['emesso'],
                              'scade': info['scade'], 'origine': 'posta'})
             json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)      # subito: se dopo qualcosa va storto il numero resta usato
             fatti.add((tipo, tel)); conti['codici'] += 1
-            posta.etichetta(uid, aggiungi='Fatte', togli=tipo)
+            posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE, INBOX])
+        # le nostre risposte nella stessa conversazione: l'etichetta M/A/P messa a mano la prendono anche loro
+        for uid in posta.cerca(f'label:{tipo.lower()} from:me'): posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE])
     posta.imap.logout()
 
     riga = f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"
