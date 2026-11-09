@@ -1,0 +1,1 @@
+I file .enc di questa cartella sono cifrati con il segreto LICENZE_PASSWORD (dal 2026-11-09).
