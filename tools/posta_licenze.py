@@ -350,6 +350,32 @@ def main():
         try:
             for uid in posta.cerca(f'label:{tipo.lower()} from:me'): posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE])
         except Exception: conti['errori'] = conti.get('errori', 0) + 1
+    # 2b. piste rilevate e campi usati (segnalazioni anonime dall'app, arrivano qui dalla 1.0.138): se ne salvano solo
+    # le righe «HORIZON-PISTA {…}» / «HORIZON-CAMPI {…}» (codice casuale del telefono, niente nomi né indirizzi) in
+    # PISTE/, che il workflow mette sul ramo «licenze» (cartella piste/) per tools/piste_piloti.py. La mail va in «Piste lette».
+    if env.get('PISTE'):
+        os.makedirs(env['PISTE'], exist_ok=True)
+        for uid in posta.cerca('newer_than:60d -label:piste-lette (subject:(HORIZON pista rilevata) OR subject:(HORIZON campi usati))'):
+            try:
+                msg = posta.leggi(uid)
+                if msg is None: continue
+                import piste_piloti                        # stesso lettore del lavoro settimanale (testo o HTML)
+                testo = ''
+                for parte in msg.walk():
+                    if parte.get_content_type() in ('text/plain', 'text/html'):
+                        try: testo += '\n' + parte.get_payload(decode=True).decode(parte.get_content_charset() or 'utf-8', 'replace')
+                        except Exception: pass
+                righe = [f'HORIZON-{t} ' + json.dumps(v, ensure_ascii=False, separators=(',', ':'))
+                         for t in ('PISTA', 'CAMPI') for v in piste_piloti.righe(testo, t)]
+                righe = list(dict.fromkeys(righe))          # la stessa riga nella parte testo e in quella HTML: una volta
+                if righe:
+                    nome = f"{datetime.date.today().isoformat()}-{hashlib.sha256((msg.get('Message-ID') or str(uid)).encode()).hexdigest()[:12]}.txt"
+                    open(os.path.join(env['PISTE'], nome), 'w').write('\n'.join(righe) + '\n')
+                    conti['piste'] = conti.get('piste', 0) + len(righe)
+                posta.etichetta(uid, aggiungi=['"Piste lette"'], togli=[INBOX])
+            except Exception:
+                conti['errori'] = conti.get('errori', 0) + 1
+
     if recupera_indirizzi(posta, registro, pub): json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)
     # 3. riepilogo: uno al giorno (al primo giro del giorno) o a richiesta; finisce in «Archivio generale licenze»
     import datetime
@@ -373,7 +399,7 @@ def main():
     posta.imap.logout()
 
     riga = (f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"
-            f" · limitate {conti.get('limitate', 0)} · errori {conti.get('errori', 0)}")
+            f" · limitate {conti.get('limitate', 0)} · righe piste/campi {conti.get('piste', 0)} · errori {conti.get('errori', 0)}")
     print(riga)
     if env.get('RIEPILOGO'):
         with open(env['RIEPILOGO'], 'a') as f: f.write('## Licenze per posta\n\n' + riga + '\n')
