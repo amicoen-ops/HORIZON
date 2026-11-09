@@ -165,7 +165,7 @@ L.panel=function(st){
       <p><b>Hai la chiave?</b> Incollala qui:</p><textarea id="licKey" placeholder="IA517-…" autocapitalize="characters" spellcheck="false"></textarea>
       <button type="button" data-l="act">Attiva su questo dispositivo</button>
       <p><small>Codice di questo dispositivo: <b>${L.dev}</b>. ${set(CFG.portal)?`Ricevute, chiave e dispositivi attivi: <a href="${esc(CFG.portal)}" target="_blank" rel="noopener" style="color:#3fd6ff">il tuo spazio su Polar</a>.`:''}</small></p>`))+
-    `<p class="lic-msg" id="licMsg"></p><p><small>In volo l'app non si blocca mai: questa schermata compare solo a terra. Problemi? amicoen@gmail.com</small></p>`;
+    `<p class="lic-msg" id="licMsg"></p><p><small>In volo l'app non si blocca mai: questa schermata compare solo a terra. Problemi? horizonlicenses@gmail.com</small></p>`;
 };
 L.wire=function(root){
   const msg=t=>{ const m=root.querySelector('#licMsg'); if(m){ m.className='lic-msg '+(t&&t.ok?'ok':'bad'); m.textContent=t?t.text:''; } };

@@ -2,7 +2,8 @@
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 //
 // MENU RISERVATO e CODICE DI LICENZA. In Info, 5 tocchi sul logo in alto a sinistra (entro 3 s) aprono il menu riservato:
-// codice di questo telefono (da mandare all'autore), campo per il codice di licenza e il suo stato.
+// codice di questo telefono, «Chiedi la licenza» (manda il codice a horizonlicenses: Web3Forms o la posta del pilota;
+// la risposta con i prezzi parte da GitHub, fuori dall'app), campo per il codice di licenza e il suo stato.
 // Nessun prezzo e nessun link di pagamento, in nessuna versione (regole di Google Play): la licenza si ottiene fuori dall'app.
 // Il codice (HZ1-…) è firmato dall'autore con una chiave privata (tools/licenze.py) e si verifica qui anche senza
 // internet con la chiave pubblica: tipo M mensile, A annuale, P perenne, legato al codice del telefono, revocabile
@@ -13,7 +14,7 @@
 const PUB='MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEXSBbCj2UpmVa0G3EbWC80ENkN4APnYTEOG7O8d+gMq5s7OV4Gp/hifcmn6/+5haoE3kDLEVBcIWgOg6RccD4KQ==';          // chiave pubblica (SPKI in base64), messa dal comando «Licenze › crea-chiave»
 const REVOCHE='https://raw.githubusercontent.com/amicoen-ops/HORIZON/licenze/licenze/revocate.json';
 const ALFA='0123456789ABCDEFGHJKMNPQRSTVWXYZ', EPOCA=Date.UTC(2026,0,1), DAY=86400000;
-const KC='ia517p_codice', KR='ia517p_revoche';
+const KC='ia517p_codice', KR='ia517p_revoche', KM='ia517p_mail';
 const esc=x=>String(x??'').replace(/[<&>"]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[c]));
 const get=(k,d)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } };
 const put=(k,v)=>{ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} };
@@ -77,6 +78,10 @@ PH.riservatoOpen=async function(){
       <section><h3>Licenza</h3>
         <p class="ph-sub">Codice di questo telefono</p>
         <div class="hz-tel"><b>${esc(telefono()||'…')}</b><button type="button" class="ph-btn" id="hzTelCp">Copia</button></div>
+        <p class="ph-sub" style="margin-top:12px">Chiedi la licenza: il codice di questo telefono arriva all'autore, che ti risponde per posta</p>
+        <input id="hzMail" type="email" inputmode="email" autocomplete="email" placeholder="la tua email" value="${esc(get(KM,''))}">
+        <div class="ph-btns"><button type="button" class="ph-btn" id="hzChiedi">Invia la richiesta</button><a class="ph-btn" id="hzChiediMail" href="#">Scrivi dalla tua posta</a></div>
+        <p id="hzChiediSt" class="ph-sub"></p>
         <p class="ph-sub" style="margin-top:12px">Codice di licenza</p>
         <textarea id="hzCod" rows="4" spellcheck="false" autocapitalize="characters" placeholder="HZ1-…">${esc(get(KC,''))}</textarea>
         <div class="ph-btns"><button type="button" class="ph-btn pri" id="hzCodOk">Attiva</button>${get(KC,'')?'<button type="button" class="ph-btn" id="hzCodNo">Togli il codice</button>':''}</div>
@@ -90,6 +95,17 @@ PH.riservatoOpen=async function(){
       if(!r.ok){ d.querySelector('#hzCodSt').innerHTML=statoHtml({stato:'non valido',perche:r.perche}); return; }
       if(telefono() && r.tel!==telefono().replace(/-/g,'')){ d.querySelector('#hzCodSt').innerHTML=statoHtml(Object.assign(r,{stato:'altro telefono'})); return; }
       put(KC,v); PH.act&&PH.act('licenza '+r.tipo+' n. '+r.numero); await draw(); toast('CODICE INSERITO'); };
+    // richiesta della licenza: con Web3Forms (come le segnalazioni) oppure dall'app di posta del pilota
+    const oggetto=()=>'HORIZON licenza '+telefono();
+    d.querySelector('#hzChiediMail').onclick=e=>{ e.currentTarget.href='mailto:'+PH_INFO.mail+'?subject='+encodeURIComponent(oggetto())
+      +'&body='+encodeURIComponent('Ciao, vorrei la licenza di HORIZON.\nCodice del telefono: '+telefono()+'\n'); PH.act&&PH.act('richiesta licenza (posta)'); };
+    d.querySelector('#hzChiedi').onclick=async()=>{ const st=d.querySelector('#hzChiediSt'), m=d.querySelector('#hzMail').value.trim();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m)){ st.innerHTML='<span style="color:#ffc531">Scrivi la tua email: la risposta arriva lì.</span>'; return; }
+      if(!telefono()){ st.textContent='Codice del telefono non ancora pronto: riprova tra un attimo.'; return; }
+      put(KM,m); st.textContent='Invio…';
+      try{ await PH.sendReport({kind:'Richiesta licenza',text:'Licenza per il telefono '+telefono(),reply:m,t:Date.now(),diag:''});
+        st.innerHTML='<span style="color:#3ddc84">Richiesta inviata. Ti rispondiamo a '+esc(m)+' (guarda anche nello spam).</span>'; toast('RICHIESTA INVIATA'); PH.act&&PH.act('richiesta licenza'); }
+      catch(e){ st.innerHTML='<span style="color:#ff5a5a">Invio non riuscito ('+esc(String(e&&e.message||e).slice(0,80))+'): usa «Scrivi dalla tua posta».</span>'; } };
     const no=d.querySelector('#hzCodNo'); if(no) no.onclick=async()=>{ put(KC,''); await draw(); };
   };
   document.body.appendChild(d); await draw(); PH.act&&PH.act('menu riservato');
@@ -101,6 +117,7 @@ PH.riservatoOpen=async function(){
     if(n>=5){ n=0; PH.riservatoOpen(); } else if(n>=3) toast('ANCORA '+(5-n)+(5-n===1?' TOCCO':' TOCCHI')); }); }
 { const s=document.createElement('style'); s.textContent=`
   .hz-tel{display:flex;align-items:center;gap:12px;flex-wrap:wrap} .hz-tel b{font:800 22px 'Oxanium',system-ui,monospace;letter-spacing:.06em;color:#33e1ff}
+  #hzMail{width:100%;box-sizing:border-box;font:600 15px system-ui,sans-serif;background:#121c25;color:#eef3f8;border:1px solid #3a4a5a;border-radius:10px;padding:8px;margin:4px 0}
   #hzCod{width:100%;box-sizing:border-box;font:600 14px ui-monospace,monospace;background:#121c25;color:#eef3f8;border:1px solid #3a4a5a;border-radius:10px;padding:8px;word-break:break-all}
   #hzCodSt{font:600 15px system-ui,sans-serif}`; document.head.appendChild(s); }
 // per la verifica nei test

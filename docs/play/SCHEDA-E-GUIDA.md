@@ -94,7 +94,7 @@ Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sost
 
 **Categoria:** Mappe e navigazione
 **Tag:** Aviazione, Navigazione, Meteo
-**Email di contatto:** amicoen@gmail.com
+**Email di contatto:** horizonlicenses@gmail.com
 **Informativa sulla privacy (URL):** https://github.com/amicoen-ops/HORIZON/blob/main/PRIVACY.md
 
 ## 4. Contenuti dell'app (risposte per Play Console)
@@ -135,7 +135,7 @@ Strumento sperimentale, non certificato e non approvato da EASA o ENAC. Non sost
   - Trasmessi cifrati.
 - **Altri contenuti generati dall'utente** (il testo della segnalazione): stesse condizioni.
 - **I dati sono cifrati in transito:** sì (HTTPS).
-- **Gli utenti possono chiedere la cancellazione:** sì, scrivendo a amicoen@gmail.com.
+- **Gli utenti possono chiedere la cancellazione:** sì, scrivendo a horizonlicenses@gmail.com.
 
 **Autorizzazioni:**
 - **Posizione precisa**: usata solo in primo piano. Non serve la dichiarazione per la posizione in background.

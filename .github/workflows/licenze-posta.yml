@@ -1,0 +1,60 @@
+name: Licenze per posta
+
+# Ogni 10 minuti legge la casella horizonlicenses (vedi tools/posta_licenze.py):
+#  · richieste nuove di licenza → risponde con prezzi e link PayPal (fuori dall'app);
+#  · mail con l'etichetta M, A o P (messa a mano dall'autore dopo il pagamento) → crea il codice, lo manda al pilota,
+#    lo annota nel registro cifrato sul ramo «licenze», sposta la mail in «Fatte».
+# Serve il segreto GMAIL_LICENZE (password per le app di horizonlicenses); senza, la corsa non fa niente.
+# Progetto pubblico: nei log solo conteggi.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: licenze
+
+jobs:
+  posta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Segreto presente?
+        id: ok
+        env:
+          G: ${{ secrets.GMAIL_LICENZE }}
+        run: |
+          if [ -n "$G" ]; then echo "si=1" >> "$GITHUB_OUTPUT"; else echo "Segreto GMAIL_LICENZE non ancora impostato, niente da fare."; fi
+      - uses: actions/checkout@v5
+        if: steps.ok.outputs.si == '1'
+      - name: Ramo «licenze»
+        if: steps.ok.outputs.si == '1'
+        run: |
+          git config --global user.name "github-actions[bot]"; git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch -q origin licenze && git worktree add -q reg origin/licenze -b licenze-loc
+      - run: pip install --quiet cryptography
+        if: steps.ok.outputs.si == '1'
+      - name: Posta
+        if: steps.ok.outputs.si == '1'
+        id: posta
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          GMAIL_LICENZE: ${{ secrets.GMAIL_LICENZE }}
+          GMAIL_UTENTE: horizonlicenses@gmail.com
+          PAYPAL: https://www.paypal.me/amicoen
+        run: |
+          set -e
+          umask 077; T=$(mktemp -d)
+          dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
+          dec reg/licenze/chiave_privata.pem.enc $T/priv.pem; dec reg/licenze/registro.json.enc $T/reg.json
+          PRIVATA=$T/priv.pem PUBBLICA=reg/licenze/chiave_pubblica.txt REGISTRO=$T/reg.json RIEPILOGO="$GITHUB_STEP_SUMMARY" \
+            python3 tools/posta_licenze.py || ERR=1
+          # il registro si salva anche se la corsa si è fermata a metà: i codici già mandati restano annotati
+          if ! cmp -s <(dec reg/licenze/registro.json.enc /dev/stdout) $T/reg.json; then
+            openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in $T/reg.json -out reg/licenze/registro.json.enc -pass env:KEYSTORE_PASSWORD
+            cd reg; git add -A; git commit -qm "Licenze: codici mandati per posta [skip ci]"; git push -q origin HEAD:licenze; cd ..
+          fi
+          rm -rf $T
+          [ -z "$ERR" ]
