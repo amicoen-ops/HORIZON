@@ -7,7 +7,7 @@
 // Nessun prezzo e nessun link di pagamento, in nessuna versione (regole di Google Play): la licenza si ottiene fuori dall'app.
 // Il codice (HZ1-…) è firmato dall'autore con una chiave privata (tools/licenze.py) e si verifica qui anche senza
 // internet con la chiave pubblica: tipo M mensile, A annuale, P perenne, legato al codice del telefono, revocabile
-// (lista delle licenze revocate, controllata una volta al giorno quando c'è internet). Per ora non blocca niente:
+// (lista delle licenze revocate, controllata una volta al giorno quando c'è internet e ogni volta che si apre questo menu). Per ora non blocca niente:
 // lo schema deciso (senza licenza niente uso dal vivo, mai blocchi in volo) si accende più avanti.
 (function(){
 'use strict';
@@ -52,7 +52,7 @@ L.codiceStato=async function(){
   return Object.assign(r,{stato:'attivo'});
 };
 // licenze revocate: una volta al giorno, quando c'è internet
-async function revoche(){ const v=get(KR,{t:0,n:[]}); if(Date.now()-(v.t||0)<DAY || !navigator.onLine) return;
+async function revoche(forza){ const v=get(KR,{t:0,n:[]}); if((!forza && Date.now()-(v.t||0)<DAY) || !navigator.onLine) return;
   try{ const r=await fetch(REVOCHE+'?t='+Date.now(),{cache:'no-store'}); if(!r.ok) return; const j=await r.json(); put(KR,{t:Date.now(),n:Array.isArray(j.revocate)?j.revocate:[]}); }catch(e){} }
 setTimeout(revoche,15000);
 
@@ -110,6 +110,8 @@ PH.riservatoOpen=async function(){
     const no=d.querySelector('#hzCodNo'); if(no) no.onclick=async()=>{ put(KC,''); await draw(); };
   };
   document.body.appendChild(d); await draw(); PH.act&&PH.act('menu riservato');
+  // aprendo il menu (a terra) la lista delle revocate si ricontrolla subito, se c'è internet
+  const prima=JSON.stringify(get(KR,{n:[]}).n||[]); await revoche(true); if(JSON.stringify(get(KR,{n:[]}).n||[])!==prima && d.isConnected) await draw();
 };
 // 5 tocchi sul logo di Info entro 3 secondi
 { let n=0, t0=0;

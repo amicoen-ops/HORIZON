@@ -4,6 +4,7 @@ name: Licenze
 #  · crea-chiave: una volta sola. Crea la chiave privata (cifrata con KEYSTORE_PASSWORD) e la pubblica, sul ramo «licenze».
 #  · genera: crea il codice per un telefono (tipo M/A/P), lo annota nel registro cifrato e lo scrive nel riepilogo della corsa.
 #  · revoca: aggiunge il numero di una licenza alla lista pubblica delle revocate (l'app la legge quando ha internet).
+#  · ripristina: toglie il numero dalla lista (revoca fatta per errore o per prova).
 # Il progetto è pubblico: nei campi qui sotto niente dati personali (nomi, mail). Il codice di licenza invece si può
 # mostrare: funziona solo sul telefono per cui è fatto.
 on:
@@ -12,7 +13,7 @@ on:
       azione:
         description: 'Cosa fare'
         type: choice
-        options: [genera, revoca, crea-chiave]
+        options: [genera, revoca, ripristina, crea-chiave]
         default: genera
       tipo:
         description: 'Tipo: M mensile, A annuale, P perenne'
@@ -23,7 +24,7 @@ on:
         description: 'Codice del telefono (XXXX-XXXX-XXXX, dal menu riservato dell''app)'
         required: false
       numero:
-        description: 'Solo per «revoca»: numero della licenza'
+        description: 'Solo per «revoca» e «ripristina»: numero della licenza'
         required: false
 
 permissions:
@@ -89,6 +90,15 @@ jobs:
           open(os.environ['GITHUB_STEP_SUMMARY'], 'a').write(f"## Licenza n. {n} revocata\n\nI telefoni con quel codice la vedono revocata appena hanno internet (controllo una volta al giorno).\n")
           PY
             git add -A; git commit -qm "Licenze: revoca [skip ci]"
+          elif [ "$AZIONE" = ripristina ]; then
+            python3 - <<'PY'
+          import json, os
+          p = 'licenze/revocate.json'; d = json.load(open(p)); n = int(os.environ['NUMERO'])
+          d['revocate'] = [x for x in d['revocate'] if x != n]
+          json.dump(d, open(p, 'w'), indent=1)
+          open(os.environ['GITHUB_STEP_SUMMARY'], 'a').write(f"## Licenza n. {n} ripristinata\n\nTolta dalla lista delle revocate: i telefoni la vedono di nuovo attiva appena hanno internet.\n")
+          PY
+            git add -A; git commit -qm "Licenze: ripristino [skip ci]"
           fi
           git push -q origin HEAD:licenze
           rm -f /tmp/priv.pem /tmp/reg.json
