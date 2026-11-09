@@ -59,7 +59,7 @@ function righe(){
     [st(P['LIVELLA']),'LIVELLA (montaggio)',tx(P['LIVELLA']),'Livella ora',()=>{ if(inVolo()){ toast('LIVELLA: SOLO A TERRA, AEREO FERMO'); return; } clic('phLvl'); }],
     [st(P['GPS']),glo?'Posizione: Garmin GLO 2':'Posizione: GPS del telefono',tx(P['GPS'])+(glo?'':' Con il GLO 2 è più precisa.'),glo?'Posizione':'GLO 2',()=>vaiA('Posizione: GPS del telefono e Garmin GLO 2')],
     [(dev||PH.magAutoLast)?ok:wt,'Bussola a terra',PH.magAutoLast?`corretta da sola al decollo (${PH.magAutoLast.dev>0?'+':''}${PH.magAutoLast.dev}°).`:(dev?`allineata alla bussola di bordo (${dev>0?'+':''}${dev}°).`:(PH.magAutoOn?'si corregge da sola alla prima corsa di decollo; a terra puoi allinearla alla bussola di bordo.':'se a terra la prua non coincide con la bussola di bordo, allineala.')),'Allinea',()=>{ if(!clic('phMagAl')) vaiA('Bussola'); }],
-    [cal?ok:wt,'Quota GPS',cal?`tarata su ${esc(cal.field)}.`:'si tara da sola fermo su un campo noto, o a mano.','Quota',()=>vaiA('Quota GPS')],
+    [cal?ok:wt,'Quota',cal?`tarata su ${esc(cal.field)}.`:'si tara da sola fermo su un campo noto, o a mano.','Quota',()=>vaiA('Quota')],
     [prof?ok:no,'Tipo di volo',prof?`${esc(prof)}${agl!=null&&/basico/i.test(prof)?' · oggi massimo '+agl+' ft sul terreno':''}.`:'da scegliere.','Cambia',()=>vaiA('Tipo di volo')],
     [st(P['Spazi aerei']),'Spazi aerei',tx(P['Spazi aerei']),'Piano',()=>{ PH.show('piano'); }],
     [st(P['Terreno']),'Terreno e mappe senza internet',tx(P['Terreno']),'Scarica',()=>vaiA('Volare senza internet')],

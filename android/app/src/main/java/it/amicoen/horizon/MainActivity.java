@@ -17,6 +17,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(GloSerialPlugin.class);          // Garmin GLO 2 via Bluetooth
         registerPlugin(CompassPlugin.class);            // bussola: sensore di rotazione di Android
+        registerPlugin(BarometroPlugin.class);          // barometro del telefono: quota e vario insieme al GPS
         registerPlugin(LicenzaPlugin.class);            // licenza: firma dell'app e acquisto su Google Play
         registerPlugin(UpdaterPlugin.class);            // aggiornamenti: APK di GitHub o Google Play
         registerPlugin(StatoTelefonoPlugin.class);      // batteria e segnale 4G/5G per la riga di stato
