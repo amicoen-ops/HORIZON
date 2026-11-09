@@ -25,7 +25,18 @@ PH.fenix={stato:{},d:null,t:0,n:0};
 const QM={4:4,3:10,2:25,1:60};                         // qualità Garmin → precisione stimata in metri
 const fresco=()=>PH.fenix.d && Date.now()-PH.fenix.t<2500 && PH.fenix.d.la!=null;
 // quota dalla pressione con il QNH dello strumento (atmosfera standard)
-const baroMsl=p=>p>30000?44330.77*(1-Math.pow(p/(QNH*100),0.190263)):null;
+const baroMsl=p=>p>30000?44330.77*(1-Math.pow(pCorr(p)/(QNH*100),0.190263)):null;
+// scarto del barometro dell'orologio: i sensori da polso leggono anche qualche hPa in meno o in più (provato: fenix 7 −4,4 hPa,
+// circa 37 m). Quando c'è anche il barometro del telefono (più preciso) si misura la differenza tra i due, che stanno alla
+// stessa quota, e la si toglie; resta salvata, così vale anche quando il telefono non ce l'ha o è spento.
+PH.fenix.pOfs=+(lsGet('ia517p_fenix_pofs',0)||0); PH.fenix.pOfsN=+(lsGet('ia517p_fenix_pofsn',0)||0); PH.fenix.pOfsSalv=0;
+const pCorr=p=>p+PH.fenix.pOfs;                                  // Pa
+function scartoBaro(p){
+  if(!(p>30000) || !(PH.baroFresh&&PH.baroFresh()) || !(PH.baro.p>300)) return;
+  const diff=PH.baro.p*100-p; if(Math.abs(diff)>1500) return;     // più di 15 hPa: qualcosa non va, non si impara
+  const F=PH.fenix; F.pOfsN++;
+  F.pOfs+= (diff-F.pOfs)*(F.pOfsN<30?1/F.pOfsN:1/150);            // prime letture: media; poi si muove piano (circa 5 minuti)
+  if(Date.now()-F.pOfsSalv>30000){ F.pOfsSalv=Date.now(); lsSet('ia517p_fenix_pofs',+F.pOfs.toFixed(1)); lsSet('ia517p_fenix_pofsn',Math.min(F.pOfsN,1000)); } }
 // bussola dell'orologio: stessa strada di quella del telefono (deviazione, declinazione, filtro)
 const bussolaOn=()=>PH.fenixCfg.bussola && PH.fenix.d && PH.fenix.d.mh!=null && Date.now()-PH.fenix.t<2500;
 { const prev=PH.magFromR; PH.magFromR=function(){ if(bussolaOn()) return; return prev.apply(this,arguments); }; }
@@ -42,6 +53,7 @@ function dati(d){
     return; }
   if(d.t!=='d') return;
   PH.fenix.d=d; PH.fenix.t=Date.now(); PH.fenix.n++;
+  if(d.p!=null) scartoBaro(d.p);
   if(PH.fenixCfg.bussola && d.mh!=null) bussola(d.mh);
   if(d.la!=null && (d.q||0)>=2){
     const bm=PH.fenixCfg.baro&&d.p!=null?baroMsl(d.p):null;
@@ -65,7 +77,7 @@ setInterval(()=>{ if(!PH.fenix.stato.collegato) return;
     const s=PH.fenix.stato||{}, d=PH.fenix.d, ok=d&&Date.now()-PH.fenix.t<5000, q={4:'buona',3:'usabile',2:'debole',1:'scarsa',0:'nessuna'};
     const rows=[[s.collegato?(ok?'ok':'warn'):'bad','Orologio Garmin',s.collegato?`${s.nome||'collegato'} · ${ok?'dati adesso':'dati di '+Math.round((Date.now()-PH.fenix.t)/1000)+' s fa'} · ${PH.fenix.n} messaggi${d&&d.bt!=null?' · batteria '+d.bt+'%':''}${d&&d.mu!=null?' · memoria '+Math.round(d.mu/1024)+'/'+Math.round(d.mt/1024)+' KB':''}`:(s.errore||'non collegato')]];
     if(d){ rows.push([ok&&d.q>=3?'ok':'warn','Orologio: GPS',d.la!=null?`qualità ${q[d.q]||d.q} (≈ ±${({4:4,3:10,2:25,1:60})[d.q]||'?'} m) · ${d.sp!=null?Math.round(d.sp*3.6)+' km/h':''}${d.al!=null?' · quota '+Math.round(d.al/FT2M)+' ft':''}`:'nessun fix'],
-        [d.p!=null?'ok':'warn','Orologio: barometro',d.p!=null?`${(d.p/100).toFixed(1)} hPa · quota con QNH ${QNH}: ${Math.round(44330.77*(1-Math.pow(d.p/(QNH*100),0.190263))/FT2M)} ft${d.ps!=null?' · QNH dall\'orologio '+Math.round(d.ps/100):''}`:'nessun dato'],
+        [d.p!=null?'ok':'warn','Orologio: barometro',d.p!=null?`${(d.p/100).toFixed(1)} hPa${PH.fenix.pOfsN?` (corretto ${PH.fenix.pOfs>=0?'+':''}${(PH.fenix.pOfs/100).toFixed(1)} hPa sul barometro del telefono)`:''} · quota con QNH ${QNH}: ${Math.round(baroMsl(d.p)/FT2M)} ft${d.ps!=null?' · QNH dall\'orologio '+Math.round(d.ps/100):''}`:'nessun dato'],
         [d.mh!=null?'ok':'warn','Orologio: bussola',d.mh!=null?`${String(Math.round(wrap360(d.mh))).padStart(3,'0')}° magnetica${PH.fenixCfg.bussola?' · in uso':' · non usata (solo con l\'orologio fermo)'}`:'nessun dato'],
         [d.hr!=null?'ok':'warn','Orologio: pilota',`battito ${d.hr!=null?Math.round(d.hr)+' bpm':'—'} · SpO₂ ${d.ox!=null?Math.round(d.ox)+'%'+(d.oxa>120?' ('+Math.round(d.oxa/60)+' min fa)':''):'—'}`]);
       if(d.pv&&!/^(chiusa normalmente|pronta)$/.test(d.pv)) rows.push(['warn','Orologio: ultima chiusura',d.pv+(d.pm?' · memoria '+d.pm:'')]); }
@@ -81,7 +93,7 @@ function html(){ const s=PH.fenix.stato, d=PH.fenix.d, ok=fresco(), c=PH.fenixCf
     <p class="ph-sub">${s.collegato?`<b style="color:#3ddc84">Collegato: ${esc(s.nome||'orologio')}</b>`:`<b style="color:#ffc531">${s.errore?esc(s.errore):'Non collegato'}</b>`}${d?` · dati ${ok?'adesso':Math.round((Date.now()-PH.fenix.t)/1000)+' s fa'} · ${PH.fenix.n} messaggi`:''}.
     Sull'orologio apri l'app <b>HORIZON Link</b> (dal menu delle app, o col tasto qui sotto). Serve l'app Garmin Connect sul telefono.</p>
     ${d?`<div class="hz-fx"><span>GPS <b>${v(d.q,'',x=>q[x]||x)}</b></span><span>Quota GPS <b>${v(d.al!=null?d.al/FT2M:null,' ft')}</b></span><span>Quota baro <b>${v(d.p!=null&&baroMsl(d.p)!=null?baroMsl(d.p)/FT2M:null,' ft')}</b></span>
-      <span>Pressione <b>${v(d.p!=null?d.p/100:null,' hPa',x=>x.toFixed(1))}</b></span><span>QNH dall'orologio <b>${v(d.ps!=null?d.ps/100:null,' hPa',x=>x.toFixed(0))}</b></span><span>Memoria <b>${d.mu!=null?Math.round(d.mu/1024)+'/'+Math.round(d.mt/1024)+' KB':'—'}</b></span><span>Bussola <b>${v(d.mh,'°',x=>String(Math.round(wrap360(x))).padStart(3,'0'))}</b></span><span>Battito <b>${v(d.hr,' bpm')}</b></span><span>SpO₂ <b>${v(d.ox,'%')}</b>${d.ox!=null&&d.oxa>120?' ('+Math.round(d.oxa/60)+' min fa)':''}</span><span>Batteria <b>${v(d.bt,'%')}</b></span></div>`:''}
+      <span>Pressione <b>${v(d.p!=null?pCorr(d.p)/100:null,' hPa',x=>x.toFixed(1))}</b>${PH.fenix.pOfsN?` (corretta ${PH.fenix.pOfs>=0?'+':''}${(PH.fenix.pOfs/100).toFixed(1)})`:''}</span><span>QNH dall'orologio <b>${v(d.ps!=null?d.ps/100:null,' hPa',x=>x.toFixed(0))}</b></span><span>Memoria <b>${d.mu!=null?Math.round(d.mu/1024)+'/'+Math.round(d.mt/1024)+' KB':'—'}</b></span><span>Bussola <b>${v(d.mh,'°',x=>String(Math.round(wrap360(x))).padStart(3,'0'))}</b></span><span>Battito <b>${v(d.hr,' bpm')}</b></span><span>SpO₂ <b>${v(d.ox,'%')}</b>${d.ox!=null&&d.oxa>120?' ('+Math.round(d.oxa/60)+' min fa)':''}</span><span>Batteria <b>${v(d.bt,'%')}</b></span></div>`:''}
     ${d&&d.pv&&!/^(chiusa normalmente|pronta)$/.test(d.pv)?`<p class="ph-sub" style="color:#ffc531">Ultima chiusura dell'app sull'orologio durante: <b>${esc(d.pv)}</b>${d.pm?' · memoria '+esc(d.pm):''}. Se si è chiusa da sola, mandami questa riga.</p>`:''}
     <div class="ph-btns"><button class="ph-btn" type="button" id="hzFxOpen">Apri l'app sull'orologio</button><button class="ph-btn" type="button" id="hzFxRetry">Ricollega</button></div>
     <p class="ph-sub"><b>Posizione</b>: la scelta tra telefono, GLO 2 e orologio è in «Posizione» (la più precisa, oppure una sola). Ora in uso: <b>${esc(PH.SRC_NOME[PH.src]||'—')}</b>.</p>
