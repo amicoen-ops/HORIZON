@@ -316,8 +316,15 @@ def main():
         revocate = set(json.load(open(env['REVOCATE'])).get('revocate', [])) if env.get('REVOCATE') and os.path.exists(env['REVOCATE']) else set()
         riepilogo(posta, registro, revocate); conti['riepilogo'] = 1
         if fu: open(fu, 'w').write(oggi + '\n')
+    # in archivio: anche quello appena mandato, che Gmail consegna dopo qualche secondo (si aspetta al massimo 1 minuto)
+    import time
+    for prova in range(13 if conti.get('riepilogo') else 1):
+        if prova: time.sleep(5); posta.imap.noop()
+        uids = posta.cerca('subject:(HORIZON Riepilogo licenze) label:inbox')
+        for uid in uids: posta.etichetta(uid, aggiungi=[ARCHIVIO], togli=[INBOX])
+        if uids and prova: break
     for uid in posta.cerca('subject:(HORIZON Riepilogo licenze) -label:archivio-generale-licenze'):
-        posta.etichetta(uid, aggiungi=[ARCHIVIO], togli=[INBOX])        # quello appena mandato lo sposta il giro dopo
+        posta.etichetta(uid, aggiungi=[ARCHIVIO])
     posta.imap.logout()
 
     riga = f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"
