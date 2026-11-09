@@ -6,7 +6,9 @@ name: Licenze per posta
 #  · mail con l'etichetta M, A o P (messa a mano dall'autore dopo il pagamento) → crea il codice, lo manda al pilota,
 #    lo annota nel registro cifrato sul ramo «licenze» (anche nome e mail del pilota), sposta la mail in «Gestite»
 #    una volta al giorno (e a richiesta: input «riepilogo») manda all'autore la mail «Riepilogo licenze» con la tabella
-#    di tutte, che finisce nell'etichetta «Archivio generale licenze».
+#    di tutte, che finisce nell'etichetta «Archivio generale licenze»;
+#  · segnalazioni «Pista rilevata» e «Campi usati» dall'app: le righe anonime HORIZON-PISTA/HORIZON-CAMPI vanno nella
+#    cartella piste/ del ramo «licenze» (le legge il lavoro settimanale con tools/piste_piloti.py), la mail in «Piste lette».
 # Serve il segreto GMAIL_LICENZE (password per le app di horizonlicenses); senza, la corsa non fa niente.
 # Progetto pubblico: nei log solo conteggi.
 on:
@@ -64,7 +66,7 @@ jobs:
           if [ -f reg/licenze/prezzi.json.enc ]; then dec reg/licenze/prezzi.json.enc "$T/prezzi.json"; fi
           cp reg/licenze/ultimo_riepilogo.txt "$T/ultimo.txt" 2>/dev/null || true
           PRIVATA="$T/priv.pem" PUBBLICA=reg/licenze/chiave_pubblica.txt REGISTRO="$T/reg.json" PREZZI="$T/prezzi.json" \
-          REVOCATE=reg/licenze/revocate.json ULTIMO_RIEPILOGO="$T/ultimo.txt" RIEPILOGO="$GITHUB_STEP_SUMMARY" \
+          REVOCATE=reg/licenze/revocate.json ULTIMO_RIEPILOGO="$T/ultimo.txt" PISTE="$T/piste" RIEPILOGO="$GITHUB_STEP_SUMMARY" \
             python3 tools/posta_licenze.py
       # sempre, anche se il passo prima si è fermato a metà o è scaduto il tempo: i codici già mandati restano annotati.
       # Se nel frattempo un altro giro ha scritto sul ramo, i due registri si uniscono (tools/registro_unisci.py).
@@ -90,6 +92,7 @@ jobs:
             if [ -f "$T/reg.json" ] && diverso licenze/registro.json.enc "$T/reg.json"; then enc "$T/reg.json" licenze/registro.json.enc; fi
             if [ -f "$T/prezzi.json" ] && diverso licenze/prezzi.json.enc "$T/prezzi.json"; then enc "$T/prezzi.json" licenze/prezzi.json.enc; fi
             if [ -f "$T/ultimo.txt" ]; then cp "$T/ultimo.txt" licenze/ultimo_riepilogo.txt; fi
+            if ls "$T"/piste/*.txt >/dev/null 2>&1; then mkdir -p piste; cp "$T"/piste/*.txt piste/; fi   # righe anonime per piste_piloti.py
             if [ -z "$(git status --porcelain)" ]; then salvato=1; break; fi
             git add -A; git commit -qm "Licenze: registro e riepilogo [skip ci]"
             if git push -q origin HEAD:licenze; then salvato=1; break; fi
