@@ -5183,7 +5183,7 @@ requestAnimationFrame(frame);
 <script src="riservato.js"></script>
 <!-- filigrana: «HORIZON © E. D'Amico» con il codice del telefono, su tutte le pagine e quindi in ogni schermata;
      trasparente ai tocchi. Con il codice si sa da quale telefono viene una schermata girata in giro. -->
-<div id="hzFil" aria-hidden="true" style="position:fixed;left:max(4px,env(safe-area-inset-left));bottom:calc(2px + env(safe-area-inset-bottom));z-index:2147483000;pointer-events:none;user-select:none;font:600 8.5px system-ui,sans-serif;letter-spacing:.02em;color:#fff;opacity:.34;text-shadow:0 0 2px #000,0 0 1px #000;white-space:nowrap"></div>
+<div id="hzFil" aria-hidden="true" style="position:fixed;left:max(4px,env(safe-area-inset-left));bottom:calc(2px + env(safe-area-inset-bottom));z-index:2147483000;pointer-events:none;user-select:none;font:500 8px system-ui,sans-serif;color:#c8d0d8;opacity:.2;white-space:nowrap;transform:scale(.5);transform-origin:left bottom"></div>
 <script>
 (()=>{ const f=document.getElementById('hzFil');
   const scrivi=()=>{ const L=window.IA517_LIC, dev=L&&L.dev||''; f.textContent='HORIZON © E. D\'Amico'+(dev?' · '+dev:'')+' · '+PH_INFO.impronta.slice(-6); };
