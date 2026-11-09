@@ -78,8 +78,9 @@ PH.riservatoOpen=async function(){
       <section><h3>Licenza</h3>
         <p class="ph-sub">Codice di questo telefono</p>
         <div class="hz-tel"><b>${esc(telefono()||'…')}</b><button type="button" class="ph-btn" id="hzTelCp">Copia</button></div>
-        <p class="ph-sub" style="margin-top:12px">Chiedi la licenza: il codice di questo telefono arriva all'autore, che ti risponde per posta</p>
-        <input id="hzMail" type="email" inputmode="email" autocomplete="email" placeholder="la tua email" value="${esc(get(KM,''))}">
+        <p class="ph-sub" style="margin-top:12px">Chiedi la licenza: il codice di questo telefono arriva a <b>${esc(PH_INFO.mail)}</b>, che ti risponde per posta.</p>
+        <label class="ph-sub" for="hzMail" style="display:block;margin-top:8px">La tua email (la risposta arriva qui)</label>
+        <input id="hzMail" type="email" inputmode="email" autocomplete="off" placeholder="nome@esempio.it" value="${esc(get(KM,''))}">
         <div class="ph-btns"><button type="button" class="ph-btn" id="hzChiedi">Invia la richiesta</button><a class="ph-btn" id="hzChiediMail" href="#">Scrivi dalla tua posta</a></div>
         <p id="hzChiediSt" class="ph-sub"></p>
         <p class="ph-sub" style="margin-top:12px">Codice di licenza</p>
