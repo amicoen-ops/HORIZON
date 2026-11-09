@@ -23,6 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import licenze
 
 TIPI = {'M': 'mensile', 'A': 'annuale', 'P': 'perenne'}
+PASSI_PAYPAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'licenze', 'paypal-passi.png')
 PREZZI = {'M': 5, 'A': 30, 'P': 150}
 TEL = re.compile(r'(?<![A-Z0-9])([A-Z2-9]{4})-([A-Z2-9]{4})-([A-Z2-9]{4})(?![A-Z0-9])')
 
@@ -77,7 +78,7 @@ class Posta:
         if aggiungi: self.imap.uid('STORE', uid, '+X-GM-LABELS', '(' + aggiungi + ')')
         if togli: self.imap.uid('STORE', uid, '-X-GM-LABELS', '(' + togli + ')')
 
-    def rispondi(self, msg, testo, html=None):
+    def rispondi(self, msg, testo, html=None, immagini=None):
         a = msg.get('Reply-To') or msg.get('From')
         nome, indirizzo = email.utils.parseaddr(a)
         if not indirizzo or indirizzo.lower() == self.utente.lower() or 'web3forms' in indirizzo.lower() or 'noreply' in indirizzo.lower():
@@ -91,7 +92,11 @@ class Posta:
             r['In-Reply-To'] = msg['Message-ID']
             r['References'] = ((msg.get('References') or '') + ' ' + msg['Message-ID']).strip()
         r.set_content(testo)
-        if html: r.add_alternative(html, subtype='html')
+        if html:
+            r.add_alternative(html, subtype='html')
+            parte = r.get_payload()[-1]
+            for cid, percorso in (immagini or {}).items():      # immagini dentro la mail (cid:…): si vedono anche senza scaricare
+                parte.add_related(open(percorso, 'rb').read(), 'image', 'png', cid='<' + cid + '>', filename=os.path.basename(percorso))
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
             s.login(self.utente, self.password)
             s.send_message(r)
@@ -124,6 +129,13 @@ Le licenze:
     {t}
 
 Senza il codice nella nota non sappiamo per quale telefono fare la licenza.
+
+Come pagare, passo per passo:
+  1. tocca il link PayPal dell'importo che hai scelto;
+  2. controlla l'importo, tocca «Avanti» ed entra con il tuo account PayPal;
+  3. tocca «Aggiungi una nota» e incolla il codice del telefono;
+  4. tocca «Invia pagamento ora».
+
 Appena vediamo il pagamento ti mandiamo qui il codice di licenza, di solito in giornata.
 
 Per qualsiasi domanda rispondi a questa mail.
@@ -136,8 +148,10 @@ HORIZON · strumento di volo
 <table style="border-collapse:collapse;margin:8px 0">{riga('Mensile', 5)}{riga('Annuale', 30)}{riga('Perenne', 150)}</table>
 {PASSO.format('IMPORTANTE: copia questo codice del telefono e incollalo nella nota del pagamento PayPal')}
 {BOX.format(t)}
-<p>Senza il codice nella nota non sappiamo per quale telefono fare la licenza.<br>
-Appena vediamo il pagamento ti mandiamo qui il codice di licenza, di solito in giornata.</p>
+<p>Senza il codice nella nota non sappiamo per quale telefono fare la licenza.</p>
+<p><b>Come pagare, passo per passo:</b></p>
+<img src="cid:passi-paypal" width="518" alt="1. tocca Paga con PayPal · 2. controlla l'importo e tocca Avanti · 3. Aggiungi una nota: incolla il codice del telefono · 4. Invia pagamento ora" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:8px">
+<p>Appena vediamo il pagamento ti mandiamo qui il codice di licenza, di solito in giornata.</p>
 <p>Per qualsiasi domanda rispondi a questa mail.</p>""")
     return testo, html
 
@@ -188,7 +202,7 @@ def main():
         ogg = dec(msg.get('Subject'))
         tel = tel_da(ogg) or tel_da(testo_di(msg))
         risposta = bool(msg.get('In-Reply-To')) or re.match(r'\s*(re|r|aw|sv)\s*:', ogg, re.I)
-        if tel and not risposta and posta.rispondi(msg, *testo_prezzi(tel, env['PAYPAL'])): conti['prezzi'] += 1
+        if tel and not risposta and posta.rispondi(msg, *testo_prezzi(tel, env['PAYPAL']), immagini={'passi-paypal': PASSI_PAYPAL}): conti['prezzi'] += 1
         else: conti['saltate'] += 1
         posta.etichetta(uid, aggiungi='Risposto')
 
