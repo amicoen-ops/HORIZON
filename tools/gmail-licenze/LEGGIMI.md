@@ -1,53 +1,46 @@
-# HORIZON Licenze — tasti in Gmail e sveglia
+# HORIZON Licenze — un solo file in Gmail
 
-Componente aggiuntivo di Gmail per la casella **horizonlicenses@gmail.com**.
+[`HORIZON-Licenze.gs`](HORIZON-Licenze.gs) va incollato in script.google.com, **entrato come horizonlicenses**. Fa tutto da sé:
 
-- Quando apri una richiesta di licenza compaiono i tasti **Mensile**, **Annuale** e **Perenne**. Ognuno mette l'etichetta M, A o P e fa partire subito il giro su GitHub, che crea il codice e lo manda al pilota.
-- Ogni 10 minuti una sveglia guarda la casella e fa partire il giro se c'è qualcosa da lavorare.
-- Una volta al giorno, dalle 7, la sveglia fa partire anche il riepilogo delle licenze.
+- **Ogni minuto** guarda la casella.
+  - Richiesta nuova: GitHub manda i prezzi al pilota.
+  - Mail con l'etichetta **M**, **A** o **P**, messa da te dopo il pagamento: GitHub crea il codice e lo manda.
+  - Le etichette si spostano da sole in «Da gestire» e «Gestite».
+- **Ogni mattina dalle 7** parte il riepilogo, che va in «Archivio generale licenze».
+- **Nel Calendar di horizonlicenses** mette i promemoria delle scadenze:
+  - token GitHub: 14 giorni prima e il giorno stesso, con la data vera letta da GitHub;
+  - Google Play: ogni 1° luglio, per il requisito Android entro il 31 agosto;
+  - controllo annuale delle chiavi che non scadono ma si possono invalidare.
 
-Si installa una volta sola. Conviene farlo da un **computer**, perché l'editor di Apps Script dal telefono è scomodo. Ci vogliono circa 10 minuti.
+**I «tasti»** sono le etichette di Gmail. Sul telefono: apri la mail › **⋮** › **Etichetta** › **M**, **A** o **P**. In 1–2 minuti il pilota riceve il codice.
 
-## 1. Token GitHub (può solo far partire i lavori di HORIZON)
+## Installazione (una volta, circa 5 minuti, meglio dal computer)
 
-1. Apri <https://github.com/settings/personal-access-tokens/new>.
-2. Compila così:
-   - **Token name:** `HORIZON licenze Gmail`
-   - **Expiration:** 1 anno (*Custom*: la data tra un anno)
-   - **Repository access:** *Only select repositories* → `amicoen-ops/HORIZON`
-   - **Permissions** → *Repository permissions* → **Actions:** `Read and write`. Tutto il resto resta *No access*.
-3. Tocca **Generate token** e copia il token (inizia con `github_pat_`). **Non incollarlo in chat**: va solo al punto 2.5.
+1. **Token GitHub.**
+   - Apri <https://github.com/settings/personal-access-tokens/new>.
+   - Nome: `HORIZON licenze Gmail`. Scadenza: 1 anno.
+   - *Only select repositories* › `amicoen-ops/HORIZON`.
+   - *Permissions* › **Actions: Read and write**.
+   - Tocca **Generate token** e copialo. **Non incollarlo in chat.**
+2. **Lo script.**
+   - Apri <https://script.google.com>, entrato come horizonlicenses.
+   - **Nuovo progetto**: cancella tutto e incolla il file.
+   - Salva con l'icona del dischetto.
+3. **Il token nello script.**
+   - Ingranaggio **Impostazioni progetto** › in fondo **Aggiungi proprietà dello script**.
+   - Proprietà `GITHUB_TOKEN`, valore il token del punto 1. Poi **Salva**.
+4. **Avvio.**
+   - Torna all'editor (icona `< >`), in alto scegli la funzione **installa** e tocca **Esegui**.
+   - Google chiede il permesso. Compare «Google non ha verificato questa app»: *Avanzate* › *Vai a …* › *Consenti*. Lo script è tuo e non è pubblicato: va bene così.
+   - Nel registro deve comparire «Pronto: controllo ogni minuto … il token scade il …».
 
-## 2. Lo script
+## Quando il token scade (fra un anno, te lo ricorda il Calendar)
 
-1. Apri <https://script.google.com>, **entrato come horizonlicenses** (controlla l'icona in alto a destra).
-2. Tocca **Nuovo progetto** e dai come nome `HORIZON Licenze`.
-3. Nel file `Codice.gs` cancella tutto e incolla il contenuto di [`Codice.gs`](Codice.gs).
-4. A sinistra apri l'ingranaggio **Impostazioni progetto**:
-   - spunta **«Mostra il file manifest "appsscript.json" nell'editor»**;
-   - in fondo, in **Proprietà dello script**, tocca *Aggiungi proprietà dello script*: proprietà `GITHUB_TOKEN`, valore il token del punto 1. Poi **Salva**.
-5. Torna nell'**Editor** (icona `< >`), apri `appsscript.json`, cancella tutto e incolla il contenuto di [`appsscript.json`](appsscript.json). Salva con l'icona del dischetto.
-6. In alto scegli la funzione **`installa`** e tocca **Esegui**:
-   - Google chiede l'autorizzazione: *Rivedi le autorizzazioni* → scegli horizonlicenses;
-   - compare «Google non ha verificato questa app»: *Avanzate* → *Vai a HORIZON Licenze (non sicuro)* → *Consenti*. Lo dice perché lo script è tuo e non è pubblicato: va bene.
-   - Nel registro deve comparire: «Sveglia attiva ogni 10 minuti. Primo giro avviato su GitHub.»
+1. Su GitHub rigenera il token.
+2. Sostituiscilo nella proprietà `GITHUB_TOKEN`.
+3. Riesegui **installa**: i promemoria si spostano da soli alla nuova scadenza.
 
-## 3. I tasti in Gmail
+## Altre funzioni da lanciare dall'editor
 
-1. Sempre nell'editor, in alto a destra: **Esegui il deployment** → **Testa i deployment**.
-2. Tipo di applicazione: **Componente aggiuntivo di Google Workspace**. Tocca **Installa**, poi **Fine**.
-3. Apri Gmail di horizonlicenses:
-   - **dal computer**, nella barra a destra compare l'icona di HORIZON;
-   - **dall'app Gmail sul telefono**, apri una mail e scorri in fondo: c'è la riga «HORIZON Licenze».
-
-## Uso
-
-- **Richiesta da un pilota:** apri la mail e controlla su PayPal il pagamento (nella nota c'è il codice del telefono). Poi tocca **Mensile**, **Annuale** o **Perenne**: in 1–2 minuti il pilota riceve il codice.
-- **Tester:** **Perenne**, senza pagamento.
-- **Senza aprire una richiesta:** l'icona mostra quante richieste sono in attesa e il tasto **Riepilogo licenze adesso**.
-
-## Se qualcosa non va
-
-- **«manca GITHUB_TOKEN»:** rifai il punto 2.4.
-- **«GitHub ha risposto 401/403»:** il token è scaduto o non ha *Actions: Read and write*. Creane uno nuovo (punto 1) e sostituiscilo nella proprietà.
-- **La sveglia si controlla qui:** script.google.com → progetto → **Trigger** (icona sveglia): deve esserci `sveglia`, ogni 10 minuti.
+- **stato:** quante mail ci sono da lavorare, l'ultimo avvio, la sveglia e se il token c'è.
+- **riepilogoOra:** il riepilogo delle licenze subito.
