@@ -2194,7 +2194,9 @@ RD.tiles=new Map();
 function rdTiles(c){
   let P0=null; try{ P0=parent.PH; }catch(e){}
   if(!P0 || !P0.tileUrl) return;
-  let def=null; try{ def=P0.base==='dem'?P0.BASES.topo:P0.baseDef(); if(def&&def.key&&!P0.esriKey) def=P0.BASES.topo; }catch(e){ return; }
+  let def=null; try{ def=P0.base==='dem'?P0.BASES.topo:P0.baseDef(); if(def&&def.key&&!P0.esriKey) def=P0.BASES.topo;
+    if(def&&def.wms&&P0.wmsBlocked) def=P0.BASES.topo;                       // IGM/ortofoto non si leggono dal sito web
+    if(def&&def.local&&!(P0.cartaOk&&P0.cartaTile)) def=P0.BASES.topo; }catch(e){ return; }   // carta VFR non (più) sul telefono
   const cl=Math.cos(RD.clat*D2R), mppEq=RD.mpp/cl;
   let z=Math.round(Math.log2(156543.03/mppEq)); z=clamp(z,Math.max(4,def.min||4),def.max||16);
   const n=2**z, lat2y=la=>{ const r=la*D2R; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n; };
@@ -2204,7 +2206,10 @@ function rdTiles(c){
   const tLat=y=>Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*R2D, tLon=x=>x/n*360-180;
   for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++){
     const key=(def.name||'')+z+'/'+x+'/'+y; let T=RD.tiles.get(key);
-    if(!T){ T={img:new Image(),ok:false}; T.img.onload=()=>{ T.ok=true; if(RD.on) rdDrawSoon(); }; T.img.src=P0.tileUrl(z,x,y,def); RD.tiles.set(key,T);
+    if(!T){ T={img:new Image(),ok:false}; T.img.onload=()=>{ T.ok=true; if(RD.on) rdDrawSoon(); };
+      if(def.local) P0.cartaTile(z,x,y).then(d=>{ if(d) T.img.src='data:image/png;base64,'+d; }).catch(()=>{});   // carta VFR scaricata sul telefono
+      else T.img.src=P0.tileUrl(z,x,y,def);
+      RD.tiles.set(key,T);
       if(RD.tiles.size>300) RD.tiles.delete(RD.tiles.keys().next().value); }
     if(!T.ok) continue;
     const a=rdP(tLat(y),tLon(x)), b=rdP(tLat(y+1),tLon(x+1)); c.drawImage(T.img,a.x,a.y,b.x-a.x+0.5,b.y-a.y+0.5);
@@ -2216,7 +2221,7 @@ function rdDraw(){
   const cv=RD.cv, dpr=devicePixelRatio||1, W=rdW(), H=rdH();
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){ cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); }
   const c=RD.ctx; c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,W,H); c.fillStyle='#0a1410'; c.fillRect(0,0,W,H);
-  rdTiles(c); c.fillStyle='rgba(4,8,12,.28)'; c.fillRect(0,0,W,H);
+  try{ rdTiles(c); }catch(e){} c.fillStyle='rgba(4,8,12,.28)'; c.fillRect(0,0,W,H);
   const tl=rdLL(0,0), br=rdLL(W,H);
   // spazi aerei
   const asp=rdAspAll();
