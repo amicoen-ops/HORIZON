@@ -3,7 +3,7 @@ name: Compila APK
 on:
   push:
     branches: [main]
-    paths-ignore: ['.github/workflows/**', '**.md', 'garmin/**', 'android/app/src/h2/**', 'docs/garmin/**', 'docs/dossier/**', 'docs/licenze/**', 'tools/build_dossier_tecnico.py']     # modifiche solo ai workflow o ai testi: nessuna nuova APK
+    paths-ignore: ['.github/workflows/**', '**.md', 'garmin/**', 'android/app/src/h2/**', 'docs/garmin/**', 'docs/dossier/**', 'docs/licenze/**', 'tools/build_dossier_tecnico.py', 'docs/sensori/**']     # modifiche solo ai workflow o ai testi: nessuna nuova APK
   workflow_dispatch:
 
 permissions:

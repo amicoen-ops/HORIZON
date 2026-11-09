@@ -1,0 +1,49 @@
+{
+ "descrizione": "Scarti misurati dei sensori di HORIZON, per confronto e come valori di partenza per altri dispositivi. Pressioni in hPa, quote in m. Nessun dato personale: solo modello, luogo generico e valori.",
+ "misure": [
+  {
+   "data": "2026-11-09",
+   "luogo": "casa dell'autore, Canavese (TO), quota del punto circa 327 m (campo «CAMPO 1» dell'autore)",
+   "riferimento": "METAR LIMF Torino Caselle (circa 20 km): QNH 1022 hPa",
+   "dispositivi": [
+    {
+     "tipo": "telefono",
+     "modello": "telefono Android dell'autore (modello da annotare)",
+     "sensore": "barometro (Android TYPE_PRESSURE)",
+     "pressione_letta": 982.5,
+     "qnh_calcolato_a_327m": 1021.5,
+     "scarto_hpa": -0.5,
+     "scarto_m": 4,
+     "nota": "Coincide con il METAR entro mezzo hPa: preciso. Usato per la fusione barometro + GPS (quota e vario)."
+    },
+    {
+     "tipo": "orologio",
+     "modello": "Garmin fenix 7",
+     "sensore": "barometro (Activity.ambientPressure, Connect IQ)",
+     "pressione_letta": 978.1,
+     "qnh_calcolato_a_327m": 1017.0,
+     "scarto_hpa": -4.4,
+     "scarto_m": 37,
+     "nota": "Legge 4,4 hPa in meno del telefono e del METAR. La calibrazione dell'orologio (manuale, DEM, GPS) non lo toglie: cambia solo la quota mostrata dall'orologio. HORIZON 2 lo corregge da solo sul barometro del telefono (orologio.js, PH.fenix.pOfs) e lo tiene salvato."
+    }
+   ],
+   "verifiche": [
+    "Con la correzione: orologio 977,3 + 4,4 = 981,7 hPa contro telefono 981,6 hPa.",
+    "Quota dal barometro dell'orologio con QNH 1023: 1137 ft (347 m); con QNH 1022: 1088 ft (332 m). Il QNH di casa in quel momento era circa 1020,6: ogni hPa di differenza di QNH vale circa 8 m.",
+    "Vario con il barometro del telefono, simulazione con GPS ±15 m: rumore da ±2,4–3,6 m/s (solo GPS) a ±0,05–0,11 m/s."
+   ]
+  }
+ ],
+ "altro": [
+  {
+   "data": "2026-11-09",
+   "dispositivo": "Garmin fenix 7",
+   "osservazione": "In salite e discese rapide l'orologio dà l'«avviso temporale»: crede che la pressione cambi per il meteo. Rimedio: Sensori › Altimetro barometrico › Modalità sensore Auto, oppure Avviso temporale spento in volo."
+  },
+  {
+   "data": "2026-11-09",
+   "dispositivo": "Garmin fenix 7 con HORIZON Link",
+   "osservazione": "Dopo qualche minuto l'app dell'orologio a volte si chiudeva («IQ!»); dopo un riavvio dell'orologio non è più successo. Da tenere d'occhio: se ricapita, riga «Orologio: ultima chiusura» in Stato e file GARMIN/APPS/LOGS/CIQ_LOG.YML."
+  }
+ ]
+}
