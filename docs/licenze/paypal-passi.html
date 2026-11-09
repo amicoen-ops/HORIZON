@@ -1,0 +1,45 @@
+<!doctype html><meta charset="utf-8"><style>
+<!-- Sorgente di paypal-passi.png (mail dei prezzi, tools/posta_licenze.py). Si rifà con Playwright: screenshot di #g a deviceScaleFactor 2. -->
+body{margin:0;background:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#g{display:grid;grid-template-columns:repeat(2,250px);gap:18px;padding:16px;width:518px;box-sizing:border-box}
+.c{display:flex;flex-direction:column;align-items:center}
+.n{font:800 15px system-ui;color:#1a3a5c;margin-bottom:6px;text-align:center;min-height:40px}
+.n b{display:inline-block;background:#1a3a5c;color:#fff;border-radius:50%;width:24px;height:24px;line-height:24px;margin-right:4px}
+.ph{width:170px;height:300px;border:6px solid #2b2f36;border-radius:24px;background:#f5f7fa;position:relative;overflow:hidden;box-sizing:border-box}
+.bar{height:22px;background:#2b2f36}
+.in{padding:12px 10px;font-size:11px;color:#333}
+.big{font:800 26px system-ui;text-align:center;margin:14px 0 4px}
+.btn{background:#1a73e8;color:#fff;border-radius:16px;text-align:center;padding:7px;font-weight:700;margin-top:10px}
+.fld{border:1px solid #bbb;border-radius:6px;background:#fff;padding:6px;margin-top:6px;color:#999}
+.hl{outline:3px solid #e53935;outline-offset:2px;border-radius:8px}
+.code{font:700 12px ui-monospace,monospace;color:#111;background:#fff6d6;border:1.5px solid #e0a800}
+.mail{background:#fff;border:1px solid #ddd;border-radius:6px;padding:6px;margin-top:6px}
+.small{font-size:10px;color:#666}
+.hand{position:absolute;font-size:28px}
+</style><div id="g">
+<div class="c"><div class="n"><b>1</b>Nella mail tocca<br>«Paga con PayPal»</div><div class="ph"><div class="bar"></div><div class="in">
+<div class="mail"><b>HORIZON</b><div class="small">Re: HORIZON licenza…</div></div>
+<div style="margin-top:8px">Mensile 5 €</div><div class="btn" style="margin-top:3px">Paga con PayPal</div>
+<div style="margin-top:8px">Annuale 30 €</div><div class="btn hl" style="margin-top:3px">Paga con PayPal</div>
+<div style="margin-top:8px">Perenne 150 €</div><div class="btn" style="margin-top:3px">Paga con PayPal</div>
+<div class="small" style="margin-top:8px">Codice del telefono:</div><div class="fld code">ABCD-EFGH-JK23</div>
+</div></div></div>
+<div class="c"><div class="n"><b>2</b>Controlla l'importo<br>e accedi a PayPal</div><div class="ph"><div class="bar"></div><div class="in">
+<div style="text-align:center;font-weight:700;margin-top:6px">Invia denaro a<br>Enrico D'Amico</div>
+<div class="big">30,00 €</div><div class="small" style="text-align:center">EUR</div>
+<div class="btn hl" style="margin-top:22px">Avanti</div>
+<div class="small" style="text-align:center;margin-top:14px">poi entra con il tuo account PayPal</div>
+</div></div></div>
+<div class="c"><div class="n"><b>3</b>Tocca «Aggiungi una nota»<br>e incolla il codice</div><div class="ph"><div class="bar"></div><div class="in">
+<div style="font-weight:700">Riepilogo</div><div class="small">A: Enrico D'Amico · 30,00 €</div>
+<div class="small" style="margin-top:12px">Aggiungi una nota</div><div class="fld code hl">ABCD-EFGH-JK23</div>
+<div class="small" style="margin-top:6px;color:#c62828;font-weight:700">↑ il codice del tuo telefono,<br>copiato dalla mail</div>
+<div class="small" style="margin-top:12px">Paga con: saldo / carta</div>
+</div></div></div>
+<div class="c"><div class="n"><b>4</b>Invia il pagamento:<br>il codice arriva per mail</div><div class="ph"><div class="bar"></div><div class="in">
+<div class="btn hl" style="margin-top:12px">Invia pagamento ora</div>
+<div style="text-align:center;margin-top:20px;font-size:34px">✅</div>
+<div style="text-align:center;font-weight:700">Fatto!</div>
+<div class="small" style="text-align:center;margin-top:10px">Ti mandiamo il codice di licenza <b>HZ1-…</b> a questa mail, di solito in giornata.</div>
+</div></div></div>
+</div>
