@@ -1,0 +1,1 @@
+Ramo delle licenze di HORIZON: chiave pubblica, chiave privata e registro cifrati, licenze revocate.
