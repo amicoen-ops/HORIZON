@@ -142,7 +142,8 @@ Senza il codice nella nota non sappiamo per quale telefono fare la licenza.
 Come pagare, passo per passo:
   1. tocca il link PayPal dell'importo che hai scelto;
   2. controlla l'importo, tocca «Avanti» ed entra con il tuo account PayPal;
-  3. tocca «Aggiungi una nota» e incolla il codice del telefono;
+  3. come tipo di pagamento scegli «Per amici e familiari» (invio di denaro tra privati),
+     poi tocca «Aggiungi una nota» e incolla il codice del telefono;
   4. tocca «Invia pagamento ora».
 
 Appena vediamo il pagamento ti mandiamo qui il codice di licenza, di solito in giornata.
@@ -159,7 +160,8 @@ HORIZON · strumento di volo
 {BOX.format(t)}
 <p>Senza il codice nella nota non sappiamo per quale telefono fare la licenza.</p>
 <p><b>Come pagare, passo per passo:</b></p>
-<img src="cid:passi-paypal" width="518" alt="1. tocca Paga con PayPal · 2. controlla l'importo e tocca Avanti · 3. Aggiungi una nota: incolla il codice del telefono · 4. Invia pagamento ora" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:8px">
+<p style="background:#fff6d6;border:1px solid #e0a800;border-radius:8px;padding:8px 12px">Tipo di pagamento: scegli <b>«Per amici e familiari»</b> (invio di denaro tra privati).</p>
+<img src="cid:passi-paypal" width="518" alt="1. tocca Paga con PayPal · 2. controlla l'importo e tocca Avanti · 3. scegli Per amici e familiari, Aggiungi una nota: incolla il codice del telefono · 4. Invia pagamento ora" style="max-width:100%;height:auto;border:1px solid #ddd;border-radius:8px">
 <p>Appena vediamo il pagamento ti mandiamo qui il codice di licenza, di solito in giornata.</p>
 <p>Per qualsiasi domanda rispondi a questa mail.</p>""")
     return testo, html
@@ -216,8 +218,10 @@ def recupera_indirizzi(posta, registro, pub):
     return cambiato
 
 
-def stato_di(r, revocate, oggi):
-    if r['numero'] in revocate: return 'revocata', '#c62828'
+def stato_di(r, revocate, oggi, quando=None):
+    if r['numero'] in revocate:
+        d = (quando or {}).get(str(r['numero']))
+        return ('revocata il ' + '/'.join(reversed(d.split('-'))) if d else 'revocata'), '#c62828'
     if not r.get('scade'): return 'attiva, senza scadenza', '#2e7d32'
     import datetime
     g = (datetime.date.fromisoformat(r['scade']) - oggi).days
@@ -226,15 +230,17 @@ def stato_di(r, revocate, oggi):
     return 'attiva', '#2e7d32'
 
 
-def riepilogo(posta, registro, revocate):
+def riepilogo(posta, registro, rev):
     """Mail all'autore (alla casella di HORIZON) con la tabella di tutte le licenze."""
     import datetime, html as H
     oggi = datetime.date.today()
     it = lambda d: '/'.join(reversed(d.split('-'))) if d else '—'
+    revocate = set(rev.get('revocate', [])); storico = rev.get('storico', [])
+    quando = {str(e['numero']): e['data'] for e in storico if e.get('azione') == 'revoca'}
     righe, testo, conta = [], [], {}
     for r in sorted(registro, key=lambda r: -r['numero']):
-        st, col = stato_di(r, revocate, oggi)
-        k = {'revocata': 'revocate', 'scaduta': 'scadute'}.get(st, 'in scadenza' if st.startswith('scade') else 'attive')
+        st, col = stato_di(r, revocate, oggi, quando)
+        k = 'revocate' if st.startswith('revocata') else {'scaduta': 'scadute'}.get(st, 'in scadenza' if st.startswith('scade') else 'attive')
         conta[k] = conta.get(k, 0) + 1
         chi = (r.get('nome') or '') + (f" <{r['mail']}>" if r.get('mail') else '') or r.get('origine', '')
         tel = con_trattini(r['telefono'])
@@ -248,11 +254,15 @@ def riepilogo(posta, registro, revocate):
              f'<table style="border-collapse:collapse;font-size:14px"><tr style="background:#f0f3f7">'
              + ''.join(f'<th {td}>{h}</th>' for h in ('N.', 'Tipo', 'Pilota', 'Telefono', 'Emessa', 'Scade', 'Stato')) + '</tr>'
              + ''.join(righe).replace('<td>', f'<td {td}>') + '</table>'
-             '<p style="color:#666;font-size:13px">Per revocare: GitHub › Actions › Licenze › Run workflow › revoca, con il numero.<br>'
+             + (('<p style="margin-top:18px"><b>Revoche e ripristini</b></p><ul style="font-size:14px">'
+                 + ''.join(f'<li>{it(e["data"])} · licenza n. {e["numero"]} · {"revocata" if e["azione"] == "revoca" else "ripristinata"}</li>'
+                           for e in sorted(storico, key=lambda e: e['data'], reverse=True)) + '</ul>') if storico else '')
+             + '<p style="color:#666;font-size:13px">Per revocare: GitHub › Actions › Licenze › Run workflow › revoca, con il numero.<br>'
              'Arriva una volta al giorno. Per averlo subito: GitHub › Actions › Licenze per posta › Run workflow › «riepilogo».</p>')
     r = EmailMessage()
     r['From'] = email.utils.formataddr(('HORIZON', posta.utente)); r['To'] = posta.utente
     r['Subject'] = f'HORIZON · Riepilogo licenze · {oggi.strftime("%d/%m/%Y")}'
+    if storico: testo += ['', 'Revoche e ripristini:'] + [f"{it(e['data'])} · licenza n. {e['numero']} · {'revocata' if e['azione'] == 'revoca' else 'ripristinata'}" for e in sorted(storico, key=lambda e: e['data'], reverse=True)]
     r.set_content(f'{len(registro)} licenze · {sintesi}\n\n' + '\n'.join(testo) + '\n')
     r.add_alternative(html_di(corpo), subtype='html')
     posta.manda(r)
@@ -313,8 +323,8 @@ def main():
     oggi = datetime.date.today().isoformat(); fu = env.get('ULTIMO_RIEPILOGO')
     ultimo = open(fu).read().strip() if fu and os.path.exists(fu) else ''
     if ultimo != oggi or env.get('MANDA_RIEPILOGO') == 'true':
-        revocate = set(json.load(open(env['REVOCATE'])).get('revocate', [])) if env.get('REVOCATE') and os.path.exists(env['REVOCATE']) else set()
-        riepilogo(posta, registro, revocate); conti['riepilogo'] = 1
+        rev = json.load(open(env['REVOCATE'])) if env.get('REVOCATE') and os.path.exists(env['REVOCATE']) else {}
+        riepilogo(posta, registro, rev); conti['riepilogo'] = 1
         if fu: open(fu, 'w').write(oggi + '\n')
     # in archivio: anche quello appena mandato, che Gmail consegna dopo qualche secondo (si aspetta al massimo 1 minuto)
     import time
