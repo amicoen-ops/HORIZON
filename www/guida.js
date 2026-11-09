@@ -201,7 +201,7 @@ const G=[
     <p>ALTRO › SIMULA: un volo finto con avvisi veri, utile per provare rotte, circuito, TAWS e spazi aerei a terra. «Direct to un campo» › «Avvia la simulazione». Durante la simulazione LIVELLA è disattivato.</p>`},
   {id:'gps',t:'GPS esterno, quota e senza internet',h:`
     <p><b>Garmin GLO 2</b> via Bluetooth: Impostazioni › Posizione. Più preciso e più veloce del GPS del telefono.</p>
-    <p><b>Quota GPS</b>: si può tarare su un campo noto (Impostazioni › Quota GPS). QNH dal METAR o dal menu.</p>
+    <p><b>Quota e vario</b>: dal GPS, tarati da soli su un campo noto (Impostazioni › Quota). Se il telefono ha il <b>barometro</b> (molti Android di fascia media e alta) l'app lo usa insieme al GPS: vario pronto e pulito, quota vera sempre dal GPS, senza bisogno del QNH. In Stato la riga «Barometro» dice se c'è e se è in uso. QNH dal METAR o dal menu.</p>
     <p><b>Senza internet</b>: campi, rotte, velivoli e diario sono sul telefono; terreno, mappe e spazi aerei funzionano se li hai scaricati prima (Impostazioni › Volare senza internet).</p>`},
   {id:'orologio',t:'Orologio Garmin (HORIZON 2)',h:`
     <p>Solo in <b>HORIZON 2 (prova)</b>, l'app che si installa accanto a HORIZON. Sull'orologio (fenix 7 e simili) gira l'app <b>HORIZON Link</b>: si collega al telefono tramite Garmin Connect, che deve essere installata e con l'orologio associato.</p>

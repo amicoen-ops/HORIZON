@@ -2194,7 +2194,7 @@ OBST.length=0;                                           // ostacoli sintetici: 
 // ---- app installata (APK Capacitor): funzioni native al posto di quelle del browser ----
 PH.native=(()=>{ const C=window.Capacitor; if(!C||!C.isNativePlatform||!C.isNativePlatform()) return null;
   const P=n=>{ try{ return (C.Plugins&&C.Plugins[n])||C.registerPlugin(n); }catch(e){ return null; } };
-  return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass'),upd:P('Updater')}; })();
+  return {tts:P('TextToSpeech'),awake:P('KeepAwake'),fs:P('Filesystem'),share:P('Share'),http:P('CapacitorHttp'),glo:P('GloSerial'),compass:P('Compass'),baro:P('Barometro'),upd:P('Updater')}; })();
 PH.wmsBlocked=!PH.native && location.protocol==='https:';     // IGM e ortofoto (solo http): dal browser in https non si caricano
 // ---- voce e vibrazione ----
 PH.say=function(text,urgent){
@@ -2537,6 +2537,26 @@ PH.srcPick=function(){
 PH.fixIn=function(fx){ PH.fixes[fx.src]=fx; if(PH.srcPick()===fx.src) PH.applyFix(fx); };
 PH.useGlo=function(){ return PH.srcPick()==='glo'; };
 PH.SRC_NOME={phone:'GPS del telefono',glo:'Garmin GLO 2',fenix:'orologio Garmin'};
+PH.baroTxt=function(){ const B=PH.baro;
+  if(!PH.native) return 'Barometro: solo nell\'app Android (il browser non lo fa leggere).';
+  if(B.err) return 'Barometro: '+B.err+'.';
+  if(!B.n) return 'Barometro: in attesa del sensore…';
+  return `Barometro: ${B.p.toFixed(1)} hPa${!B.on?' · spento':(B.ofs==null?' · aspetta il GPS per agganciarsi':' · in uso per quota e vario')}`; };
+// ---- barometro del telefono: fusione con il GPS ----
+// Il barometro misura i cambi di quota (5 al secondo, rumore di 1 m circa) ma non la quota vera (dipende dal tempo
+// meteo); il GPS dà la quota vera ma rumorosa (±10–30 m) e lenta. Quota = quota-pressione standard + scarto, e lo scarto
+// si avvicina piano alla quota GPS tarata (in circa 2 minuti): vario pulito e quota assoluta che non deriva, senza QNH.
+// Se il barometro tace per più di 2 s si torna al GPS da solo. Si spegne in Impostazioni › Quota.
+PH.baro={on:lsGet('ia517p_baro',true)!==false,p:NaN,pa:NaN,t:0,ofs:null,nome:null,err:null,n:0};
+PH.baroFresh=function(now){ return PH.baro.on && isFinite(PH.baro.pa) && (now||performance.now())-PH.baro.t<2000; };
+PH.baroIn=function(hPa){
+  if(!(hPa>100 && hPa<1150)) return;
+  const B=PH.baro, now=performance.now(), dt=B.t?(now-B.t)/1000:0;
+  B.p=hPa; B.pa=44330*(1-Math.pow(hPa/1013.25,0.190263)); B.t=now; B.n++;
+  if(!B.on || B.ofs==null || PH.demo || PH.sim) return;          // scarto non ancora agganciato al GPS
+  PH.vario.correct(B.pa+B.ofs,dt);
+  if(PH.vario.h===PH.vario.h){ S.alt=PH.vario.h/FT2M; S.vs=clamp(PH.vario.v,-30,30); LIVE.baro=now; }
+};
 PH.applyFix=function(fx){
   const now=performance.now(), tFix=fx.t;
   PH.acc=fx.acc; PH.src=fx.src; S.sats=fx.sats!=null?fx.sats:null; S.hdop=fx.hdop!=null?fx.hdop:null;
@@ -2570,9 +2590,16 @@ PH.applyFix=function(fx){
     const msl=fx.msl, ofs=PH.altOfsBy[fx.src]||0;
     if(PH.altSrc!==fx.src){ PH.altSrc=fx.src; PH.vario.h=NaN; }      // cambio di fonte: il filtro riparte dalla nuova quota
     PH.mslRaw=msl;
-    PH.vario.correct(msl+ofs,dtF);
-    S.alt=PH.vario.h/FT2M; S.vs=clamp(PH.vario.v,-30,30);
-    LIVE.baro=now;
+    if(PH.baroFresh(now)){                                            // con il barometro: il GPS tiene giusto solo lo scarto
+      const B=PH.baro, tgt=msl+ofs;
+      if(B.ofs==null || !(PH.vario.h===PH.vario.h)){ B.ofs=tgt-B.pa; PH.vario.reset(tgt); }   // aggancio (avvio, taratura, cambio fonte)
+      else if(!(fx.acc>30)) B.ofs+=(tgt-(B.pa+B.ofs))*Math.min(1,dtF/(gs<5?20:120));   // a terra si assesta in fretta, in volo piano (non sporca il vario)
+    } else {
+      PH.baro.ofs=null;
+      PH.vario.correct(msl+ofs,dtF);
+      S.alt=PH.vario.h/FT2M; S.vs=clamp(PH.vario.v,-30,30);
+      LIVE.baro=now;
+    }
     PH.autoCal(msl,gs,fx.acc,fx.src,tFix);
   }
   LIVE.gps=now; LIVE.air=now; LIVE.any=true; S.auto=false;
@@ -3097,6 +3124,7 @@ PH.status=function(){
       return (PH.SRC_NOME[k]||k)+' '+(ok?'±'+(f.acc<10?f.acc.toFixed(1):Math.round(f.acc))+' m'+(k===PH.src?' (in uso)':''):'—'); }).join(' · ')],
     [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz'+(PH.mDtI?` (dichiarati ${Math.round(1/PH.mDtI)})`:'')+' · '+PH.gyroTxt()+' · schermo '+PH.scrAng()+'°'+(PH.accSign<0?' · segno iOS':''):'nessun dato'],
     [PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?'ok':'warn','Bussola',PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?`${String(Math.round(PH.mag.hdg)).padStart(3,'0')}° vera · ${PH.magInUse()?'in uso':(PH.compassMode==='never'?'spenta':'in volo usa la traccia GPS')}${PH.mag.acc!=null&&PH.mag.acc<2?' · da calibrare (muovi a otto)':''}`:(PH.mag.iosNeed?'inclina un momento il telefono in avanti (quasi in piano) per trovare il nord':(PH.mag.err?'non disponibile: '+PH.mag.err:'nessun dato'))],
+    ...(PH.native?[[PH.baroFresh()&&PH.baro.ofs!=null?'ok':(PH.baro.err||!PH.baro.on?'ok':'warn'),'Barometro',PH.baroFresh()?`${PH.baro.p.toFixed(1)} hPa · ${PH.baro.ofs!=null?'quota e vario dal barometro, tenuti giusti dal GPS':'aspetta il GPS per agganciarsi'}`:(PH.baro.err?'non presente su questo telefono: quota e vario dal GPS':(!PH.baro.on?'spento (Impostazioni › Quota): quota e vario dal GPS':'nessun dato'))]]:[]),
     [PH.mountCal?'ok':'warn','Montaggio',PH.mountCal?('livellato'+(PH.groundPitch?` · a terra ${PH.groundPitch}°`:'')):'telefono verticale (predefinito)'],
     [PH.altCal?'ok':'warn','Quota GPS',PH.altCal?`tarata a ${PH.altCal.field}`:'geoide '+PH.geoid+' m, non tarata'],
     [PH.dem.size?'ok':'warn','Terreno (DEM)',PH.dem.size?`${PH.dem.size} riquadri in memoria`:'non ancora scaricato'],
@@ -3314,8 +3342,10 @@ PH.renderImp=function(){
     <label class="ph-chk"><input type="checkbox" id="phMagAuto" ${PH.magAutoOn?'checked':''}> Correggi da sola a ogni corsa di decollo (traccia GPS sull'asse pista)</label>
     <p class="ph-sub" id="phMagDevTxt">${PH.magDevTxt()}</p>
   </section>
-  <section><h3>Quota GPS</h3>
-    <p class="ph-sub">L'app non usa il barometro: la quota è quella GPS (±10–30 m), riportata al livello del mare con il geoide e tarata da sola quando sei fermo su un campo di quota nota. Non usarla al posto dell'altimetro.</p>
+  <section><h3>Quota</h3>
+    <p class="ph-sub">La quota viene dal GPS (±10–30 m), riportata al livello del mare con il geoide e tarata da sola quando sei fermo su un campo di quota nota. Se il telefono ha il <b>barometro</b>, l'app lo usa insieme al GPS: il vario e i cambi di quota vengono dal barometro (più pronti e puliti), la quota vera resta quella del GPS, quindi non serve il QNH. Non usarla al posto dell'altimetro.</p>
+    <label class="ph-chk"><input type="checkbox" id="phBaro" ${PH.baro.on?'checked':''}> Usa il barometro del telefono</label>
+    <p class="ph-sub" id="phBaroTxt">${PH.baroTxt()}</p>
     <div class="ph-btns"><label class="ph-fld">Geoide (m, Nord Italia ≈ 47)<input id="phGeo" type="number" step="1" value="${PH.geoid}"></label><button class="ph-btn" id="phAltReset">Azzera taratura</button></div>
     <div class="ph-btns"><label class="ph-fld">Quota vera qui, se la conosci (m)<input id="phAltKnown" type="number" step="1" placeholder="es. 229"></label><button class="ph-btn" id="phAltSet">Tara qui</button></div>
     <p class="ph-sub">Per esempio la quota di un altimetro con il QNH del giorno, o la quota di un punto noto. Vale per la fonte in uso (GPS del telefono o GLO 2).</p>
@@ -3371,6 +3401,7 @@ PH.renderImp=function(){
   el('phLevelAir').onclick=()=>{ if(PH.level(0)) stat(); };
   el('phLevelGnd').onclick=()=>{ if(PH.level(+el('phGp').value||0)) stat(); };
   el('phMountReset').onclick=()=>{ PH.resetMount(); stat(); };
+  el('phBaro').onchange=()=>{ PH.baro.on=el('phBaro').checked; lsSet('ia517p_baro',PH.baro.on); PH.baro.ofs=null; PH.vario.h=NaN; el('phBaroTxt').innerHTML=PH.baroTxt(); };
   el('phGeo').onchange=()=>{ const v=+el('phGeo').value; if(v>-110&&v<90){ PH.geoid=v; lsSet('ia517p_geoid',v); PH.vario.h=NaN; } };
   PH.acSectionWire&&PH.acSectionWire();
   el('phTq').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.terrQ=b.dataset.q; lsSet('ia517p_terrq',PH.terrQ); el('phTq').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.tqNow(); });
@@ -3792,6 +3823,11 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
       PH.magFromR([[R[0],R[1],R[2]],[R[3],R[4],R[5]],[R[6],R[7],R[8]]],'android'); });
     PH.native.compass.start().catch(e=>{ PH.mag.err=String(e&&e.message||e); });
   }catch(e){} }
+  // barometro del telefono (solo app Android, se c'è): quota e vario con il GPS (PH.baroIn, PH.applyFix)
+  if(PH.native && PH.native.baro){ try{
+    PH.native.baro.addListener('p',d=>PH.baroIn(d&&d.hPa));
+    PH.native.baro.start().then(r=>{ PH.baro.nome=r&&r.nome||'sì'; }).catch(e=>{ PH.baro.err=String(e&&e.message||e); });
+  }catch(e){} }
   if(navigator.geolocation) navigator.geolocation.watchPosition(PH.onPos,PH.onPosErr,{enableHighAccuracy:true,maximumAge:0,timeout:15000});
   else PH.gpsErr='GPS non disponibile';
   PH.wakeLock(); document.addEventListener('visibilitychange',()=>{ PH.perf.lastRaf=0; if(!document.hidden) PH.wakeLock(); });
@@ -4071,6 +4107,7 @@ const PH_INFO={
   owner:"Enrico D'Amico",
 };
 const PH_CHANGES=[
+  ["1.0.153","Barometro del telefono (app Android, se il telefono lo ha): vario e cambi di quota dal barometro, molto più pronti e puliti; la quota vera resta tenuta giusta dal GPS, senza QNH. In Stato la riga «Barometro»; si spegne in Impostazioni › Quota."],
   ["1.0.145","Disegna la rotta: la mappa si vede anche con la carta VFR scaricata come mappa di base e, nella versione web (iPhone, iPad), anche se è scelta IGM o ortofoto (si usa OpenTopoMap)."],
   ["1.0.144","Mappa: il vento è scritto senza «PREV» (è comunque una stima) e i riquadri di vento e PRUA/TRK tengono il testo dentro anche con caratteri grandi. Carta VFR open flightmaps anche nella versione web (Chrome, Safari; su iPhone/iPad dalla schermata Home): Impostazioni › Volare senza internet › «Scarica la carta VFR», circa 105 MB, poi funziona senza internet."],
   ["1.0.138","Nuova casella di HORIZON: segnalazioni, registrazioni e domande arrivano a horizonlicenses@gmail.com."],
