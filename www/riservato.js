@@ -39,13 +39,17 @@ async function leggi(codice){
   catch(e){ return {ok:false,perche:'verifica non riuscita su questo telefono'}; }
   const dv=new DataView(dati.buffer,dati.byteOffset,21), tipo=String.fromCharCode(dati[1]), em=dv.getUint16(2), sc=dv.getUint16(4);
   const numero=(dati[6]<<16)|(dati[7]<<8)|dati[8], tel=String.fromCharCode(...dati.slice(9,21));
+  if(dati[0]!==1) return {ok:false,perche:'versione del codice non riconosciuta: aggiorna HORIZON'};
+  if(!/^[MAP]$/.test(tipo)) return {ok:false,perche:'tipo di licenza sconosciuto'};
   return {ok:true,versione:dati[0],tipo,emesso:giorno(em),scade:sc===65535?null:giorno(sc),numero,tel};
 }
 // stato della licenza su questo telefono
 L.codiceStato=async function(){
   const c=get(KC,''); if(!c) return {stato:'nessuno'};
   const r=await leggi(c); if(!r.ok) return {stato:'non valido',perche:r.perche};
-  const qui=telefono().replace(/-/g,''); if(qui && r.tel!==qui) return Object.assign(r,{stato:'altro telefono'});
+  const qui=telefono().replace(/-/g,'');
+  if(!qui) return Object.assign(r,{stato:'attesa'});                       // codice del telefono non ancora pronto: mai «attivo» alla cieca
+  if(r.tel!==qui) return Object.assign(r,{stato:'altro telefono'});
   if((get(KR,{n:[]}).n||[]).includes(r.numero)) return Object.assign(r,{stato:'revocato'});
   const ora=Math.max(Date.now(),get('ia517p_seen',0)||0);                 // orologio portato indietro: vale l'ora più avanti vista
   if(r.scade && ora>r.scade.getTime()+DAY) return Object.assign(r,{stato:'scaduto'});
@@ -60,6 +64,7 @@ const TIPO={M:'mensile',A:'annuale',P:'perenne'};
 const data=d=>d?d.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'}):'';
 function statoHtml(s){
   if(s.stato==='nessuno') return 'Nessun codice inserito.';
+  if(s.stato==='attesa') return 'Controllo del codice in corso: riapri il menu tra un attimo.';
   if(s.stato==='non valido') return `<span style="color:#ff5a5a">Codice non valido: ${esc(s.perche)}.</span>`;
   const base=`Licenza ${TIPO[s.tipo]||s.tipo} n. ${s.numero}, emessa il ${data(s.emesso)}`;
   if(s.stato==='altro telefono') return `<span style="color:#ff5a5a">${base}: è per un altro telefono (${esc(s.tel.replace(/(.{4})(?=.)/g,'$1-'))}).</span>`;
@@ -94,7 +99,8 @@ PH.riservatoOpen=async function(){
     d.querySelector('#hzTelCp').onclick=()=>{ try{ navigator.clipboard.writeText(telefono()); toast('CODICE COPIATO'); }catch(e){ toast(telefono()); } };
     d.querySelector('#hzCodOk').onclick=async()=>{ const v=d.querySelector('#hzCod').value.trim(); const r=await leggi(v);
       if(!r.ok){ d.querySelector('#hzCodSt').innerHTML=statoHtml({stato:'non valido',perche:r.perche}); return; }
-      if(telefono() && r.tel!==telefono().replace(/-/g,'')){ d.querySelector('#hzCodSt').innerHTML=statoHtml(Object.assign(r,{stato:'altro telefono'})); return; }
+      if(!telefono()){ d.querySelector('#hzCodSt').textContent='Codice del telefono non ancora pronto: riprova tra un attimo.'; return; }
+      if(r.tel!==telefono().replace(/-/g,'')){ d.querySelector('#hzCodSt').innerHTML=statoHtml(Object.assign(r,{stato:'altro telefono'})); return; }
       put(KC,v); PH.act&&PH.act('licenza '+r.tipo+' n. '+r.numero); await draw(); toast('CODICE INSERITO'); };
     // richiesta della licenza: con Web3Forms (come le segnalazioni) oppure dall'app di posta del pilota
     const oggetto=()=>'HORIZON licenza '+telefono();

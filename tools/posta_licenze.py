@@ -59,7 +59,7 @@ def con_trattini(t): return t[:4] + '-' + t[4:8] + '-' + t[8:]
 class Posta:
     def __init__(self, utente, password):
         self.utente, self.password = utente, password
-        self.imap = imaplib.IMAP4_SSL('imap.gmail.com')
+        self.imap = imaplib.IMAP4_SSL('imap.gmail.com', timeout=60)
         self.imap.login(utente, password)
         tutti = None
         for riga in self.imap.list()[1]:
@@ -91,8 +91,8 @@ class Posta:
             return False
         r = EmailMessage()
         r['From'] = email.utils.formataddr(('HORIZON', self.utente))
-        r['To'] = email.utils.formataddr((nome, indirizzo))
-        ogg = dec(msg.get('Subject'))
+        r['To'] = email.utils.formataddr((re.sub(r'[\r\n\t]+', ' ', dec(nome))[:80], indirizzo))
+        ogg = re.sub(r'[\r\n\t]+', ' ', dec(msg.get('Subject')))[:200]      # mai a capo nell'intestazione
         r['Subject'] = ogg if ogg.lower().startswith('re:') else 'Re: ' + ogg
         if msg.get('Message-ID'):
             r['In-Reply-To'] = msg['Message-ID']
@@ -107,7 +107,7 @@ class Posta:
         return True
 
     def manda(self, r):
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as s:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=60) as s:
             s.login(self.utente, self.password)
             s.send_message(r)
 
@@ -280,49 +280,84 @@ def main():
     for uid in posta.cerca('label:risposto'): posta.etichetta(uid, aggiungi=[DA_GESTIRE], togli=['Risposto', INBOX])
     for uid in posta.cerca('label:fatte'): posta.etichetta(uid, aggiungi=[GESTITE], togli=['Fatte', DA_GESTIRE, INBOX])
 
+    # limiti alle mail dei prezzi (la casella non deve diventare un modo per mandare posta a chiunque):
+    # una per telefono ogni 7 giorni, una per indirizzo al giorno, al massimo 30 al giorno. Stato cifrato come il registro.
+    import datetime, hashlib
+    oggi_d = datetime.date.today()
+    lim = json.load(open(env['PREZZI'])) if env.get('PREZZI') and os.path.exists(env['PREZZI']) else {}
+    lim = {k: {x: d for x, d in lim.get(k, {}).items() if (oggi_d - datetime.date.fromisoformat(d)).days < 30} for k in ('tel', 'mail')}
+    mandati_oggi = sum(1 for d in lim['mail'].values() if d == oggi_d.isoformat())
+    def recente(k, x, giorni): d = lim[k].get(x); return bool(d) and (oggi_d - datetime.date.fromisoformat(d)).days < giorni
+    def indirizzo_di(msg): return email.utils.parseaddr(msg.get('Reply-To') or msg.get('From'))[1].lower()
+    def impronta(ind): return hashlib.sha256(ind.encode()).hexdigest()[:16]
+
+    def errore(uid, tipo=None):                          # una mail che dà errore va in «Da vedere» e il giro continua
+        conti['errori'] = conti.get('errori', 0) + 1
+        try: posta.etichetta(uid, aggiungi=[DA_VEDERE, INBOX], togli=[tipo] if tipo else [])
+        except Exception: pass
+
     # 1. richieste nuove: prezzi e PayPal, poi «Da gestire» fuori dalla Posta in arrivo (si aspetta il pagamento)
     for uid in posta.cerca('subject:(HORIZON licenza) newer_than:30d -from:me -label:da-gestire -label:gestite -label:da-vedere -label:m -label:a -label:p'):
-        msg = posta.leggi(uid)
-        if msg is None: continue
-        ogg = dec(msg.get('Subject'))
-        tel = tel_da(ogg) or tel_da(testo_di(msg))
-        risposta = bool(msg.get('In-Reply-To')) or re.match(r'\s*(re|r|aw|sv)\s*:', ogg, re.I)
-        if risposta:                                      # «ho pagato…»: resta in arrivo perché l'autore la veda
-            posta.etichetta(uid, aggiungi=[DA_GESTIRE]); conti['saltate'] += 1
-        elif tel and posta.rispondi(msg, *testo_prezzi(tel, env['PAYPAL']), immagini={'passi-paypal': PASSI_PAYPAL}):
-            posta.etichetta(uid, aggiungi=[DA_GESTIRE], togli=[INBOX]); conti['prezzi'] += 1
-        else:                                             # senza codice del telefono o senza indirizzo: la guarda l'autore
-            posta.etichetta(uid, aggiungi=[DA_VEDERE]); conti['da vedere'] += 1
+        try:
+            msg = posta.leggi(uid)
+            if msg is None: continue
+            ogg = dec(msg.get('Subject'))
+            tel = tel_da(ogg) or tel_da(testo_di(msg))
+            risposta = bool(msg.get('In-Reply-To')) or re.match(r'\s*(re|r|aw|sv)\s*:', ogg, re.I)
+            ind = indirizzo_di(msg)
+            if risposta:                                  # «ho pagato…»: resta in arrivo perché l'autore la veda
+                posta.etichetta(uid, aggiungi=[DA_GESTIRE]); conti['saltate'] += 1
+            elif tel and ind and (recente('tel', tel, 7) or recente('mail', impronta(ind), 1) or mandati_oggi >= 30):
+                posta.etichetta(uid, aggiungi=[DA_GESTIRE]); conti['limitate'] = conti.get('limitate', 0) + 1   # resta in arrivo: decide l'autore
+            elif tel and posta.rispondi(msg, *testo_prezzi(tel, env['PAYPAL']), immagini={'passi-paypal': PASSI_PAYPAL}):
+                lim['tel'][tel] = lim['mail'][impronta(ind)] = oggi_d.isoformat(); mandati_oggi += 1
+                if env.get('PREZZI'): json.dump(lim, open(env['PREZZI'], 'w'))
+                posta.etichetta(uid, aggiungi=[DA_GESTIRE], togli=[INBOX]); conti['prezzi'] += 1
+            else:                                         # senza codice del telefono o senza indirizzo: la guarda l'autore
+                posta.etichetta(uid, aggiungi=[DA_VEDERE]); conti['da vedere'] += 1
+        except Exception:
+            errore(uid)
 
-    # 2. pagate: etichetta M, A o P messa dall'autore → codice, poi «Gestite» fuori dalla Posta in arrivo
+    # 2. pagate: etichetta M, A o P messa dall'autore → codice, poi «Gestite» fuori dalla Posta in arrivo.
+    # Mai due codici per la stessa richiesta: il registro tiene il Message-ID della mail a cui si è risposto.
     fatti = set()
     for tipo in 'MAP':
         for uid in posta.cerca(f'label:{tipo.lower()} -label:gestite -from:me'):
-            msg = posta.leggi(uid)
-            if msg is None: continue
-            tel = tel_da(dec(msg.get('Subject'))) or tel_da(testo_di(msg))
-            if (tipo, tel) in fatti or (not tel and fatti and any(t == tipo for t, _ in fatti) and msg.get('In-Reply-To')):
-                posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE, INBOX]); continue   # altre mail della stessa conversazione
-            if not tel:
-                posta.etichetta(uid, aggiungi=[DA_VEDERE, INBOX], togli=[tipo]); conti['da vedere'] += 1; continue
-            n = max([r['numero'] for r in registro] + [0]) + 1
-            codice = licenze.genera(priv, tipo, tel, n)
-            info = licenze.leggi(pub, codice)
-            if not posta.rispondi(msg, *testo_codice(tipo, codice, info['scade'])):
-                posta.etichetta(uid, aggiungi=[DA_VEDERE, INBOX], togli=[tipo]); conti['da vedere'] += 1; continue
-            registro.append({'numero': n, 'tipo': tipo, 'telefono': info['telefono'], 'emesso': info['emesso'],
-                             'scade': info['scade'], 'origine': 'posta', 'nome': posta.ultimo[0], 'mail': posta.ultimo[1]})
-            json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)      # subito: se dopo qualcosa va storto il numero resta usato
-            fatti.add((tipo, tel)); conti['codici'] += 1
-            posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE, INBOX])
+            try:
+                msg = posta.leggi(uid)
+                if msg is None: continue
+                mid = (msg.get('Message-ID') or '').strip()
+                tel = tel_da(dec(msg.get('Subject'))) or tel_da(testo_di(msg))
+                gia = (mid and any(r.get('msgid') == mid for r in registro)) or \
+                      any(r.get('telefono') == tel and r.get('tipo') == tipo and r.get('emesso') == oggi_d.isoformat() and r.get('origine') == 'posta' for r in registro)
+                if (tipo, tel) in fatti or gia:           # già mandato (anche in un giro precedente interrotto): solo etichette
+                    posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE, INBOX]); continue
+                if not tel:
+                    posta.etichetta(uid, aggiungi=[DA_VEDERE, INBOX], togli=[tipo]); conti['da vedere'] += 1; continue
+                n = max([r['numero'] for r in registro] + [0]) + 1
+                codice = licenze.genera(priv, tipo, tel, n)
+                info = licenze.leggi(pub, codice)
+                if not posta.rispondi(msg, *testo_codice(tipo, codice, info['scade'])):
+                    posta.etichetta(uid, aggiungi=[DA_VEDERE, INBOX], togli=[tipo]); conti['da vedere'] += 1; continue
+                registro.append({'numero': n, 'tipo': tipo, 'telefono': info['telefono'], 'emesso': info['emesso'],
+                                 'scade': info['scade'], 'origine': 'posta', 'nome': posta.ultimo[0], 'mail': posta.ultimo[1], 'msgid': mid})
+                json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)      # subito: se dopo qualcosa va storto il numero resta usato
+                fatti.add((tipo, tel)); conti['codici'] += 1
+                posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE, INBOX])
+            except Exception:
+                errore(uid, tipo)
         # le nostre risposte nella stessa conversazione: l'etichetta M/A/P messa a mano la prendono anche loro
-        for uid in posta.cerca(f'label:{tipo.lower()} from:me'): posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE])
+        try:
+            for uid in posta.cerca(f'label:{tipo.lower()} from:me'): posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE])
+        except Exception: conti['errori'] = conti.get('errori', 0) + 1
     if recupera_indirizzi(posta, registro, pub): json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)
     # 3. riepilogo: uno al giorno (al primo giro del giorno) o a richiesta; finisce in «Archivio generale licenze»
     import datetime
     oggi = datetime.date.today().isoformat(); fu = env.get('ULTIMO_RIEPILOGO')
     ultimo = open(fu).read().strip() if fu and os.path.exists(fu) else ''
-    if ultimo != oggi or env.get('MANDA_RIEPILOGO') == 'true':
+    from zoneinfo import ZoneInfo
+    ora_it = datetime.datetime.now(ZoneInfo('Europe/Rome'))
+    if (ultimo != oggi and ora_it.hour >= 7) or env.get('MANDA_RIEPILOGO') == 'true':   # il riepilogo del giorno dalle 7
         rev = json.load(open(env['REVOCATE'])) if env.get('REVOCATE') and os.path.exists(env['REVOCATE']) else {}
         riepilogo(posta, registro, rev); conti['riepilogo'] = 1
         if fu: open(fu, 'w').write(oggi + '\n')
@@ -337,7 +372,8 @@ def main():
         posta.etichetta(uid, aggiungi=[ARCHIVIO])
     posta.imap.logout()
 
-    riga = f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"
+    riga = (f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"
+            f" · limitate {conti.get('limitate', 0)} · errori {conti.get('errori', 0)}")
     print(riga)
     if env.get('RIEPILOGO'):
         with open(env['RIEPILOGO'], 'a') as f: f.write('## Licenze per posta\n\n' + riga + '\n')
