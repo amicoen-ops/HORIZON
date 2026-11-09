@@ -31,7 +31,7 @@ on:
 permissions:
   contents: write
 
-concurrency: licenze
+concurrency: licenze-manuale      # gruppo suo: la sveglia della posta non lo annulla mai
 
 jobs:
   licenze:
@@ -48,62 +48,47 @@ jobs:
       - name: Azione
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          GMAIL_LICENZE: ${{ secrets.GMAIL_LICENZE }}
+          GMAIL_UTENTE: horizonlicenses@gmail.com
           AZIONE: ${{ inputs.azione }}
           TIPO: ${{ inputs.tipo }}
           TELEFONO: ${{ inputs.telefono }}
           NUMERO: ${{ inputs.numero }}
         run: |
           set -e
-          cd reg; mkdir -p licenze; L=licenze
+          cd reg; mkdir -p licenze; L=licenze; umask 077; T="$RUNNER_TEMP/lic"; mkdir -p "$T"
           dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
           enc(){ openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
+          A=../tools/licenze_azione.py
           if [ "$AZIONE" = crea-chiave ]; then
             if [ -f $L/chiave_privata.pem.enc ]; then echo "::error::La chiave esiste già: non si ricrea (i codici già dati smetterebbero di valere)"; exit 1; fi
-            python3 ../tools/licenze.py chiave /tmp/priv.pem $L/chiave_pubblica.txt
-            enc /tmp/priv.pem $L/chiave_privata.pem.enc; echo '[]' > /tmp/reg.json; enc /tmp/reg.json $L/registro.json.enc
-            git add -A; git commit -qm "Licenze: chiave creata [skip ci]"
+            python3 ../tools/licenze.py chiave "$T/priv.pem" $L/chiave_pubblica.txt
+            enc "$T/priv.pem" $L/chiave_privata.pem.enc; echo '[]' > "$T/reg.json"; enc "$T/reg.json" $L/registro.json.enc
+            git add -A; git commit -qm "Licenze: chiave creata [skip ci]"; git push -q origin HEAD:licenze
             { echo "## Chiave creata"; echo; echo "Chiave pubblica (va nell'app, www/riservato.js):"; echo; echo '```'; cat $L/chiave_pubblica.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$AZIONE" = genera ]; then
-            [ -f $L/chiave_privata.pem.enc ] || { echo "::error::Prima lancia «crea-chiave»"; exit 1; }
-            dec $L/chiave_privata.pem.enc /tmp/priv.pem; dec $L/registro.json.enc /tmp/reg.json
-            python3 - <<'PY'
-          import json, os, datetime, sys
-          sys.path.insert(0, '../tools'); import licenze
-          reg = json.load(open('/tmp/reg.json'))
-          n = max([r['numero'] for r in reg] + [0]) + 1
-          codice = licenze.genera(open('/tmp/priv.pem', 'rb').read(), os.environ['TIPO'], os.environ['TELEFONO'], n)
-          info = licenze.leggi(open('licenze/chiave_pubblica.txt').read(), codice)
-          reg.append({'numero': n, 'tipo': info['tipo'], 'telefono': info['telefono'], 'emesso': info['emesso'], 'scade': info['scade'], 'origine': 'a mano'})
-          json.dump(reg, open('/tmp/reg.json', 'w'), indent=1)
-          tipi = {'M': 'mensile', 'A': 'annuale', 'P': 'perenne'}
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
-              f.write(f"## Licenza n. {n} · {tipi[info['tipo']]}\n\nTelefono {info['telefono']} · emessa il {info['emesso']} · scade: {info['scade'] or 'mai'}\n\nCodice da mandare:\n\n```\n{codice}\n```\n\n")
-              f.write("Testo per la mail:\n\n```\nCiao, ecco il codice della tua licenza HORIZON (" + tipi[info['tipo']] + ").\nIn HORIZON apri Info, tocca 5 volte il logo in alto a sinistra, incolla il codice in «Codice di licenza» e premi «Attiva».\n\n" + codice + "\n\nBuoni voli!\n```\n")
-          PY
-            enc /tmp/reg.json $L/registro.json.enc
-            git add -A; git commit -qm "Licenze: nuova licenza [skip ci]"
-          elif [ "$AZIONE" = revoca ]; then
-            python3 - <<'PY'
-          import json, os
-          import datetime
-          p = 'licenze/revocate.json'; d = json.load(open(p)); n = int(os.environ['NUMERO'])
-          if n not in d['revocate']: d['revocate'].append(n)
-          d.setdefault('storico', []).append({'numero': n, 'azione': 'revoca', 'data': datetime.date.today().isoformat()})
-          json.dump(d, open(p, 'w'), indent=1)
-          open(os.environ['GITHUB_STEP_SUMMARY'], 'a').write(f"## Licenza n. {n} revocata\n\nI telefoni con quel codice la vedono revocata appena hanno internet (controllo una volta al giorno).\n")
-          PY
-            git add -A; git commit -qm "Licenze: revoca [skip ci]"
-          elif [ "$AZIONE" = ripristina ]; then
-            python3 - <<'PY'
-          import json, os
-          p = 'licenze/revocate.json'; d = json.load(open(p)); n = int(os.environ['NUMERO'])
-          import datetime
-          d['revocate'] = [x for x in d['revocate'] if x != n]
-          d.setdefault('storico', []).append({'numero': n, 'azione': 'ripristino', 'data': datetime.date.today().isoformat()})
-          json.dump(d, open(p, 'w'), indent=1)
-          open(os.environ['GITHUB_STEP_SUMMARY'], 'a').write(f"## Licenza n. {n} ripristinata\n\nTolta dalla lista delle revocate: i telefoni la vedono di nuovo attiva appena hanno internet.\n")
-          PY
-            git add -A; git commit -qm "Licenze: ripristino [skip ci]"
+            rm -rf "$T"; exit 0
           fi
-          git push -q origin HEAD:licenze
-          rm -f /tmp/priv.pem /tmp/reg.json
+          [ -f $L/chiave_privata.pem.enc ] || { echo "::error::Prima lancia «crea-chiave»"; exit 1; }
+          # l'azione si applica alla copia più recente del ramo; se il push trova il ramo cambiato (un altro giro ha
+          # scritto), si riprende la copia nuova e si riapplica: niente si perde e niente si annulla in silenzio
+          salvato=0; nulla=
+          for prova in 1 2 3 4; do
+            if [ "$prova" -gt 1 ]; then sleep $((prova * 3)); git fetch -q origin licenze; git reset -q --hard origin/licenze; fi
+            dec $L/registro.json.enc "$T/reg.json"
+            case "$AZIONE" in
+              genera) dec $L/chiave_privata.pem.enc "$T/priv.pem"; python3 $A genera "$T/reg.json" "$T/priv.pem" "$T/stato.json"
+                      enc "$T/reg.json" $L/registro.json.enc ;;
+              revoca|ripristina) python3 $A "$AZIONE" "$T/reg.json" ;;
+            esac
+            if [ -z "$(git status --porcelain)" ]; then salvato=1; nulla=1; break; fi
+            git add -A; git commit -qm "Licenze: $AZIONE [skip ci]"
+            if git push -q origin HEAD:licenze; then salvato=1; break; fi
+          done
+          [ "$salvato" = 1 ] || { echo "::error::Ramo «licenze» non aggiornato dopo 4 tentativi"; rm -rf "$T"; exit 1; }
+          [ -n "$nulla" ] && { rm -rf "$T"; exit 0; }       # niente da cambiare (es. già revocata): lo ha scritto l'azione
+          case "$AZIONE" in
+            genera) python3 $A manda "$T/stato.json" ;;     # il codice parte solo dopo che il registro è salvato
+            revoca) echo "## Licenza n. $NUMERO revocata" >> "$GITHUB_STEP_SUMMARY"; echo "I telefoni la vedono revocata appena hanno internet (ogni giorno e quando si apre il menu riservato)." >> "$GITHUB_STEP_SUMMARY" ;;
+            ripristina) echo "## Licenza n. $NUMERO ripristinata" >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
+          rm -rf "$T"
