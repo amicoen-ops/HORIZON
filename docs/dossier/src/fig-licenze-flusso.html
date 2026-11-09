@@ -1,0 +1,29 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: flusso completo delle licenze per posta
+const D = sequence({w:1000,lanes:[
+ {id:'a',t:'Pilota',s:['app HORIZON'],k:'pilot'},
+ {id:'f',t:'Web3Forms',s:['modulo'],k:'ext'},
+ {id:'g',t:'Gmail',s:['horizonlicenses'],k:'mail'},
+ {id:'s',t:'Apps Script',s:['sveglia 1 min'],k:'mail'},
+ {id:'c',t:'GitHub Actions',s:['posta_licenze.py'],k:'ci'},
+ {id:'r',t:'Ramo «licenze»',s:['cifrato'],k:'data'},
+ {id:'u',t:'Autore',s:['PayPal'],k:'pilot'}],
+ step:41, first:48, x0:34, rows:[
+ {f:'a',to:'f',t:'«Invia la richiesta»\n(codice telefono)',n:1,k:'web',h:48},
+ {f:'f',to:'g',t:'«Richiesta licenza»',k:'ext'},
+ {f:'s',to:'g',t:'search(DA_LAVORARE)',n:2,k:'mail'},
+ {f:'s',to:'c',t:'workflow_dispatch',k:'mail'},
+ {f:'r',to:'c',t:'chiave, registro, prezzi',k:'data'},
+ {f:'c',to:'g',t:'IMAP: richieste nuove',n:3,k:'ci'},
+ {f:'c',to:'a',t:'SMTP: prezzi, link PayPal, passi illustrati · «Da gestire»',k:'ci'},
+ {f:'a',to:'u',t:'pagamento «amici e familiari», nota = codice del telefono',n:4,k:'n'},
+ {f:'u',to:'g',t:'etichetta M / A / P sulla mail',n:5,k:'n'},
+ {f:'s',to:'c',t:'workflow_dispatch',k:'mail'},
+ {f:'c',note:'licenze.genera(tipo, telefono, n + 1) → HZ1-…\nmai due codici per lo stesso Message-ID',k:'ci',h:50},
+ {f:'c',to:'a',t:'SMTP: codice di licenza · «Gestite»',n:6,k:'ci'},
+ {f:'c',to:'r',t:'registro cifrato (4 tentativi, unione)',k:'ci'},
+ {f:'a',note:'menu riservato: incolla il codice\nverifica offline (WebCrypto)',k:'web',h:50},
+ {f:'r',to:'a',t:'revocate.json (raw.githubusercontent), una volta al giorno',n:7,k:'data'},
+ {f:'c',to:'g',t:'riepilogo dalle 7 → «Archivio generale»',n:8,k:'ci'}]});
+D.render();
+</script>

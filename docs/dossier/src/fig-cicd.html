@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: workflow di GitHub Actions
+const D = new Diagram(1000, 740);
+const R=[
+ ['push su main\n(no .md, workflow, garmin)','Compila APK · build-apk.yml',['test_assetto.js → version.js 1.0.N (apk)','cap sync → keystore → assembleRelease','AAB (play) · APK di collaudo (debug)'],['Release build-N: APK + AAB','artifact apk-collaudo','Google Play «Test interni»']],
+ ['«Compila APK» riuscita','Collaudo su emulatore · test-emulatore.yml',['Android 14 (API 34), pixel_6','emu_test.sh + emu_cdp.py (DevTools)'],['issue «Collaudo emulatore»','schermate nella pre-release «diagnostica»']],
+ ['push di index.html\no di test_assetto.js','Prove dell\'assetto · test-assetto.yml',['node tools/test_assetto.js','(Node 22, pochi secondi)'],['esito della corsa']],
+ ['push su main\ncron 03:40 UTC','Pubblica la versione web · pubblica-web.yml',['www/ → sito, version.js «web gg.mm.aaaa»','openAIP (it fr ch at si), ofm_openair.py','confronta_spazi.py · carburante_openaip.py'],['GitHub Pages','amicoen-ops.github.io/HORIZON','dati/*.txt, carburante.json']],
+ ['push su main o claude/**\n(garmin, android, www)','Compila HORIZON 2 · horizon2.yml',['orologio: monkeyc nel container','  connectiq-tester, chiave devkey.der.enc','telefono: gradlew -Ph2, 2.0.N (h2)'],['artifact .apk, .prg, .iq','su main: pre-release horizon2-N']],
+ ['Apps Script\ncron :23 ogni ora','Licenze per posta · licenze-posta.yml',['segreto GMAIL_LICENZE (senza: niente)','posta_licenze.py · registro_unisci.py'],['mail ai piloti e riepilogo','ramo «licenze» aggiornato']],
+ ['a mano','Licenze · licenze.yml',['genera · revoca · ripristina','cambia-password · crea-chiave'],['ramo «licenze»','codice per posta a horizonlicenses']],
+ ['a mano · push «sonda»','Sonda fonti · sonda-spazi-aerei.yml',['prova CORS di api.polar.sh'],['issue «Sonda spazi aerei»']]];
+D.text({x:16,y:18,t:'EVENTO',b:1,c:'#5f5e5a'}); D.text({x:210,y:18,t:'WORKFLOW E PASSI',b:1,c:'#5f5e5a'}); D.text({x:700,y:18,t:'USCITE',b:1,c:'#5f5e5a'});
+R.forEach((r,i)=>{ const y=28+i*88;
+  D.box({id:'e'+i,x:16,y,w:164,h:76,k:'ext',t:'',s:r[0].split('\n'),ss:11.5});
+  D.box({id:'w'+i,x:210,y,w:450,h:76,k:'ci',t:r[1],s:r[2],la:1,left:1,fs:13.5,ss:11.5});
+  D.box({id:'o'+i,x:700,y,w:284,h:76,k:i>=5?'mail':'data',t:'',s:r[3],ss:11.5});
+  D.arrow('e'+i,'w'+i,{sides:'rl',k:'ci'}); D.arrow('w'+i,'o'+i,{sides:'rl',k:'ci'}); });
+D.render();
+</script>

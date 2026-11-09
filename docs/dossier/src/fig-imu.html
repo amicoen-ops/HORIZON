@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: dai sensori di movimento all'assetto (PH.onMotion)
+const D = new Diagram(1000, 640);
+const L=[
+ ['devicemotion (≈ 60–200 eventi/s)',['accelerationIncludingGravity (m/s²) · rotationRate (°/s)']],
+ ['Segno e verso dello schermo',['PH.accCheck → PH.accSign (Safari iOS: −1)','rotazione di PH.scrAng() · media lenta PH.aAvg']],
+ ['Passo di tempo vero',['dt da e.timeStamp (tra 1 e 100 ms), poi e.interval','limitato a 1–60 ms']],
+ ['Assi dell\'aereo: PH.toBody(v) = M · v',['M = PH.M, righe avanti · destra · giù (montaggio)','forza specifica fb in g (fermo e livellato 0, 0, −1)']],
+ ['Giroscopio: PH.gyroLearn, PH.gyroRaw',['ordine e segno degli assi tra 12 ipotesi','(gravità ruotata 0,5 s e confrontata) → ia517p_gmap']]];
+const R=[
+ ['Fonte della virata (PH.turnSrc)',['giroscopio; GPS se manca o se per 3 s non vede','una virata > 4°/s vista dal GPS']],
+ ['Compensazione con la velocità GPS',['fx −= dV/dt / g · fy −= r·V / g · fz += q·V / g','V = TAS stimata o GS (se GS > 15 km/h)']],
+ ['Filtro Mahony: PhMahony.update',['kp 1,8 · ki 0,02 · integrale limitato ±0,035','fiducia: exp(−((|f|−1)/0,08)²) · exp(−(|ω|/0,6)²)']],
+ ['Uscite',['S.roll, S.pitch (filtro morbido τ = «liscio» × 0,1 s)','S.slip · S.hdg (giroscopio + bussola) · LIVE.att']],
+ ['Vario',['aUp = (−down·fb − 1) · g → PH.vario.predict(aUp, dt)','(PhVario, solo se il GPS è arrivato da < 3 s)']]];
+L.forEach((s,i)=>D.box({id:'l'+i,x:16,y:16+i*96,w:460,h:74,t:s[0],s:s[1],n:i+1,k:i===0?'hw':'web'}));
+R.forEach((s,i)=>D.box({id:'r'+i,x:524,y:16+i*96,w:460,h:74,t:s[0],s:s[1],n:i+6,k:i===4?'data':'web'}));
+for(let i=0;i<4;i++){ D.arrow('l'+i,'l'+(i+1),{sides:'bt',k:'web'}); D.arrow('r'+i,'r'+(i+1),{sides:'bt',k:'web'}); }
+D.arrow('l4','r0',{sides:'rl',via:[[500,437],[500,53]],k:'web'});
+D.box({id:'lv',x:16,y:512,w:460,h:112,k:'nat',t:'LIVELLA: PH.level(beccheggio a terra)',la:1,s:['da PH.aAvg: direzione «giù» vista dal telefono','avanti = −z dello schermo proiettato sul piano orizzontale','ruotato del beccheggio a terra (di serie 11°, in volo 0°)','PH.M = [avanti, destra, giù] → ia517p_mount · filtro ripartito']});
+D.box({id:'rec',x:524,y:512,w:460,h:112,k:'data',t:'Registra 20 s (Impostazioni)',la:1,s:['PH.recStart: intestazione con montaggio, segno, assi, schermo','PH.recPush a ogni evento: ms dt ax ay az α β γ rollio','beccheggio vario virata (al massimo 6000 righe)','PH.recFinish → PH.sendReport (Web3Forms) o file da condividere']});
+D.arrow([16,568],[16,341],{via:[[6,568],[6,341]],k:'nat'});
+D.arrow([754,474],[754,512],{k:'data'});
+D.render();
+</script>

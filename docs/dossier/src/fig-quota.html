@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: quota e vario (PhVario), QNH
+const D = new Diagram(1000, 430);
+D.box({id:'g',x:16,y:16,w:300,h:118,k:'hw',t:'Quota dalle fonti di posizione',la:1,s:['telefono: altitude − geoide (PH.geoid, 47 m)','GLO 2: quota MSL della frase GGA','orologio: quota GPS, oppure barometro:','  44330,77·(1 − (p / QNH)^0,190263)']});
+D.box({id:'c',x:16,y:154,w:300,h:118,k:'data',t:'Taratura PH.autoCal',la:1,s:['fermi (GS < 0,8 m/s, acc ≤ 20 m)','per 20 s e ≥ 10 fix, entro 700 m','da un campo di quota nota:','offset = quota campo − media (≤ 120 m)','PH.altOfsBy[fonte] → ia517p_altofs2']});
+D.box({id:'v',x:370,y:16,w:300,h:256,k:'web',t:'PhVario (τ = 3 s)',la:1,s:['filtro complementare del 3° ordine','k1 = 3/τ, k2 = 3/τ², k3 = 1/τ³','predict(aUp, dt): integra aUp','  (solo se il GPS è arrivato da < 3 s;','  altrimenti v si smorza)','correct(h, dt): corregge h, v e il','  bias dell\'accelerometro','scarta un salto > 150 m isolato,','riparte dopo 3 salti o un buco > 3 s']});
+D.box({id:'a',x:370,y:296,w:300,h:58,k:'web',t:'PH.onMotion',s:['aUp: accelerazione verticale (m/s²)']});
+D.box({id:'o',x:716,y:16,w:268,h:130,k:'ext',t:'Uscite',la:1,s:['S.alt = h / 0,3048 (ft)','S.vs = v (m/s, ±30)','LIVE.baro = adesso','PH.mslRaw (quota grezza)']});
+D.box({id:'q',x:716,y:166,w:268,h:188,k:'mail',t:'QNH',la:1,s:['variabile QNH (950–1060 hPa,','  di serie 1020, ia517_qnh)','dalla manopola (menu QNH),','  NOTE ENTE o dal Piano','usato per: quota baro','  dell\'orologio, scritta QNH','  sull\'orizzonte']});
+D.arrow('g','v',{sides:'rl',fb:0.25,k:'web',t:'correct(h + offset)'});
+D.arrow('c','g',{sides:'tb',k:'data',t:'offset'});
+D.arrow('a','v',{sides:'tb',k:'web',t:'predict'});
+D.arrow('v','o',{sides:'rl',fa:0.25,k:'web'});
+D.arrow('q','g',{sides:'lr',via:[[700,260],[340,260],[340,110]],k:'mail',lp:[520,262],t:''});
+D.text({x:16,y:392,t:'Il barometro del telefono non è usato: la quota mostrata è GPS (geoide fisso) con taratura sul campo; in HORIZON 2 può essere barometrica dall\'orologio.',fs:12,i:1});
+D.render();
+</script>

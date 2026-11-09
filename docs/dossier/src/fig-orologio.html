@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="stile.css"><script src="diag.js"></script><div id="fig"></div><script>
+// Figura: messaggi tra orologio Garmin e telefono (HORIZON 2)
+const D = sequence({w:1000,lanes:[
+ {id:'w',t:'Orologio',s:['HorizonApp.mc'],k:'watch'},
+ {id:'g',t:'Garmin Connect',s:['app sul telefono'],k:'ext'},
+ {id:'p',t:'GarminPlugin',s:['Java, Connect IQ SDK'],k:'nat'},
+ {id:'j',t:'orologio.js',s:['WebView'],k:'web'},
+ {id:'s',t:'Strumento',s:['PH, S, avvisi'],k:'web'}],
+ step:44, x0:34, rows:[
+ {f:'w',note:'onStart: GPS continuo (L1+L5 se c\'è, altrimenti GPS+Galileo), sensori, timer di 1 s',k:'watch'},
+ {f:'w',to:'g',t:'transmit {t:"d", v:2, la lo q al sp hd w, ps ba mh hr te ox oxa, p, bt mu mt}',n:1,k:'watch'},
+ {f:'g',to:'p',t:'registerForAppEvents',k:'ext'},
+ {f:'p',to:'j',t:'evento «dati» (Map → JSObject)',k:'nat'},
+ {f:'j',to:'s',t:'PH.fixIn({src:"fenix"}) · bussola(mh)',k:'web'},
+ {f:'w',to:'g',t:'tasto {t:"k", k: ok · l · r · pg} (in coda, prima dei dati)',n:2,k:'watch'},
+ {f:'j',to:'s',t:'push() · rotate(±1) · togglePage()',k:'web'},
+ {f:'j',to:'p',t:'invia {t:"s", gs, al, vs, dt} ogni 2 s',n:3,k:'web',dash:false},
+ {f:'p',to:'g',t:'sendMessage (Double → Float)',k:'nat'},
+ {f:'g',to:'w',t:'onPhone: dati da mostrare (validi 5 s)',k:'ext'},
+ {f:'s',to:'j',t:'PH.alert nuovo (avviso parlato)',n:4,k:'red'},
+ {f:'j',to:'p',t:'invia {t:"a", l:"W"|"C", x: testo ≤ 40}',k:'red'},
+ {f:'p',to:'w',t:'sendMessage → vibra (W: 3×0,5 s, C: 2×0,25 s), schermo 8 s',k:'red'},
+ {f:'w',note:'scatola nera: segna() tiene gli ultimi 12 passi, salvati ogni 5 s in Storage «passo»;\nalla riapertura pv/pm viaggiano nei dati per 60 s → Impostazioni › Orologio «Ultima chiusura»',k:'watch',h:52}]});
+D.render();
+</script>
