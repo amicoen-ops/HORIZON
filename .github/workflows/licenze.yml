@@ -1,0 +1,94 @@
+name: Licenze
+
+# Codici di licenza di HORIZON (vedi tools/licenze.py). Si lancia a mano da GitHub › Actions › Licenze › Run workflow.
+#  · crea-chiave: una volta sola. Crea la chiave privata (cifrata con KEYSTORE_PASSWORD) e la pubblica, sul ramo «licenze».
+#  · genera: crea il codice per un telefono (tipo M/A/P), lo annota nel registro cifrato e lo scrive nel riepilogo della corsa.
+#  · revoca: aggiunge il numero di una licenza alla lista pubblica delle revocate (l'app la legge quando ha internet).
+# Il progetto è pubblico: nei campi qui sotto niente dati personali (nomi, mail). Il codice di licenza invece si può
+# mostrare: funziona solo sul telefono per cui è fatto.
+on:
+  workflow_dispatch:
+    inputs:
+      azione:
+        description: 'Cosa fare'
+        type: choice
+        options: [genera, revoca, crea-chiave]
+        default: genera
+      tipo:
+        description: 'Tipo: M mensile, A annuale, P perenne'
+        type: choice
+        options: [A, M, P]
+        default: A
+      telefono:
+        description: 'Codice del telefono (XXXX-XXXX-XXXX, dal menu riservato dell''app)'
+        required: false
+      numero:
+        description: 'Solo per «revoca»: numero della licenza'
+        required: false
+
+permissions:
+  contents: write
+
+concurrency: licenze
+
+jobs:
+  licenze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Ramo «licenze» (registro cifrato, chiavi, revocate)
+        run: |
+          git config --global user.name "github-actions[bot]"; git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch -q origin licenze 2>/dev/null; then git worktree add reg origin/licenze -b licenze-loc; else
+            git worktree add --orphan -b licenze-loc reg; mkdir -p reg/licenze; echo '{"revocate": []}' > reg/licenze/revocate.json
+            printf '%s\n' "Ramo delle licenze di HORIZON: chiave pubblica, chiave privata e registro cifrati, licenze revocate." > reg/LEGGIMI.txt; fi
+      - run: pip install --quiet cryptography
+      - name: Azione
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          AZIONE: ${{ inputs.azione }}
+          TIPO: ${{ inputs.tipo }}
+          TELEFONO: ${{ inputs.telefono }}
+          NUMERO: ${{ inputs.numero }}
+        run: |
+          set -e
+          cd reg; mkdir -p licenze; L=licenze
+          dec(){ openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
+          enc(){ openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -in "$1" -out "$2" -pass env:KEYSTORE_PASSWORD; }
+          if [ "$AZIONE" = crea-chiave ]; then
+            if [ -f $L/chiave_privata.pem.enc ]; then echo "::error::La chiave esiste già: non si ricrea (i codici già dati smetterebbero di valere)"; exit 1; fi
+            python3 ../tools/licenze.py chiave /tmp/priv.pem $L/chiave_pubblica.txt
+            enc /tmp/priv.pem $L/chiave_privata.pem.enc; echo '[]' > /tmp/reg.json; enc /tmp/reg.json $L/registro.json.enc
+            git add -A; git commit -qm "Licenze: chiave creata [skip ci]"
+            { echo "## Chiave creata"; echo; echo "Chiave pubblica (va nell'app, www/riservato.js):"; echo; echo '```'; cat $L/chiave_pubblica.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$AZIONE" = genera ]; then
+            [ -f $L/chiave_privata.pem.enc ] || { echo "::error::Prima lancia «crea-chiave»"; exit 1; }
+            dec $L/chiave_privata.pem.enc /tmp/priv.pem; dec $L/registro.json.enc /tmp/reg.json
+            python3 - <<'PY'
+          import json, os, datetime, sys
+          sys.path.insert(0, '../tools'); import licenze
+          reg = json.load(open('/tmp/reg.json'))
+          n = max([r['numero'] for r in reg] + [0]) + 1
+          codice = licenze.genera(open('/tmp/priv.pem', 'rb').read(), os.environ['TIPO'], os.environ['TELEFONO'], n)
+          info = licenze.leggi(open('licenze/chiave_pubblica.txt').read(), codice)
+          reg.append({'numero': n, 'tipo': info['tipo'], 'telefono': info['telefono'], 'emesso': info['emesso'], 'scade': info['scade'], 'origine': 'a mano'})
+          json.dump(reg, open('/tmp/reg.json', 'w'), indent=1)
+          tipi = {'M': 'mensile', 'A': 'annuale', 'P': 'perenne'}
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write(f"## Licenza n. {n} · {tipi[info['tipo']]}\n\nTelefono {info['telefono']} · emessa il {info['emesso']} · scade: {info['scade'] or 'mai'}\n\nCodice da mandare:\n\n```\n{codice}\n```\n\n")
+              f.write("Testo per la mail:\n\n```\nCiao, ecco il codice della tua licenza HORIZON (" + tipi[info['tipo']] + ").\nIn HORIZON apri Info, tocca 5 volte il logo in alto a sinistra, incolla il codice in «Codice di licenza» e premi «Attiva».\n\n" + codice + "\n\nBuoni voli!\n```\n")
+          PY
+            enc /tmp/reg.json $L/registro.json.enc
+            git add -A; git commit -qm "Licenze: nuova licenza [skip ci]"
+          elif [ "$AZIONE" = revoca ]; then
+            python3 - <<'PY'
+          import json, os
+          p = 'licenze/revocate.json'; d = json.load(open(p)); n = int(os.environ['NUMERO'])
+          if n not in d['revocate']: d['revocate'].append(n)
+          json.dump(d, open(p, 'w'), indent=1)
+          open(os.environ['GITHUB_STEP_SUMMARY'], 'a').write(f"## Licenza n. {n} revocata\n\nI telefoni con quel codice la vedono revocata appena hanno internet (controllo una volta al giorno).\n")
+          PY
+            git add -A; git commit -qm "Licenze: revoca [skip ci]"
+          fi
+          git push -q origin HEAD:licenze
+          rm -f /tmp/priv.pem /tmp/reg.json
