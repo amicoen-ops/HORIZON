@@ -2541,7 +2541,7 @@ PH.baroTxt=function(){ const B=PH.baro;
   if(!PH.native) return 'Barometro: solo nell\'app Android (il browser non lo fa leggere).';
   if(B.err) return 'Barometro: '+B.err+'.';
   if(!B.n) return 'Barometro: in attesa del sensore…';
-  return `Barometro: ${B.p.toFixed(1)} hPa${!B.on?' · spento':(B.ofs==null?' · aspetta il GPS per agganciarsi':' · in uso per quota e vario')}`; };
+  return `Barometro: ${B.p.toFixed(1)} hPa${!B.on?' · spento':(PH.demo||PH.sim?' · in pausa nel volo dimostrativo o nella simulazione':(B.ofs==null?' · aspetta il GPS per agganciarsi':' · in uso per quota e vario'))}`; };
 // ---- barometro del telefono: fusione con il GPS ----
 // Il barometro misura i cambi di quota (5 al secondo, rumore di 1 m circa) ma non la quota vera (dipende dal tempo
 // meteo); il GPS dà la quota vera ma rumorosa (±10–30 m) e lenta. Quota = quota-pressione standard + scarto, e lo scarto
@@ -3124,7 +3124,7 @@ PH.status=function(){
       return (PH.SRC_NOME[k]||k)+' '+(ok?'±'+(f.acc<10?f.acc.toFixed(1):Math.round(f.acc))+' m'+(k===PH.src?' (in uso)':''):'—'); }).join(' · ')],
     [PH.motionHz>20?'ok':'bad','Sensori di movimento',PH.motionHz?PH.motionHz+' Hz'+(PH.mDtI?` (dichiarati ${Math.round(1/PH.mDtI)})`:'')+' · '+PH.gyroTxt()+' · schermo '+PH.scrAng()+'°'+(PH.accSign<0?' · segno iOS':''):'nessun dato'],
     [PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?'ok':'warn','Bussola',PH.mag.hdg!=null&&performance.now()-PH.mag.t<2000?`${String(Math.round(PH.mag.hdg)).padStart(3,'0')}° vera · ${PH.magInUse()?'in uso':(PH.compassMode==='never'?'spenta':'in volo usa la traccia GPS')}${PH.mag.acc!=null&&PH.mag.acc<2?' · da calibrare (muovi a otto)':''}`:(PH.mag.iosNeed?'inclina un momento il telefono in avanti (quasi in piano) per trovare il nord':(PH.mag.err?'non disponibile: '+PH.mag.err:'nessun dato'))],
-    ...(PH.native?[[PH.baroFresh()&&PH.baro.ofs!=null?'ok':(PH.baro.err||!PH.baro.on?'ok':'warn'),'Barometro',PH.baroFresh()?`${PH.baro.p.toFixed(1)} hPa · ${PH.baro.ofs!=null?'quota e vario dal barometro, tenuti giusti dal GPS':'aspetta il GPS per agganciarsi'}`:(PH.baro.err?'non presente su questo telefono: quota e vario dal GPS':(!PH.baro.on?'spento (Impostazioni › Quota): quota e vario dal GPS':'nessun dato'))]]:[]),
+    ...(PH.native?[[PH.baroFresh()&&PH.baro.ofs!=null?'ok':(PH.baro.err||!PH.baro.on?'ok':'warn'),'Barometro',PH.baroFresh()?`${PH.baro.p.toFixed(1)} hPa · ${PH.demo||PH.sim?'in pausa: volo dimostrativo o simulazione':(PH.baro.ofs!=null?'quota e vario dal barometro, tenuti giusti dal GPS':'aspetta il GPS per agganciarsi')}`:(PH.baro.err?'non presente su questo telefono: quota e vario dal GPS':(!PH.baro.on?'spento (Impostazioni › Quota): quota e vario dal GPS':'nessun dato'))]]:[]),
     [PH.mountCal?'ok':'warn','Montaggio',PH.mountCal?('livellato'+(PH.groundPitch?` · a terra ${PH.groundPitch}°`:'')):'telefono verticale (predefinito)'],
     [PH.altCal?'ok':'warn','Quota GPS',PH.altCal?`tarata a ${PH.altCal.field}`:'geoide '+PH.geoid+' m, non tarata'],
     [PH.dem.size?'ok':'warn','Terreno (DEM)',PH.dem.size?`${PH.dem.size} riquadri in memoria`:'non ancora scaricato'],
