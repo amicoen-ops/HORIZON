@@ -1,6 +1,7 @@
 name: Licenze per posta
 
-# Ogni 10 minuti legge la casella horizonlicenses (vedi tools/posta_licenze.py):
+# Legge la casella horizonlicenses quando lo fa partire lo script in Gmail (tools/gmail-licenze, ogni 10 minuti e dai tasti
+# Mensile/Annuale/Perenne) o ogni ora come riserva (vedi tools/posta_licenze.py):
 #  · richieste nuove di licenza → risponde con prezzi e link PayPal (fuori dall'app);
 #  · mail con l'etichetta M, A o P (messa a mano dall'autore dopo il pagamento) → crea il codice, lo manda al pilota,
 #    lo annota nel registro cifrato sul ramo «licenze» (anche nome e mail del pilota), sposta la mail in «Gestite»
@@ -10,7 +11,7 @@ name: Licenze per posta
 # Progetto pubblico: nei log solo conteggi.
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '23 * * * *'          # riserva ogni ora: la sveglia vera è lo script in Gmail (tools/gmail-licenze)
   workflow_dispatch:
     inputs:
       riepilogo:
