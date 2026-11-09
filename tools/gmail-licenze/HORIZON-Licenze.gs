@@ -25,7 +25,7 @@
 
 const REPO = 'amicoen-ops/HORIZON', WORKFLOW = 'licenze-posta.yml';
 // richieste nuove (senza etichette) oppure mail con M/A/P non ancora gestite
-const DA_LAVORARE = '(subject:(HORIZON licenza) newer_than:30d -label:da-gestire -label:gestite -label:da-vedere -label:m -label:a -label:p)'
+const DA_LAVORARE = '(subject:(HORIZON licenza) newer_than:30d -from:me -label:da-gestire -label:gestite -label:da-vedere -label:m -label:a -label:p)'
   + ' OR label:m OR label:a OR label:p';
 const PAUSA_MS = 4 * 60 * 1000;          // dopo un avvio si aspetta che GitHub finisca prima di riavviarlo
 
@@ -42,9 +42,12 @@ function avviaGiro_(riepilogo) {
 }
 
 function daLavorare_() {
+  // a livello di conversazione: già gestita no; con M/A/P sì; altrimenti solo se nessuno l'ha ancora presa (né Da gestire né Da vedere)
   return GmailApp.search(DA_LAVORARE, 0, 20).filter(t => {
     const nomi = t.getLabels().map(l => l.getName());
-    return !nomi.includes('Gestite') && t.getMessages().some(m => !/horizonlicenses@gmail\.com/i.test(m.getFrom()));
+    if (nomi.includes('Gestite')) return false;
+    if (nomi.some(n => n === 'M' || n === 'A' || n === 'P')) return true;
+    return !nomi.includes('Da gestire') && !nomi.includes('Da vedere') && t.getMessages().some(m => !/horizonlicenses@gmail\.com/i.test(m.getFrom()));
   }).length;
 }
 
@@ -120,7 +123,8 @@ function installa() {
   ['M', 'A', 'P', 'Da gestire', 'Gestite', 'Da vedere', 'Archivio generale licenze'].forEach(n => GmailApp.getUserLabelByName(n) || GmailApp.createLabel(n));
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('sveglia').timeBased().everyMinutes(1).create();
-  const err = avviaGiro_(false);
+  const err = avviaGiro_(false), p = PropertiesService.getScriptProperties();
+  if (!err) { p.setProperty('ULTIMO_AVVIO', String(Date.now())); p.setProperty('GIRO_DEL_GIORNO', Utilities.formatDate(new Date(), 'Europe/Rome', 'yyyy-MM-dd')); }
   let cal = ''; try { const exp = calendario_(); cal = exp ? ' Promemoria nel Calendar: il token scade il ' + Utilities.formatDate(exp, 'Europe/Rome', 'dd/MM/yyyy') + '.' : ' (scadenza del token non letta: promemoria rimandati)'; } catch (e) { cal = ' Calendar: ' + e; }
   console.log((err ? 'Sveglia creata, ma ' + err : 'Pronto: controllo ogni minuto. Primo giro avviato su GitHub.') + cal);
 }
