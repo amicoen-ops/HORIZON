@@ -30,7 +30,7 @@ PH.sqOf=function(t){ if(!t||!PH.SQ.length) return null;
   const m=PH.SQ.find(x=>{ const r=N(x.reg), h=N(x.hex); return (r.length>=4&&(r===reg||r===cn)) || (h.length>=6&&addr.endsWith(h)); })||null;
   if(cache.size>500) cache.clear(); cache.set(k,m); return m; };
 const origName=PH.trfName;
-PH.trfName=t=>{ const m=PH.sqOf(t); return m?String(m.nome||m.reg).toUpperCase():origName(t); };
+PH.trfName=t=>{ const m=PH.sqOf(t); return m?String(m.nome||m.reg).toUpperCase().replace(/</g,''):origName(t); };   // come l'originale: va anche in innerHTML (lista del traffico)
 // righe in più nella scheda di un traffico toccato
 PH.sqRows=function(t){ const m=PH.sqOf(t); if(!m) return [];
   return [['Squadriglia',`<b style="color:#6dff8f">${esc(m.nome||'')}</b> · ${esc(m.reg)}${m.tipo?' · '+esc(m.tipo):''}`],['Radio',`«${esc(radio(m))}»`]]; };
@@ -93,7 +93,7 @@ PH.sqOpen=function(){
   document.getElementById('hzSqExp').onclick=()=>PH.download('HORIZON_squadriglia.json',JSON.stringify({horizon:'squadriglia',v:1,list:PH.SQ},null,2),'application/json');
   document.getElementById('hzSqImp').onchange=async ev=>{ const f=ev.target.files[0]; if(!f) return;
     try{ const j=JSON.parse(await f.text()), list=(j.list||j).filter(x=>x&&N(x.reg).length>=4); let n=0;
-      for(const x of list){ const c={id:'sq-'+Date.now().toString(36)+n,reg:String(x.reg).toUpperCase(),nome:String(x.nome||'').slice(0,30),radio:String(x.radio||'').slice(0,60),tipo:String(x.tipo||'').slice(0,40),hex:N(x.hex).slice(0,8),note:String(x.note||'').slice(0,80)};
+      for(const x of list){ const c={id:'sq-'+Date.now().toString(36)+n,reg:String(x.reg).toUpperCase().replace(/[^A-Z0-9 -]/g,'').slice(0,12),nome:String(x.nome||'').slice(0,30),radio:String(x.radio||'').slice(0,60),tipo:String(x.tipo||'').slice(0,40),hex:N(x.hex).slice(0,8),note:String(x.note||'').slice(0,80)};
         const i=PH.SQ.findIndex(y=>N(y.reg)===N(c.reg)); if(i>=0) PH.SQ[i]=Object.assign(PH.SQ[i],c,{id:PH.SQ[i].id}); else PH.SQ.push(c); n++; }
       wr(PH.SQ); cache.clear(); toast(n+' AEREI IMPORTATI'); PH.sqOpen(); }catch(e){ toast('FILE NON VALIDO'); } };
   PH.act&&PH.act('squadriglia');

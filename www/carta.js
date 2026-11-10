@@ -39,7 +39,8 @@ let busy=false;
 PH.cartaScarica=async function(onP){
   if(!plug){ toast('CARTA VFR: NON DISPONIBILE IN QUESTO BROWSER'); return; } if(busy) return; busy=true;
   const lst=plug.addListener?await plug.addListener('progresso',p=>onP&&onP(p.done,p.total)):null;
-  try{ for(const a of [PH.airac(0),PH.airac(1)]){ try{ await plug.scarica({url:url(a),nome:NOME}); if(!nativo) segno(true); await aggiorna(); toast('CARTA VFR SCARICATA · AIRAC '+a); PH.act&&PH.act('carta VFR '+a); return true; }catch(e){ if(a===PH.airac(1)) throw e; } } }
+  try{ for(const a of [PH.airac(0),PH.airac(1)]){ try{ await plug.scarica({url:url(a),nome:NOME}); if(!nativo) segno(true); await aggiorna(); toast('CARTA VFR SCARICATA · AIRAC '+a); PH.act&&PH.act('carta VFR '+a); return true; }catch(e){ if(a===PH.airac(1)) throw e;
+      if(PH.carta && String(PH.carta.version)===PH.airac(1)) throw e; } } }   // il ciclo di prima è già sul telefono: non lo si riscarica sopra se stesso (uno scarico interrotto lascerebbe senza carta)
   catch(e){ toast('CARTA VFR: '+String(e&&e.message||e).slice(0,60)); return false; }
   finally{ busy=false; try{ lst&&lst.remove(); }catch(e){} }
 };

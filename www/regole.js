@@ -13,8 +13,11 @@ window.IA517_RULES = (function () {
     vds_avanzato: { name: 'VDS avanzato', short: 'VDS AVANZATO' },
     vfr: { name: 'Aviazione generale VFR', short: 'VFR' },
   };
-  const get = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); return PROFILES[v] ? v : 'vds_basico'; } catch (e) { return 'vds_basico'; } };
-  const set = v => { if (PROFILES[v]) try { localStorage.setItem(KEY, JSON.stringify(v)); } catch (e) {} };
+  // letto al massimo ogni 2 s: lo chiedono a ogni spazio aereo gli avvisi (ogni secondo) e il disegno della mappa (a ogni fotogramma)
+  let gv = null, gt = 0;
+  const get = () => { const n = Date.now(); if (gv && n - gt < 2000) return gv;
+    try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); gv = PROFILES[v] ? v : 'vds_basico'; } catch (e) { gv = 'vds_basico'; } gt = n; return gv; };
+  const set = v => { if (PROFILES[v]) try { localStorage.setItem(KEY, JSON.stringify(v)); gv = null; } catch (e) {} };
 
   // Pasqua (algoritmo di Gauss/Meeus) per il lunedì dell'Angelo
   function easter(y) {

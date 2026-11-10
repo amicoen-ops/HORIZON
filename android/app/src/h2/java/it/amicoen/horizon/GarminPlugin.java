@@ -40,8 +40,10 @@ public class GarminPlugin extends Plugin {
             ciq = ConnectIQ.getInstance(getContext(), ConnectIQ.IQConnectType.WIRELESS);
             ciq.initialize(getContext(), true, new ConnectIQ.ConnectIQListener() {
                 @Override public void onSdkReady() { pronto = true; errore = ""; collega(); }
-                @Override public void onInitializeError(ConnectIQ.IQSdkErrorStatus s) { pronto = false; errore = "Garmin Connect: " + s; notifica(); }
-                @Override public void onSdkShutDown() { pronto = false; notifica(); }
+                // dopo un errore (Garmin Connect assente o da aggiornare) o la chiusura dell'SDK si azzera il collegamento:
+                // così il prossimo «avvia» (tasto Riprova) rifà initialize, invece di restare fermo fino al riavvio dell'app
+                @Override public void onInitializeError(ConnectIQ.IQSdkErrorStatus s) { pronto = false; ciq = null; orologio = null; errore = "Garmin Connect: " + s; notifica(); }
+                @Override public void onSdkShutDown() { pronto = false; ciq = null; orologio = null; notifica(); }
             });
             call.resolve(stato());
         } catch (Exception e) {

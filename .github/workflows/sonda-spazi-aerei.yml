@@ -6,8 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
+  issues: write          # crea solo una issue: non scrive nel repository
 
 jobs:
   sonda:

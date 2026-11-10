@@ -419,7 +419,15 @@ function defDep(){ const d=new Date(Date.now()+3600e3); d.setMinutes(Math.ceil(d
 if(!PLAN.dep || new Date(PLAN.dep)<new Date(Date.now()-6*3600e3)) PLAN.dep=defDep();
 $('pDep').value=PLAN.dep; $('pDep').addEventListener('change',()=>{ if($('pDep').value){ PLAN.dep=$('pDep').value; update(); } });
 const numIn={pAlt:'cruiseFt',pTas:'tas',pBurn:'burn',pFuel:'fuel',pRes:'res',pTaxi:'taxi'};
-for(const [id,k] of Object.entries(numIn)){ $(id).value=PLAN[k]; $(id).addEventListener('input',()=>{ const v=parseFloat($(id).value); if(!isNaN(v)){ PLAN[k]=v; update(); } }); }
+// un valore entra nel piano solo se sta nei limiti del campo: scrivendo «4500» i passaggi «4», «45», «450» non diventano la quota del piano
+// (con 4 ft partiva da sola la «rotta migliore»), e uno 0 non dà più tempi infiniti. Minimo per tutti; massimo solo dove è del velivolo (quota, velocità)
+const numOk=(el,v)=>{ const lo=parseFloat(el.min), hi=parseFloat(el.max); return !isNaN(v) && !(lo===lo&&v<lo) && !((el.id==='pAlt'||el.id==='pTas')&&hi===hi&&v>hi); };
+for(const [id,k] of Object.entries(numIn)){ const el=$(id); el.value=PLAN[k];
+  el.addEventListener('input',()=>{ const v=parseFloat(el.value); if(numOk(el,v)){ if(id==='pAlt') clearTimeout(PV.at); PLAN[k]=v; update(); } });   // quota cambiata: un calcolo automatico in attesa era per quella di prima
+  // fine della scrittura (invio o uscita dal campo): un valore fuori dai limiti torna quello del piano; solo adesso può partire il calcolo automatico
+  el.addEventListener('change',()=>{ const v=parseFloat(el.value); if(!numOk(el,v)){ el.value=PLAN[k]; toast(`Valore fuori dai limiti${el.min?' (minimo '+el.min+((id==='pAlt'||id==='pTas')&&el.max?', massimo '+el.max:'')+')':''}: resta ${PLAN[k]}`); }
+    try{ pvAutoCheck(true); }catch(e){} });
+  el.addEventListener('blur',()=>setTimeout(()=>{ try{ pvAutoCheck(); }catch(e){} },0)); }
 
 function legsOf(){
   const pts=[PLAN.from,...PLAN.wps,PLAN.dest].map(byId).filter(Boolean);
@@ -435,10 +443,10 @@ function compute(){
   const margin=PLAN.fuel-need, endur=PLAN.fuel/PLAN.burn*60;
   return {pts,legs,km,min,altKm,altMin,trip,altL,resL,need,margin,endur,altF,dst};
 }
-const fmtMin=m=>{ m=Math.round(m); return m<60?m+"'":Math.floor(m/60)+'h'+String(m%60).padStart(2,'0'); };
+const fmtMin=m=>{ if(!isFinite(m)) return 'n.d.'; m=Math.round(m); return m<60?m+"'":Math.floor(m/60)+'h'+String(m%60).padStart(2,'0'); };
 function renderPlan(c){
   $('legs').innerHTML='<thead><tr><th>Tratta</th><th>Rotta</th><th>km</th><th>Tempo</th></tr></thead><tbody>'+
-    c.legs.map(l=>`<tr><td class="leg">${esc(l.a.short)} → ${esc(l.b.short)}</td><td>${String(Math.round(l.brg)).padStart(3,'0')}°</td><td>${(l.d/1000).toFixed(1)}</td><td>${fmtMin(l.d/1000/PLAN.tas*60)}</td></tr>`).join('')+
+    c.legs.map(l=>`<tr><td class="leg">${esc(l.a.short)} → ${esc(l.b.short)}</td><td>${String(Math.round(l.brg)).padStart(3,'0')}°</td><td>${(l.d/1000).toFixed(1)}</td><td>${fmtMin(l.d/1000/Math.max(30,PLAN.tas)*60)}</td></tr>`).join('')+
     (c.altKm?`<tr><td class="leg" style="color:#d58ccc">${esc(c.dst.short)} → ${esc(c.altF.short)} (alt.)</td><td>${String(Math.round(dist(c.dst,c.altF).brg)).padStart(3,'0')}°</td><td>${c.altKm.toFixed(1)}</td><td>${fmtMin(c.altMin)}</td></tr>`:'')+'</tbody>';
   $('totals').innerHTML=`<div class="tot"><span>Distanza</span><b>${c.km.toFixed(0)} km</b></div><div class="tot"><span>Tempo senza vento</span><b>${fmtMin(c.min)}</b></div><div class="tot"><span>Autonomia a bordo</span><b>${fmtMin(c.endur)}</b></div>`;
   const st=c.margin>=3?['ok','Carburante sufficiente']:(c.margin>=0?['warn','Margine minimo']:['bad','Carburante insufficiente']);
@@ -645,12 +653,16 @@ var PASTED_LIST=[];
 function metarPush(){ if(!PHONE) return; try{ parent.PH&&parent.PH.metarSet&&parent.PH.metarSet({t:LIVE_METAR.t,list:LIVE_METAR.list.map(w=>{ const f=byId(w.id); return f?{id:w.id,say:metarFrase(w),lat:f.lat,lon:f.lon,cat:w.cat,dir:w.dir,vrb:w.vrb,kmh:w.kmh,gust:w.gust,qnh:w.qnh,vis:w.vis,ceil:w.ceil,wx:w.wx,time:w.time,raw:w.raw,t:w.t}:null; }).filter(Boolean)}); }catch(e){} }
 function tafAt(T,d){
   if(!T||!T.groups.length||(T.from&&d<T.from)||(T.to&&d>T.to)) return null;
-  let base=Object.assign({},T.groups[0].o); const temp=[];
+  let base=Object.assign({},T.groups[0].o); const temp=[], rank={VFR:0,MVFR:1,IFR:2,LIFR:3};
   for(const g of T.groups.slice(1)){
-    if(g.type==='FM'&&d>=g.from) base=Object.assign({},base,g.o);
-    else if(g.type==='BECMG'&&d>=g.from) base=Object.assign({},base,g.o);
+    if(g.type==='FM'&&d>=g.from) base=Object.assign({},g.o);            // FM è una previsione nuova e completa: i fenomeni di prima (pioggia…) non restano
+    else if(g.type==='BECMG'&&d>=g.from){ const nb=Object.assign({},base,g.o), c0=vfrCat(base), c1=vfrCat(nb);
+      // BECMG: il cambio avviene tra l'inizio e la fine, non si sa quando. Se migliora, fino alla fine vale ancora il tempo di prima (il peggiore);
+      // se peggiora vale subito. Senza periodo scritto (from e to del TAF) resta com'era
+      const hold=g.to&&d<g.to&&!(g.from===T.from&&g.to===T.to)&&c0&&c1&&rank[c1]<rank[c0];
+      if(!hold) base=nb; }
     else if(g.type==='TEMPO'&&d>=g.from&&d<g.to) temp.push(Object.assign({},base,g.o,{prob:g.prob})); }
-  const rank={VFR:0,MVFR:1,IFR:2,LIFR:3}, cat=vfrCat(base);
+  const cat=vfrCat(base);
   let worst=null; for(const x of temp){ const c=vfrCat(x); if(c&&(!worst||rank[c]>rank[worst.cat])) worst={cat:c,o:x}; }
   if(worst&&cat&&rank[worst.cat]<=rank[cat]) worst=null;
   return {o:base,cat,worst}; }
@@ -747,15 +759,15 @@ function renderElev(){
 const COORD_RE=/(\d+):(\d+(?:\.\d+)?)(?::(\d+(?:\.\d+)?))?\s*([NS])\s*,?\s*(\d+):(\d+(?:\.\d+)?)(?::(\d+(?:\.\d+)?))?\s*([EW])/gi;
 function coordsIn(s){ return [...s.matchAll(COORD_RE)].map(m=>({lat:(+m[1]+ +m[2]/60+(m[3]?+m[3]/3600:0))*(/S/i.test(m[4])?-1:1),lon:(+m[5]+ +m[6]/60+(m[7]?+m[7]/3600:0))*(/W/i.test(m[8])?-1:1)})); }
 function offLL(c,E,N){ return {lat:c.lat+N/110540, lon:c.lon+E/(111320*Math.cos(c.lat*D2R))}; }
-function parseAltOA(s){
+function parseAltOA(s,top){          // top: è un tetto (AH). Se non si riesce a leggere vale «senza limite», non 0 ft
   s=s.trim().toUpperCase();
   if(/^(SFC|GND)/.test(s)||/^0+\s*$/.test(s)) return {ft:0,ref:'AGL',txt:'SFC'};
   if(/^UNL/.test(s)) return {ft:99999,ref:'MSL',txt:'UNL'};
   let m=s.match(/^FL\s*(\d+)/); if(m) return {ft:+m[1]*100,ref:'MSL',txt:'FL'+(+m[1])};
   m=s.match(/^(\d+)\s*FL\b/); if(m) return {ft:+m[1]*100,ref:'MSL',txt:'FL'+(+m[1])};            // open flightmaps: «45 fl msl»
-  m=s.match(/^(\d+)\s*(FT|F|M(?!SL))?\s*(AGL|AGND|GND|SFC|AMSL|MSL|ALT)?/);   // «3500MSL»: la M è di MSL, non metri (open flightmaps)
-  if(m){ let v=+m[1]; if(m[2]==='M') v=Math.round(v/0.3048); const agl=/AGL|AGND|GND|SFC/.test(m[3]||''); return {ft:v,ref:agl?'AGL':'MSL',txt:`${v} ft ${agl?'AGL':'AMSL'}`}; }
-  return {ft:0,ref:'MSL',txt:s};
+  m=s.match(/^(\d+)\s*(FT|F|M(?!SL))?\s*(AGL|AGND|ASFC|GND|SFC|AMSL|MSL|ALT)?/);   // «3500MSL»: la M è di MSL, non metri (open flightmaps); «ASFC» = sopra il suolo
+  if(m){ let v=+m[1]; if(m[2]==='M') v=Math.round(v/0.3048); const agl=/AGL|AGND|ASFC|GND|SFC/.test(m[3]||''); return {ft:v,ref:agl?'AGL':'MSL',txt:`${v} ft ${agl?'AGL':'AMSL'}`}; }
+  return top?{ft:99999,ref:'MSL',txt:s}:{ft:0,ref:'MSL',txt:s};   // «BY NOTAM» e simili: base dal suolo, tetto senza limite (il caso più severo)
 }
 function parseOpenAir(text){
   const out=[]; let cur=null, center=null, dir=1;
@@ -771,7 +783,7 @@ function parseOpenAir(text){
     if(!cur) continue;
     if(k==='AN') cur.name=v;
     else if(k==='AL') cur.lo=parseAltOA(v);
-    else if(k==='AH') cur.hi=parseAltOA(v);
+    else if(k==='AH') cur.hi=parseAltOA(v,true);
     else if(k==='DP'){ const p=coordsIn(v)[0]; if(p) cur.pts.push(p); }
     else if(k==='DC'&&center){ cur.pts.push(...arc(center,parseFloat(v)*1852,0,360,1)); }
     else if(k==='DA'&&center){ const [r,a1,a2]=v.split(',').map(parseFloat); cur.pts.push(...arc(center,r*1852,a1,a2,dir)); }
@@ -835,13 +847,19 @@ function runBriefing(c){
   const tot=acc/1000, e0=c.pts.length?(elevInfo(c.pts[0]).use??700):700, e1=c.dst?(elevInfo(c.dst).use??700):700;
   const gMin=Math.min(e0,e1), gMax=Math.max(e0,e1);
   const asp=[];
+  // terreno sotto un campione della rotta (ft), letto una volta sola; NaN se non è in memoria
+  const terrOf=s=>{ if(s.tf===undefined){ const z=rdDem(s.lat,s.lon,10); s.tf=z===z?z/0.3048:NaN; } return s.tf; };
   for(const a of ASP){
-    let inside=false, st=0; const segs=[];
+    let inside=false, st=0, tMin=1e9, tMax=-1e9, tMiss=false; const segs=[], agl=(a.lo.ref==='AGL'&&a.lo.ft>0)||a.hi.ref==='AGL';
     for(const s of samples){ const ins=s.lat>=a.bb[0]&&s.lat<=a.bb[1]&&s.lon>=a.bb[2]&&s.lon<=a.bb[3]&&pip(s,a.pts);
+      if(ins&&agl){ const t=terrOf(s); if(t===t){ if(t<tMin) tMin=t; if(t>tMax) tMax=t; } else tMiss=true; }
       if(ins&&!inside){ st=s.x; inside=true; } else if(!ins&&inside){ segs.push([st,s.x]); inside=false; } }
     if(inside) segs.push([st,tot]);
     if(!segs.length) continue;
-    const lo=a.lo.ref==='AGL'?a.lo.ft+(a.lo.ft?gMin:0):a.lo.ft, hi=a.hi.ref==='AGL'?a.hi.ft+gMax:a.hi.ft;
+    // quote AGL: riferite al terreno sotto la rotta dentro la zona (base dal punto più basso, tetto dal più alto). Prima si usavano le quote
+    // dei campi di partenza e arrivo: una zona «fino a 1640 ft AGL» sopra un rilievo risultava sotto di noi. Senza terreno: ripiego sui campi, mai verde
+    const noDem=agl&&(tMiss||tMax<-1e8), bLo=noDem?Math.min(tMin,gMin):tMin, bHi=noDem?Math.max(tMax,gMax):tMax;
+    const lo=a.lo.ref==='AGL'?a.lo.ft+(a.lo.ft?bLo:0):a.lo.ft, hi=a.hi.ref==='AGL'?a.hi.ft+bHi:a.hi.ft;
     let pMin=1e9, pMax=-1e9; segs.forEach(([x0,x1])=>{ for(let x=x0;x<=x1+1e-6;x+=0.25){ const h=profileAt(Math.min(x,x1),tot,e0,e1); pMin=Math.min(pMin,h); pMax=Math.max(pMax,h); } });
     const overlap=pMax>=lo && pMin<=hi;
     let status, verdict;
@@ -849,10 +867,11 @@ function runBriefing(c){
       if(pMax<lo){ const m=lo-pMax; status=m>=300?'ok':'warn'; verdict=`Passi sotto: base ${a.lo.txt}, tu al massimo ${Math.round(pMax)} ft (margine ${Math.round(m)} ft)`; }
       else { const m=pMin-hi; status=m>=300?'ok':'warn'; verdict=`Passi sopra: limite ${a.hi.txt}, tu almeno ${Math.round(pMin)} ft (margine ${Math.round(m)} ft)`; }
     } else { const v=IA517_RULES.verdict(a); status=v.status; verdict=v.text; }
+    if(!overlap&&noDem){ status='warn'; verdict+=' · terreno sotto la zona non disponibile: quota AGL stimata dalle quote dei campi, da verificare'; }
     asp.push({a,segs,lo,hi,status,verdict});
   }
   asp.sort((p,q)=>p.segs[0][0]-q.segs[0][0]);
-  const not=analyzeNotams(samples,c);
+  const not=analyzeNotams(samples,c,tot,e0,e1);
   return {samples,tot,e0,e1,asp,not};
 }
 function renderBriefing(c){
@@ -925,7 +944,8 @@ function parseNotams(text){
   if(cur.length) blocks.push(cur.join('\n'));
   return blocks.map(t=>t.trim()).filter(Boolean).map(t=>{
     const o={raw:t,id:(t.match(/[A-Z]\d{4}\/\d{2}/)||['NOTAM'])[0]};
-    const q=t.match(/Q\)\s*([A-Z]{4})\/Q([A-Z]{2})([A-Z]{2})\/[A-Z]*\/[A-Z]*\/[A-Z]*\/(\d{3})\/(\d{3})\/(\d{2})(\d{2})([NS])(\d{3})(\d{2})([EW])(\d{3})/);
+    // riga Q: molti siti la danno con i campi a larghezza fissa («/BO /W /»): gli spazi intorno alle barre sono ammessi
+    const q=t.match(/Q\)\s*([A-Z]{4})\s*\/\s*Q([A-Z]{2})([A-Z]{2})\s*\/\s*[A-Z]*\s*\/\s*[A-Z]*\s*\/\s*[A-Z]*\s*\/\s*(\d{3})\s*\/\s*(\d{3})\s*\/\s*(\d{2})(\d{2})([NS])(\d{3})(\d{2})([EW])(\d{3})/);
     if(q){ o.fir=q[1]; o.subj=q[2]; o.cond=q[3]; o.lo=+q[4]*100; o.hi=+q[5]*100;
       o.lat=(+q[6]+ +q[7]/60)*(q[8]==='S'?-1:1); o.lon=(+q[9]+ +q[10]/60)*(q[11]==='W'?-1:1); o.rNM=+q[12]; }
     const a=t.match(/A\)\s*([A-Z]{4}(?:\s+[A-Z]{4})*)/); if(a) o.loc=a[1].split(/\s+/);
@@ -939,18 +959,23 @@ window.IA517_notam=()=>{ try{ if(!NOTAM_TEXT.trim()) return []; const now=Date.n
   return parseNotams(NOTAM_TEXT).filter(n=>n.lat!=null&&n.rNM!=null&&n.rNM<999&&(!n.from||n.from.getTime()<=h12)&&(n.perm||!n.to||n.to.getTime()>=now))
     .map(n=>({id:n.id,lat:n.lat,lon:n.lon,r:Math.max(n.rNM,0.5)*1852,lo:n.lo,hi:n.hi,subj:QSUB[n.subj]||n.subj||'NOTAM',from:n.from?n.from.getTime():null,to:n.to?n.to.getTime():null,perm:n.perm,text:(n.text||'').slice(0,200)})); }catch(e){ return []; } };
 function distToRoute(p,samples){ let m=1e12; for(const s of samples){ const d=dist(p,s).d; if(d<m) m=d; } return m; }
-function analyzeNotams(samples,c){
+function analyzeNotams(samples,c,tot,e0,e1){
   if(!NOTAM_TEXT.trim()) return [];
   const dep=new Date(PLAN.dep), arr=new Date(dep.getTime()+(c.min+20)*60e3), ids=new Set(planFields().map(f=>f.id));
+  // quota del volo: non la crociera scritta ma la più alta del profilo (il terreno può far salire una tratta), mai sotto la crociera
+  const hOf=s=>{ try{ return profileAt(s.x,tot,e0,e1); }catch(e){ return PLAN.cruiseFt; } };
+  const hAll=samples.reduce((m,s)=>Math.max(m,hOf(s)),PLAN.cruiseFt);
   return parseNotams(NOTAM_TEXT).map(n=>{
     const timeOk=!n.from || (n.from<=arr && (n.perm||!n.to||n.to>=dep));
-    let where='posizione non indicata', near=false, onRoute=false, fir=false;
+    let where='posizione non indicata', near=false, onRoute=false, fir=false, hRef=hAll;
     if(n.lat!=null){ if(n.rNM>=999){ fir=true; where='tutta la FIR'; }
-      else { const d=distToRoute(n,samples), r=n.rNM*1852; onRoute=d<=r+2000; near=!onRoute&&d<=r+10000; where=onRoute?'sulla rotta':(near?`a ${((d-r)/1000).toFixed(0)} km dalla rotta`:`lontano dalla rotta (${(d/1000).toFixed(0)} km)`); } }
-    const vert=n.lo==null || n.lo<=PLAN.cruiseFt+1000;
+      else { const d=distToRoute(n,samples), r=n.rNM*1852; onRoute=d<=r+2000; near=!onRoute&&d<=r+10000; where=onRoute?'sulla rotta':(near?`a ${((d-r)/1000).toFixed(0)} km dalla rotta`:`lontano dalla rotta (${(d/1000).toFixed(0)} km)`);
+        if(onRoute||near){ hRef=PLAN.cruiseFt; for(const s of samples) if(dist(n,s).d<=r+10000) hRef=Math.max(hRef,hOf(s)); } } }   // la quota più alta del profilo vicino al NOTAM
+    const vert=n.lo==null || n.lo<=hRef+1000;
     const atField=n.loc&&n.loc.some(x=>ids.has(x));
     let status='ok';
     if(timeOk&&vert&&(onRoute||atField)) status='bad'; else if(timeOk&&vert&&(near||fir)) status='warn';
+    else if(timeOk&&n.lat==null){ status='warn'; where='posizione non letta dalla riga Q: leggilo'; }   // valido ma non si sa dove: mai «OK»
     const verdict=!timeOk?'Non attivo nell\'orario del volo':(!vert?`Sopra la tua quota (da ${n.lo} ft)`:(atField?'Riguarda un campo del piano':where.charAt(0).toUpperCase()+where.slice(1)));
     return {...n,status,verdict,where};
   }).sort((p,q)=>({bad:0,warn:1,ok:2}[p.status]-{bad:0,warn:1,ok:2}[q.status]));
@@ -958,7 +983,7 @@ function analyzeNotams(samples,c){
 const fmtUtc=d=>d?d.toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 function renderNotams(list){
   if(!NOTAM_TEXT.trim()){ $('notamList').innerHTML='<div class="sub">Nessun NOTAM inserito.</div>'; return; }
-  $('notamList').innerHTML=list.length?list.map(n=>`<div class="it"><span class="cls ${n.status}">${n.status==='bad'?'ROTTA':(n.status==='warn'?'VICINO':'OK')}</span>
+  $('notamList').innerHTML=list.length?list.map(n=>`<div class="it"><span class="cls ${n.status}">${n.status==='bad'?'ROTTA':(n.status==='warn'?(n.lat==null?'LEGGI':'VICINO'):'OK')}</span>
     <span class="t">${esc(n.id)} · ${esc(QSUB[n.subj]||n.subj||'NOTAM')}</span>
     <span class="v ${n.status}">${esc(n.verdict)}</span>
     <span class="s">${n.from?`dal ${fmtUtc(n.from)} `:''}${n.perm?'permanente':(n.to?`al ${fmtUtc(n.to)} (ora locale)`:'')}${n.lo!=null?` · da ${n.lo} a ${n.hi} ft`:''}${n.rNM!=null&&n.rNM<999?` · raggio ${n.rNM} NM`:''}</span>
@@ -1253,9 +1278,10 @@ function ROUTE_EXTRA(){ return []; }
 function modelSchedule(){ clearTimeout(MODEL_T); MODEL_T=setTimeout(()=>fetchModel(false),1200); }
 async function fetchModel(force){
   const fs=wxFields(), ids=fs.map(f=>f.id).sort().join(',');
-  const fresh=Date.now()-MODEL.t<20*60000, covered=fs.every(f=>MODEL.data[f.id]);
-  if(!force && fresh && covered) return;
-  if(MODEL_BUSY) return; MODEL_BUSY=true; MODEL_ERR='';
+  // ogni campo ha la sua età (ft): prima bastava che ci fosse un dato qualsiasi, anche di giorni prima, e passava per «aggiornato adesso»
+  const covered=fs.every(f=>{ const m=MODEL.data[f.id]; return m&&Date.now()-(m.ft||0)<20*60000; });
+  if(!force && covered) return;
+  if(MODEL_BUSY) return; MODEL_BUSY=true; MODEL_ERR=''; let ok=false;
   const q=a=>a.map(x=>x.toFixed(4)).join(',');
   const url='https://api.open-meteo.com/v1/forecast?latitude='+q(fs.map(f=>f.lat))+'&longitude='+q(fs.map(f=>f.lon))+
     '&current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,cloud_cover,visibility'+
@@ -1265,22 +1291,28 @@ async function fetchModel(force){
     const r=await fetch(url,{signal:ctl.signal}); clearTimeout(tm);
     if(!r.ok) throw new Error('errore '+r.status);
     let j=await r.json(); if(!Array.isArray(j)) j=[j];
-    const data=Object.assign({},MODEL.data);
+    const data=Object.assign({},MODEL.data), now=Date.now();
+    for(const id in data) if(now-(data[id].ft||0)>WX_OLD) delete data[id];           // oltre 3 ore non è più una previsione da usare: via (anche dallo strumento)
     j.forEach((o,i)=>{ const f=fs[i], c=o.current||{}, h=o.hourly||{}; if(!f) return;
-      data[f.id]={lat:f.lat,lon:f.lon,short:f.short,time:c.time,dir:c.wind_direction_10m,kmh:c.wind_speed_10m,gust:c.wind_gusts_10m,
+      data[f.id]={ft:now,lat:f.lat,lon:f.lon,short:f.short,time:c.time,dir:c.wind_direction_10m,kmh:c.wind_speed_10m,gust:c.wind_gusts_10m,
         qnh:c.pressure_msl!=null?Math.round(c.pressure_msl):null,t:c.temperature_2m,cc:c.cloud_cover,vis:c.visibility,
         ccLow:h.cloud_cover_low?h.cloud_cover_low[0]:null,
         w925:h.wind_speed_925hPa?{kmh:h.wind_speed_925hPa[0],dir:h.wind_direction_925hPa[0]}:null,
         w850:h.wind_speed_850hPa?{kmh:h.wind_speed_850hPa[0],dir:h.wind_direction_850hPa[0]}:null}; });
-    MODEL={t:Date.now(),ids,data}; store.set('ia517_wx_model',MODEL);
+    MODEL={t:Date.now(),ids,data}; store.set('ia517_wx_model',MODEL); ok=true;
     if(PHONE) try{ parent.IA517.wx(MODEL.data); }catch(e){}
   }catch(e){ MODEL_ERR=navigator.onLine?'meteo non raggiungibile ('+(e.name==='AbortError'?'tempo scaduto':e.message)+')':'senza internet: dati dell\'ultimo scarico'; }
   finally{ MODEL_BUSY=false; renderWx(); const f=byId(PLAN.dest), {w}=f?nearestWx(f):{w:null};
-    $('arrival').innerHTML=`<div style="margin-bottom:6px">${wxStamp(MODEL.t,'Meteo')}</div>`+arrivalHTML(f,(w&&!w.vrb)?{dir:w.dir,kmh:w.kmh}:null,w?w.id:''); }
+    $('arrival').innerHTML=`<div style="margin-bottom:6px">${wxStamp(wxT(f),'Meteo')}</div>`+arrivalHTML(f,(w&&!w.vrb)?{dir:w.dir,kmh:w.kmh}:null,w?w.id:'');
+    if(ok && wxFields().map(f=>f.id).sort().join(',')!==ids) modelSchedule(); }      // il piano è cambiato durante lo scarico: si scaricano anche i campi nuovi
 }
+// dato del modello per un campo, solo se non è più vecchio di 3 ore; wxT: quando è stato scaricato (0 = mai)
+const WX_OLD=3*3600e3;
+function wxM(id){ const m=MODEL.data[id]; return m&&Date.now()-(m.ft||0)<WX_OLD?m:null; }
+function wxT(f){ const m=f&&wxM(f.id); return m?m.ft:0; }
 // il vento al campo è quello del modello sul punto esatto del campo
 function nearestWx(f){
-  const m=MODEL.data[f.id];
+  const m=wxM(f.id);
   if(m && m.kmh!=null) return {w:{id:'previsto sul campo',vrb:false,dir:Math.round(m.dir),kmh:m.kmh,gust:m.gust,qnh:m.qnh},d:0};
   return {w:null,d:0};
 }
@@ -1295,12 +1327,14 @@ const d3=v=>String(Math.round(v)).padStart(3,'0');
 const W8=['N','NE','E','SE','S','SO','O','NO'], W8N=['tramontana','grecale','levante','scirocco','ostro','libeccio','ponente','maestrale'];
 function windCard(dir){ const i=Math.round((((+dir)%360)+360)%360/45)%8; return W8[i]; }
 function windDir(dir,long){ const i=Math.round((((+dir)%360)+360)%360/45)%8; return `${d3(dir)}° da ${W8[i]}${long?' ('+W8N[i]+')':''}`; }
+// vento del METAR: se il gruppo manca («/////KT», sensore guasto) si scrive «n.d.», non una direzione inventata
+function metarWind(w){ if(w.kmh==null||(!w.vrb&&w.dir==null)) return 'n.d.'; return `${w.vrb?'variabile':windDir(w.dir,1)} · ${Math.round(w.kmh)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}`; }
 function renderWx(){
   const age=MODEL.t?Math.round((Date.now()-MODEL.t)/60000):null;
   const fs=wxFields();
   let html=`<div style="margin:4px 0 8px">${wxStamp(MODEL.t,'Modello')}</div><div class="sub">Modello Open-Meteo sul punto di ogni campo${MODEL_ERR?` · <span class="warn">${esc(MODEL_ERR)}</span>`:''}. È una previsione, non un'osservazione: vale come orientamento, la manica a vento e la radio decidono.</div>
     <div class="btnrow"><button class="btn" type="button" id="wxRefresh">${MODEL_BUSY?'Aggiorno…':'Aggiorna meteo'}</button></div>`;
-  html+=fs.map(f=>{ const m=MODEL.data[f.id]; if(!m) return `<div class="metar"><div class="mh"><b>${esc(f.short)}</b></div><div class="sub">non ancora scaricato</div></div>`;
+  html+=fs.map(f=>{ const m=wxM(f.id); if(!m) return `<div class="metar"><div class="mh"><b>${esc(f.short)}</b></div><div class="sub">non ancora scaricato</div></div>`;
     return `<div class="metar"><div class="mh"><b>${esc(f.short)} · ${esc(f.name)}</b>${m.time?`<span class="sub">previsione per le ${utcHM(m.time)}</span>`:''}${m.qnh?`<button class="btn" type="button" data-q="${m.qnh}">Invia QNH ${m.qnh}</button>`:''}</div>
       <div class="dec"><span>Vento <b>${windDir(m.dir,1)} · ${Math.round(m.kmh)} km/h${m.gust>m.kmh+9?' raffiche '+Math.round(m.gust):''}</b></span>
       ${m.w925?`<span>~2500 ft <b>${windDir(m.w925.dir)} · ${Math.round(m.w925.kmh)}</b></span>`:''}${m.w850?`<span>~5000 ft <b>${windDir(m.w850.dir)} · ${Math.round(m.w850.kmh)}</b></span>`:''}
@@ -1317,14 +1351,14 @@ function renderWx(){
     <div class="btnrow"><a class="btn" href="https://aviationweather.gov/data/metar/?ids=LIMF,LIMC,LIMW,LILE,LIMZ,LIMA,LILI&hours=0" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">Apri i METAR della zona</a></div>
     <textarea id="metarIn" rows="3" placeholder="Incolla qui i METAR, uno per riga">${esc(PASTED)}</textarea>`+
     pm.map(w=>`<div class="metar"><div class="mh"><b>${catPill(w.cat,1)} ${esc(w.id)}</b><span><button class="btn" type="button" data-say="${esc(w.id)}" aria-label="Leggi a voce">🔊</button>${w.qnh?` <button class="btn" type="button" data-q="${w.qnh}">Invia QNH ${w.qnh}</button>`:''}</span></div><div class="raw">${esc(w.raw)}</div>
-      <div class="dec"><span>Vento <b>${w.vrb?'variabile':windDir(w.dir,1)} · ${Math.round(w.kmh||0)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
+      <div class="dec"><span>Vento <b>${metarWind(w)}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
       <span>Nubi <b>${w.cl?w.cl.join(', '):(w.vis==='CAVOK'?'nessuna':'n.d.')}</b></span><span>QNH <b>${w.qnh||'n.d.'}</b></span><span class="sub">${w.time||''}</span></div></div>`).join('');
   $('metarOff').querySelectorAll('button[data-q]').forEach(b=>b.addEventListener('click',()=>sendQnh(+b.dataset.q))); PASTED_LIST=pm; metarVoce($('metarOff'));
   $('metarIn').addEventListener('change',()=>{ PASTED=$('metarIn').value; store.set('ia517_metar_paste',PASTED); renderWx(); });
   }
   const f=byId(PLAN.dest);
   if(f){ const {w}=nearestWx(f), wind=w?{dir:w.dir,kmh:w.kmh}:null;
-    $('wxDest').innerHTML=`<div style="margin-bottom:6px">${wxStamp(MODEL.t,'Meteo')}</div><div class="sub">${esc(f.name)}: ${w?'vento previsto dal modello sul campo':'meteo non ancora scaricato'}.</div>`+arrivalHTML(f,wind,'previsto'); }
+    $('wxDest').innerHTML=`<div style="margin-bottom:6px">${wxStamp(wxT(f),'Meteo')}</div><div class="sub">${esc(f.name)}: ${w?'vento previsto dal modello sul campo':'meteo non ancora scaricato'}.</div>`+arrivalHTML(f,wind,'previsto'); }
   try{ $('wxTaf').innerHTML=wxTafRoute(compute()); }catch(e){ $('wxTaf').innerHTML=''; }
 }
 // ---- METAR e TAF veri (aviationweather.gov): l'app nativa li legge senza i limiti del browser ----
@@ -1357,7 +1391,7 @@ function renderLiveMetar(){
   $('metarOff').innerHTML=`<div style="margin:4px 0 8px">${wxStamp(LIVE_METAR.t,'METAR')}</div><div class="sub">Da aviationweather.gov${LIVE_METAR.err?` · <span class="warn">${esc(LIVE_METAR.err)}</span>`:''}. Aeroporti vicini ai campi del piano e della zona.</div>
     <div class="btnrow"><button class="btn" type="button" id="metarRefresh">${LIVE_METAR.busy?'Aggiorno…':'Aggiorna METAR'}</button></div>`+
     LIVE_METAR.list.map(w=>`<div class="metar"><div class="mh"><b>${catPill(w.cat,1)} ${esc(w.id)}${nm(w.id)?' · '+esc(nm(w.id)):''}</b><span><button class="btn" type="button" data-say="${esc(w.id)}" aria-label="Leggi a voce">🔊</button>${w.qnh?` <button class="btn" type="button" data-q="${w.qnh}">Invia QNH ${w.qnh}</button>`:''}</span></div><div class="raw">${esc(w.raw)}</div>
-      <div class="dec"><span>Vento <b>${w.vrb?'variabile':windDir(w.dir,1)} · ${Math.round(w.kmh||0)} km/h${w.gust?' raffiche '+Math.round(w.gust):''}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
+      <div class="dec"><span>Vento <b>${metarWind(w)}</b></span><span>Vis. <b>${w.vis||'n.d.'}</b></span>
       <span>Nubi <b>${w.cl?w.cl.join(', '):(w.vis==='CAVOK'?'nessuna':'n.d.')}</b></span><span>QNH <b>${w.qnh||'n.d.'}</b></span><span class="sub">osservato ${w.time||''}</span></div>
       ${LIVE_METAR.taf[w.id]?`<div class="tafs">${tafStrip(parseTaf(LIVE_METAR.taf[w.id]))}</div><details><summary>TAF</summary><div class="raw">${esc(LIVE_METAR.taf[w.id])}</div></details>`:''}${w.wx?`<div class="sub">Fenomeni: ${esc(wxIt(w.wx))}</div>`:''}</div>`).join('');
   $('metarOff').querySelectorAll('button[data-q]').forEach(b=>b.addEventListener('click',()=>sendQnh(+b.dataset.q))); metarVoce($('metarOff'));
@@ -1618,7 +1652,7 @@ window.IA517_aspMerge=aspMerge; window.IA517_aspDB=aspDB;
     const prof=R.get(), out=[];
     if(!c||!b||!b.samples||!b.samples.length) return {prof,out};
     if(prof==='vds_basico'){
-      const agl=R.vdsMaxAgl(new Date()), tot=b.tot;
+      const agl=R.vdsMaxAgl(new Date(rdDepMs())), tot=b.tot;                 // il limite è quello del giorno della partenza (come nel calcolo della rotta), non di oggi
       let worst=null, minLim=1e9, nT=0, nS=0;
       for(const s of b.samples){
         if(s.x<1.5 || s.x>tot-1.5) continue;                                 // decollo e atterraggio esclusi
@@ -1643,10 +1677,10 @@ window.IA517_aspMerge=aspMerge; window.IA517_aspDB=aspDB;
   }
   let last={prof:R.get(),out:[]};
   function render(){
-    const prof=R.get(), agl=R.vdsMaxAgl(new Date()), day=new Date().toLocaleDateString('it-IT',{weekday:'long'});
+    const prof=R.get(), dep=new Date(rdDepMs()), agl=R.vdsMaxAgl(dep), day=dep.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
     card.innerHTML=`<h2>Tipo di volo</h2>
       <div class="seg" id="profSeg" style="display:flex;gap:6px;flex-wrap:wrap">${Object.entries(R.PROFILES).map(([k,v])=>`<button type="button" class="btn${k===prof?' pri':''}" data-p="${k}">${v.name}</button>`).join('')}</div>
-      <div class="sub" style="margin-top:6px">${prof==='vds_basico'?`VDS basico: solo fuori dagli spazi controllati (classi A–E) e dalle ATZ, ad almeno 5 km dagli aeroporti, fino a <b>${agl} ft</b> sull'ostacolo più alto entro 5 km (oggi è ${day}${agl===500?': 500 ft; 1000 ft sabato, domenica e festivi':': 1000 ft'}).`:(prof==='vds_avanzato'?'VDS avanzato: tutto lo spazio aperto al volo a vista, con radio, transponder ed ELT.':'Aviazione generale VFR: classi C e D con autorizzazione ATC, E libera, A vietata.')} Fonte: ${R.SOURCE}. Salvo autorizzazioni ENAC; valgono l'AIP in vigore e i NOTAM.</div>
+      <div class="sub" style="margin-top:6px">${prof==='vds_basico'?`VDS basico: solo fuori dagli spazi controllati (classi A–E) e dalle ATZ, ad almeno 5 km dagli aeroporti, fino a <b>${agl} ft</b> sull'ostacolo più alto entro 5 km (partenza ${day}${agl===500?': 500 ft; 1000 ft sabato, domenica e festivi':': 1000 ft'}).`:(prof==='vds_avanzato'?'VDS avanzato: tutto lo spazio aperto al volo a vista, con radio, transponder ed ELT.':'Aviazione generale VFR: classi C e D con autorizzazione ATC, E libera, A vietata.')} Fonte: ${R.SOURCE}. Salvo autorizzazioni ENAC; valgono l'AIP in vigore e i NOTAM.</div>
       <div id="profList" style="margin-top:8px">${last.out.map(o=>`<div class="it"><span class="v ${o.status}">${esc(o.text)}</span></div>`).join('')}</div>`;
     card.querySelectorAll('[data-p]').forEach(bt=>bt.onclick=()=>{ R.set(bt.dataset.p); update(); });
   }
@@ -1852,7 +1886,7 @@ function rdBuild(){
   $('rdUndo').onclick=()=>{ const h=RD.hist.pop(); if(h){ RD.pts=h; rdChanged(false); } };
   $('rdRev').onclick=()=>{ rdPush(); RD.pts.reverse(); rdChanged(false); };
   $('rdClr').onclick=()=>{ if(RD.pts.length && !confirm('Togliere tutti i punti e ridisegnare la rotta da capo?')) return; rdPush(); RD.pts=[]; rdChanged(false); };
-  $('rdAv').onclick=()=>rdAvoidAll();
+  $('rdAv').onclick=()=>rdAvoidAll().catch(e=>{ rdHint('Calcolo non riuscito: '+(e&&e.message||e),5000); });
   $('rdAlt').onclick=()=>{ let mx=0, mi=-1; RD.info.forEach((l,i)=>{ if((l.safeFt||0)>mx){ mx=l.safeFt; mi=i; } }); if(!mx){ rdHint('Quote del terreno non ancora pronte: riprova tra un attimo'); return; }
     const cap=rdCapFt();
     // la quota si decide tratta per tratta: si sale solo dove il terreno di quella tratta lo chiede, poi si torna alla crociera
@@ -1864,6 +1898,7 @@ function rdBuild(){
 function rdHint(t,ms){ const h=$('rdHint'); h.textContent=t; h.hidden=!t; clearTimeout(RD.hT); if(t) RD.hT=setTimeout(()=>{ h.hidden=true; },ms||3500); }
 function rdOpen(){
   if(typeof PV!=='undefined' && PV.busy){ PV.openAfter=true; PV.abort=true; RD.info=[]; return; }   // sta calcolando la rotta migliore: lo fermo e si apre subito dopo
+  if(RD.dct||RD.calc){ toast('Sto calcolando una rotta: riprova tra qualche secondo'); return; }   // DIRECT TO in calcolo sugli stessi punti: non si sovrascrive
   rdBuild();
   RD.pts=[PLAN.from,...PLAN.wps,PLAN.dest].map(byId).filter(Boolean).map(f=>({lat:f.lat,lon:f.lon,f}));
   RD.hist=[]; RD.root.hidden=false; RD.on=true;
@@ -1953,7 +1988,7 @@ function rdChanged(){ RD.sel=null; rdDraw(); clearTimeout(RD.aT); RD.aT=setTimeo
 // vento previsto (Open-Meteo sui campi della rotta) alla quota data: suolo, 925 hPa (~2500 ft), 850 hPa (~4800 ft), interpolato
 function rdWindAt(lat,lon,ft){
   const wq=rdWxWind(lat,lon,ft); if(wq) return wq;
-  let best=null, bd=1e12; try{ for(const m of Object.values(MODEL.data||{})){ if(m.lat==null) continue; const d=dist({lat,lon},m).d; if(d<bd){ bd=d; best=m; } } }catch(e){}
+  let best=null, bd=1e12; try{ for(const m of Object.values(MODEL.data||{})){ if(m.lat==null||Date.now()-(m.ft||0)>WX_OLD) continue; const d=dist({lat,lon},m).d; if(d<bd){ bd=d; best=m; } } }catch(e){}
   if(!best || bd>80000) return null;
   const uv=w=>w&&w.kmh!=null&&w.dir!=null?[-w.kmh*Math.sin(w.dir*D2R),-w.kmh*Math.cos(w.dir*D2R)]:null;
   const L=[[0,uv({kmh:best.kmh,dir:best.dir})],[2500,uv(best.w925)],[4800,uv(best.w850)]].filter(x=>x[1]);
@@ -2182,7 +2217,7 @@ function rdInfo(){
     (avoid.length?`<div class="bad">Dentro zone da evitare: ${avoid.join(' · ')}. Tocca «Evita zone».</div>`:'')+
     (other.length?`<div class="warn">Attraversi: ${other.join(' · ')}</div>`:'')+
     (rdAspAll().length?'':'<div class="warn">Spazi aerei non caricati: Briefing › Scarica gli spazi aerei d\'Italia.</div>')+
-    (RD.msg?`<div>${esc(RD.msg)}</div>`:'')+
+    (RD.msg?`<div${RD.noTerr?' class="bad"':''}>${esc(RD.msg)}</div>`:'')+
     `<div style="margin-top:6px"><button type="button" id="rdWx" style="min-height:38px;width:auto;padding:0 12px">${RD.wxBusy?'Scarico il meteo…':'☁ Controllo meteo alle quote'}</button> ${RD.wx?wxStamp(RD.wx.t,'Meteo della rotta'):''}</div>`+
     (RD.wxRep?rdWxHtml(RD.wxRep):'');
   const wb=$('rdWx'); if(wb) wb.onclick=()=>rdWxCheck();
@@ -2377,10 +2412,16 @@ async function rdAround(A,B,capFt,allowSea){
   const IJ=p=>[clamp(Math.floor((p.lon-lon0)*111320*cl/cell),0,nx-1), clamp(Math.floor((p.lat-lat0)*110540/cell),0,ny-1)];
   // terreno: per ogni cella il punto più alto (centro e 4 punti a ±330 m): il margine vale sotto l'aereo, così le valli strette restano percorribili
   const terr=new Float32Array(N), tlo=new Float32Array(N), wet=new Uint8Array(N), off=[[0,0],[-1,-1],[1,-1],[-1,1],[1,1]];
-  for(let tr=0;tr<16;tr++){ let miss=0;
+  // nod: celle di cui non si conosce il terreno (niente in memoria e niente rete). Prima valevano 0 ft, piatte e atterrabili: le più
+  // «comode», e la rotta ci passava. Ora costano come il mare al largo, non sono un posto dove atterrare e la rotta che le attraversa è «non verificata»
+  const nod=new Uint8Array(N); let nNod=0;
+  for(let tr=0, nTr=RD.demWaited?2:16, miss0=0;tr<nTr;tr++){ let miss=0; nNod=0;
     for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ let m=-1e9, mn=1e9, w=0; for(const [u,v] of off){ const z=rdDemRaw(lat0+(j+0.5+v*0.33)*cell/110540, lon0+(i+0.5+u*0.33)*cell/(111320*cl), 10); if(z!==z){ miss++; continue; } if(z<RD_SEA) w++; if(z>m) m=z; if(z<mn) mn=z; }
+      const un=m<-1e8; nod[j*nx+i]=un?1:0; if(un) nNod++;
       terr[j*nx+i]=m>0?m/0.3048:0; tlo[j*nx+i]=mn<1e8&&mn>0?mn/0.3048:0; wet[j*nx+i]=w>=4?1:0; }
-    if(!miss) break; RD.busy='Scarico il terreno… '+Math.round(100*(1-miss/(N*5)))+'%'; rdDraw(); await new Promise(r=>setTimeout(r,600)); rdChk(); }
+    if(!miss) break; if(!tr) miss0=miss;
+    if(tr===nTr-1){ if(miss>=miss0) RD.demWaited=true; break; }   // 10 s senza che arrivi niente (niente rete): le altre tratte di questo calcolo non aspettano di nuovo
+    RD.busy='Scarico il terreno… '+Math.round(100*(1-miss/(N*5)))+'%'; rdDraw(); await new Promise(r=>setTimeout(r,600)); rdChk(); }
   const tmax=new Float32Array(N);
   for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ let m=-1e9; for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=i+di, jj=j+dj; if(ii>=0&&jj>=0&&ii<nx&&jj<ny&&terr[jj*nx+ii]>m) m=terr[jj*nx+ii]; } tmax[j*nx+i]=m; }
   // celle vietate: dentro una zona da evitare dove non ci si passa sotto con il margine sul terreno, più una cella di margine
@@ -2399,8 +2440,8 @@ async function rdAround(A,B,capFt,allowSea){
   // dove atterrare se si ferma il motore: celle pianeggianti (dislivello sotto 100 ft con quelle intorno) e campi.
   // Allontanarsi oltre 3 km dal più vicino costa di più (fino a 2,5 celle in più a 8 km): si preferiscono pianure e fondovalle larghi
   const flat=new Uint8Array(N);
-  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ const k=j*nx+i; if(wet[k]) continue; let hi=-1e9, lo=1e9;
-    for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=i+di, jj=j+dj; if(ii<0||jj<0||ii>=nx||jj>=ny) continue; const q=jj*nx+ii; if(wet[q]) continue; if(terr[q]>hi) hi=terr[q]; if(tlo[q]<lo) lo=tlo[q]; }
+  for(let j=0;j<ny;j++) for(let i=0;i<nx;i++){ const k=j*nx+i; if(wet[k]||nod[k]) continue; let hi=-1e9, lo=1e9;
+    for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ const ii=i+di, jj=j+dj; if(ii<0||jj<0||ii>=nx||jj>=ny) continue; const q=jj*nx+ii; if(wet[q]||nod[q]) continue; if(terr[q]>hi) hi=terr[q]; if(tlo[q]<lo) lo=tlo[q]; }
     if(hi-lo<100) flat[k]=1; }
   for(const f of (typeof FIELDS!=='undefined'?FIELDS:[])){ if(f.lat<lat0||f.lat>lat1||f.lon<lon0||f.lon>lon1) continue; const [fi,fj]=IJ(f); flat[fj*nx+fi]=1; }
   const dLand=new Float32Array(N).fill(1e9), Q=[]; for(let k=0;k<N;k++) if(flat[k]){ dLand[k]=0; Q.push(k); }
@@ -2438,7 +2479,7 @@ async function rdAround(A,B,capFt,allowSea){
     let pen=Math.max(0,need-(baseA+G4u+gU*along))/300; if(circB!=null) pen+=Math.max(0,need-(circB+G4d+gD*back))/300;
     if(pen>0 && cross>10000) pen+=50;                                   // salite lontane dalla rotta: no
     climbPen[k]=pen; }
-  const w=k=>1+Math.max(0,terr[k]+margin-cruise)/500+climbPen[k]+landPen(k)+(seaL[k]===1?1:seaL[k]===2?8:0);
+  const w=k=>1+Math.max(0,terr[k]+margin-cruise)/500+climbPen[k]+landPen(k)+(seaL[k]===1?1:seaL[k]===2?8:0)+(nod[k]?8:0);
   // vento: ogni passo costa il tempo che ci vuole in quella direzione (con vento contrario la strada «costa» di più)
   const tas=Math.max(40,PLAN.tas), wnd=rdWindAt((A.lat+B.lat)/2,(A.lon+B.lon)/2,cruise), wf={};
   for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++) if(di||dj) wf[di+','+dj]=tas/rdGs(wrap360(Math.atan2(di,dj)*R2D),wnd,tas).gs;
@@ -2452,12 +2493,13 @@ async function rdAround(A,B,capFt,allowSea){
   RD.busy=false;
   if(from[e]<0 && s!==e) return null;
   const path=[]; for(let k=e;k>=0;k=from[k]){ path.push(k); if(k===s) break; } path.reverse();
+  if(nNod && path.some(k=>nod[k])) RD.noTerr=true;                     // la strada trovata passa dove il terreno non si conosce: non è verificata
   // semplifica: dal punto corrente al più lontano raggiungibile in linea retta senza celle vietate e senza terreno più alto di quello del percorso trovato
   const SC=[0,1,8];                                                    // peso del mare: costa 1, largo 8 (come nel costo)
-  const clear=(a,b)=>{ let pm=-1e9, pp=0, ps=0; for(let t=a;t<=b;t++){ if(terr[path[t]]>pm) pm=terr[path[t]]; if(climbPen[path[t]]>pp) pp=climbPen[path[t]]; ps+=SC[seaL[path[t]]]; }
+  const clear=(a,b)=>{ let pm=-1e9, pp=0, ps=0, pn=0; for(let t=a;t<=b;t++){ if(terr[path[t]]>pm) pm=terr[path[t]]; if(climbPen[path[t]]>pp) pp=climbPen[path[t]]; ps+=SC[seaL[path[t]]]; if(nod[path[t]]) pn=1; }
     const ia=path[a]%nx, ja=(path[a]/nx)|0, ib=path[b]%nx, jb=(path[b]/nx)|0, n=Math.max(2,Math.ceil(Math.hypot(ib-ia,jb-ja)*3));
     let mxT=-1e9, mnF=Infinity, ls=0; const stp=Math.hypot(ib-ia,jb-ja)/n;   // mare sulla linea diritta, in celle: mai più di quello del percorso
-    for(let t=0;t<=n;t++){ const ii=Math.round(ia+(ib-ia)*t/n), jj=Math.round(ja+(jb-ja)*t/n), q=jj*nx+ii; if(blk2[q]) return false; if(terr[q]>pm+200) return false; if(climbPen[q]>pp+0.5) return false; if(seaL[q]){ ls+=SC[seaL[q]]*stp; if(ls>ps+1) return false; } if(terr[q]>mxT) mxT=terr[q]; if(floorG[q]<mnF) mnF=floorG[q]; }
+    for(let t=0;t<=n;t++){ const ii=Math.round(ia+(ib-ia)*t/n), jj=Math.round(ja+(jb-ja)*t/n), q=jj*nx+ii; if(blk2[q]) return false; if(nod[q]&&!pn) return false; if(terr[q]>pm+200) return false; if(climbPen[q]>pp+0.5) return false; if(seaL[q]){ ls+=SC[seaL[q]]*stp; if(ls>ps+1) return false; } if(terr[q]>mxT) mxT=terr[q]; if(floorG[q]<mnF) mnF=floorG[q]; }
     return !(mnF<mxT+margin); };   // con una quota sola sulla tratta: sopra il terreno più alto e sotto la base più bassa
   const keep=[]; let a=0;
   while(a<path.length-1){ let b=path.length-1; while(b>a+1 && !clear(a,b)) b--; keep.push(b); a=b; }
@@ -2466,8 +2508,16 @@ async function rdAround(A,B,capFt,allowSea){
     if(Math.hypot(pa%nx-pb%nx,((pa/nx)|0)-((pb/nx)|0))*cell<2000 && clear(idx[t-1],idx[t+1])){ idx.splice(t,1); t--; } }
   return idx.slice(1,-1).map(t=>LL(path[t]%nx,(path[t]/nx)|0));
 }
+// un calcolo alla volta: un secondo tocco mentre scarica il terreno faceva partire due calcoli sugli stessi punti (rotta doppia)
 async function rdAvoidAll(){
+  if(RD.calc) return;
+  RD.calc=true; const bt=$('rdAv'); if(bt) bt.disabled=true;
+  try{ return await rdAvoidRun(); }
+  finally{ RD.calc=false; RD.busy=false; if(bt) bt.disabled=false; if(RD.on) rdDraw(); }
+}
+async function rdAvoidRun(){
   if(RD.pts.length<2){ rdHint('Disegna prima partenza e arrivo'); return; }
+  RD.noTerr=false; RD.demWaited=false;
   const noAsp=!rdAspAll().length;                            // senza spazi aerei si calcola lo stesso: valli, terreno e vento
   if(noAsp) rdHint('Spazi aerei non caricati: calcolo con terreno e vento soltanto',4000);
   rdAnalyze(); const bad=RD.info.map((l,i)=>l.hits.some(h=>h.avoid)?i:-1).filter(i=>i>=0);
@@ -2534,7 +2584,9 @@ async function rdAvoidAll(){
   if(seaUsed){ let sm=0; for(let i=1;i<RD.pts.length;i++) sm+=rdLegCheck(RD.pts[i-1],RD.pts[i]).sea;
     if(sm>=1000) RD.msgOver+=(RD.msgOver?' ':'')+`Non c'è un passaggio tutto sopra la terra: circa ${Math.round(sm/1000)} km sul mare, il più corto possibile e vicino alla costa. Quota per arrivare a terra in planata, giubbotti!`; }
   RD.msg=failed?`Per ${failed} tratt${failed>1?'e':'a'} non trovo un passaggio: il terreno è troppo alto per il velivolo (tangenza ${cap} ft con ${rdMargin()} ft di margine) o le zone chiudono la strada. Cambia rotta o sposta i punti a mano.`:(RD.msgOver?RD.msgOver+' ':'')+(added?`Aggiunti ${added} punti (R1, R2…${onF?`, di cui ${onF} sopra campi dove atterrare in caso di problemi`:''}): la rotta più breve in tempo con il vento previsto, intorno alle zone e ai punti da non sorvolare, dalle valli dove il terreno lo chiede.`+(left.size?` Restano da verificare: ${[...left].slice(0,4).join(', ')} (ci parti o ci arrivi, oppure il terreno obbliga a salire dentro). Controlla la rotta prima del volo.`:' Controlla la rotta prima del volo.'):(left.size?`La rotta diritta è già la migliore, ma restano: ${[...left].slice(0,4).join(', ')}.`:'La rotta diritta è già la più breve e libera: nessun punto da aggiungere.'));
-  rdChanged(); rdHint(failed?'Rotta calcolata in parte: vedi sotto la mappa':(added?`Rotta calcolata: ${added} punti aggiunti`+(left.size?' · restano zone, vedi sotto':''):'La rotta diritta è già la migliore'),3500);
+  // terreno sconosciuto lungo la strada trovata: non si può dire «libera». Si dice chiaro, al posto del messaggio normale
+  if(RD.noTerr) RD.msg='Terreno non disponibile: rotta NON verificata. Su parte della zona le quote del terreno non sono sul telefono e non arrivano dalla rete: questa rotta non tiene conto di monti e valli. Riprova con internet, oppure scarica prima il terreno (Impostazioni › Volare senza internet).'+(failed?' '+RD.msg:'');
+  rdChanged(); rdHint(RD.noTerr?'Terreno non disponibile: rotta NON verificata':failed?'Rotta calcolata in parte: vedi sotto la mappa':(added?`Rotta calcolata: ${added} punti aggiunti`+(left.size?' · restano zone, vedi sotto':''):'La rotta diritta è già la migliore'),3500);
 }
 
 // ---------- controllo meteo della rotta alle quote (Open-Meteo: ICON-D2/ICON-EU, AROME, GFS, ECMWF) ----------
@@ -2552,6 +2604,8 @@ async function rdWxFetch(points){
   const r=await fetch(url,{signal:ctl.signal}); clearTimeout(tm); if(!r.ok) throw new Error('servizio meteo: errore '+r.status);
   const j=await r.json(), arr=Array.isArray(j)?j:[j];
   return points.map((p,i)=>{ const h=(arr[i]||{}).hourly||{}, T=(h.time||[]).map(wxHourMs); let k=0, bd=1e18; T.forEach((t,x)=>{ const d=Math.abs(t-p.tPass); if(d<bd){ bd=d; k=x; } });
+    // la previsione copre 3 giorni: oltre, prima si usava in silenzio l'ultima ora disponibile scrivendola come ora del passaggio
+    if(T.length && bd>90*60000) throw new Error('la partenza è fuori dalla previsione disponibile (oggi e i prossimi 2 giorni): rifai il controllo più vicino al volo');
     const g=v=>h[v]?h[v][k]:null, lv=WXL.map(l=>({gh:g(`geopotential_height_${l}hPa`),kmh:g(`wind_speed_${l}hPa`),dir:g(`wind_direction_${l}hPa`),t:g(`temperature_${l}hPa`)})).filter(x=>x.gh!=null&&x.kmh!=null);
     return Object.assign({},p,{hour:T[k]||null,lv,t2:g('temperature_2m'),td2:g('dew_point_2m'),w10:{kmh:g('wind_speed_10m'),dir:g('wind_direction_10m')},gust:g('wind_gusts_10m'),
       ccl:g('cloud_cover_low'),ccm:g('cloud_cover_mid'),vis:g('visibility'),pr:g('precipitation'),cape:g('cape'),frz:g('freezing_level_height'),wc:g('weather_code'),elev:(arr[i]||{}).elevation}); });
@@ -2570,6 +2624,7 @@ function rdWxTemp(p,ft){ const m=ft*0.3048, L=p.lv; if(!L.length) return null; i
 function rdWxCloudCap(lat,lon){ const p=rdWxNear(lat,lon); if(!p||p.ccl==null||p.ccl<50||p.t2==null||p.td2==null) return null;
   const baseFt=Math.round(((p.elev||0)/0.3048+Math.max(0,p.t2-p.td2)*400)/100)*100; return {baseFt,capFt:baseFt-500}; }
 async function rdWxCheck(){
+  if(RD.dct||RD.calc) return;                                              // i punti sono di un calcolo in corso, non del piano
   if(RD.pts.length<2){ rdHint('Disegna prima la rotta'); return; }
   RD.wxBusy=true; rdInfo();
   try{
@@ -2585,8 +2640,10 @@ async function rdWxCheck(){
     RD.wxRep=rdWxReport();
   }catch(e){ RD.wxRep={err:String(e&&e.message||e)}; }
   RD.wxBusy=false; rdInfo(); rdDraw();
-  try{ PLAN.wxRep=RD.wxRep; PLAN.wxRepT=Date.now(); store.set('ia517_plan',PLAN); renderWxRoute&&renderWxRoute(); }catch(e){}
+  try{ PLAN.wxRep=RD.wxRep; PLAN.wxRepT=Date.now(); PLAN.wxRepSig=wxSig(RD.pts); store.set('ia517_plan',PLAN); renderWxRoute&&renderWxRoute(); }catch(e){}
 }
+// firma del controllo meteo: punti della rotta, orario, quota e velocità. Nel Briefing il rapporto si mostra solo se è di QUESTA rotta
+function wxSig(pts){ const r=v=>(+(+v).toFixed(6)).toFixed(4); return pts.map(p=>r(p.lat)+','+r(p.lon)).join(';')+'|'+(PLAN.dep||'')+'|'+PLAN.cruiseFt+'|'+PLAN.tas; }
 function rdWxReport(){
   const out={legs:[],ends:[],lvl:'ok',t:Date.now()}, bump=l=>{ if(l==='bad'||(l==='warn'&&out.lvl==='ok')) out.lvl=l; };
   const flag=(arr,l,txt)=>{ arr.push([l,txt]); bump(l); };
@@ -2642,7 +2699,8 @@ window.IA517_rd={get RD(){ return RD; }, close:rdClose, open:rdOpen,
 (()=>{ const host=$('bSummary')&&$('bSummary').closest('section'); if(!host) return; const sec=document.createElement('section'); sec.className='card'; sec.id='wxRouteCard';
   sec.innerHTML='<h2>Meteo sulla rotta, alle quote</h2><div id="wxRoute"></div><div class="btnrow"><button class="btn pri" type="button" id="wxRouteGo">Apri la rotta e fai il controllo</button></div>';
   host.after(sec); $('wxRouteGo').onclick=()=>{ rdOpen(); setTimeout(()=>rdWxCheck(),600); }; })();
-function renderWxRoute(){ const b=$('wxRoute'); if(!b) return; const R=PLAN.wxRep;
+function renderWxRoute(){ const b=$('wxRoute'); if(!b) return;
+  const R=PLAN.wxRep&&PLAN.wxRepSig===wxSig([PLAN.from,...PLAN.wps,PLAN.dest].map(byId).filter(Boolean))?PLAN.wxRep:null;   // rotta, orario o quota cambiati: il rapporto vecchio non vale più
   b.innerHTML=R?`<div style="margin-bottom:6px">${wxStamp(PLAN.wxRepT,'Controllo meteo')}</div>`+rdWxHtml(R):'<div class="sub">Non ancora fatto per questa rotta: apri la rotta e tocca «Controllo meteo alle quote».</div>'; }
 { const _u2=update; update=function(){ _u2(); try{ renderWxRoute(); }catch(e){} }; }
 
@@ -2701,6 +2759,7 @@ async function pvBest(manual){
   try{ rdBuild(); RD.pts=pts.map(f=>({lat:f.lat,lon:f.lon,f})); RD.hist=[]; RD.on=true; RD.msg='';
     await rdAvoidAll();
     if(k0!==PLAN.from+'>'+PLAN.dest||PLAN.wps.length){ PV.msg=''; }        // il piano è cambiato nel frattempo: il risultato non vale più
+    else if(RD.noTerr){ PV.msg='Terreno non disponibile: rotta migliore non calcolata (non sarebbe verificata). Riprova con internet o scarica il terreno in Impostazioni › Volare senza internet.'; }   // niente punti aggiunti alla cieca
     else if(RD.pts.length>2){ PV.straight={from:PLAN.from,dest:PLAN.dest}; rdSave(); PV.msg=`Rotta migliore: ${RD.pts.length-2} ${RD.pts.length-2===1?"punto aggiunto (R1)":"punti aggiunti (R1, R2…)"} dalle valli, col vento previsto${RD.msgNoAsp?'. Spazi aerei non caricati: zone non considerate (Briefing › Scarica gli spazi aerei)':''}.`; }
     else PV.msg=manual?'La rotta dritta è già la migliore.':''; }
   catch(e){ PV.msg=PV.abort?'':'Calcolo non riuscito: '+e.message; }
@@ -2712,18 +2771,21 @@ async function pvBest(manual){
 window.IA517_dctRoute=async function(from,dest){
   if(RD.on || (typeof PV!=='undefined' && PV.busy)) return null;
   const f=byId(dest.id)||{id:dest.id,short:dest.short,name:dest.name||dest.short,lat:dest.lat,lon:dest.lon};
-  rdBuild(); RD.pts=[{lat:from.lat,lon:from.lon,f:null,name:'QUI'},{lat:f.lat,lon:f.lon,f}]; RD.hist=[]; RD.on=true; RD.msg='';
+  rdBuild(); RD.pts=[{lat:from.lat,lon:from.lon,f:null,name:'QUI'},{lat:f.lat,lon:f.lon,f}]; RD.hist=[]; RD.on=true; RD.dct=true; RD.msg='';
   try{
     await rdAvoidAll();
-    for(let i=0;i<20 && RD.pending;i++){ await new Promise(r=>setTimeout(r,500)); rdAnalyze(); }     // quote del terreno in arrivo
+    for(let i=0;i<20 && RD.pending && !RD.noTerr;i++){ await new Promise(r=>setTimeout(r,500)); rdAnalyze(); }     // quote del terreno in arrivo (se manca del tutto si è già aspettato nel calcolo)
     const left=new Set(); RD.info.forEach(l=>l.hits.forEach(h=>{ if(h.avoid) left.add(`${h.a.cls} ${h.a.name}`); }));
     return { wps:RD.pts.map((p,i)=>({id:i===0?'QUI':(p.f?p.f.id:'DCT'+i),name:i===0?'QUI':(p.f?(p.f.short||p.f.name):p.name),lat:p.lat,lon:p.lon,
                field:!!(p.f&&i===RD.pts.length-1),altFt:i>0&&RD.info[i-1]?RD.info[i-1].altFt:null})),
-             zone:[...left], msg:RD.msg||'', cruiseFt:PLAN.cruiseFt, profilo:rdProf() };
-  } finally { RD.on=false; RD.busy=false; }
+             zone:[...left], msg:RD.msg||'', cruiseFt:PLAN.cruiseFt, profilo:rdProf(),
+             pending:!!(RD.pending||RD.noTerr) };            // terreno mancante o incompleto: rotta e quote NON verificate, lo strumento non deve dire «libero»
+  } finally { RD.on=false; RD.busy=false; RD.dct=false; }
 };
-function pvAutoCheck(){
+function pvAutoCheck(done){
   if(PV.first===undefined){ PV.first=PV.sig(); PV.autoDone=PV.first; return; }                // all'avvio: il piano salvato resta com'è
+  // si sta ancora scrivendo in un campo del piano (quota…): il calcolo automatico aspetta la fine (evento change), non un numero a metà
+  if(!done){ const ae=document.activeElement; if(ae&&numIn[ae.id]) return; }
   let vis=true; try{ const sh=parent.document.getElementById('phPiano'); vis=!sh||!sh.hidden; }catch(e){}
   const R=PV.res; if(!vis||!R||R.pending||PLAN.wps.length||PV.busy||RD.on||PV.autoDone===PV.sig()||!R.info.length) return;
   const L=R.info[0], bad=L.hits.some(h=>h.avoid) || ((L.safeFt||0)>PLAN.cruiseFt+1000) || (R.V&&(!R.V.ok||R.V.extraMin>0||R.V.steepUp));

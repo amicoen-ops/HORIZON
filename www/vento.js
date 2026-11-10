@@ -70,9 +70,9 @@ PH.ventoAl=function(f){
   let M=null; try{ M=PH.metarDi&&PH.metarDi(f); }catch(e){}
   const met=M&&M.kmh!=null&&((M.vrb&&M.kmh<6)||(!M.vrb&&M.dir!=null))?{dir:M.vrb?0:M.dir,kmh:M.vrb?0:M.kmh,gust:M.gust,src:'metar',id:M.id}:null;
   const w=stim(), m=f&&PH.wx&&PH.wx[f.id];
-  if(w&&w.src==='stim'&&PH.flight) return w;                       // in volo vale il vento misurato dalle virate
+  if(w&&w.src==='stim'&&PH.flight&&Date.now()-(WIND.t||0)<20*60000) return w;   // in volo vale il vento misurato dalle virate, finché è fresco (20 minuti, come per la pista)
   if(met) return met;
-  if(w) return w;
+  if(w && !(w.src==='prev' && f && NAV.dest && f.id!==NAV.dest.id)) return w;   // il previsto è quello della destinazione: non vale per un altro campo
   if(m&&m.kmh!=null&&m.dir!=null) return {dir:m.dir,kmh:m.kmh,gust:m.gust,src:'model'};
   return null;
 };

@@ -61,6 +61,7 @@ function prova(nome, o) {
     for (const k of ['GPERM', 'gdet', 'gyroRaw', 'gyroLearn']) PH[k] = app.giro[k];
     PH.gmap = o.gmap || { p: 0, s: 1, fixed: false }; PH.gdet = { A: null, w: null, E: new Float64Array(12), n: 0 };
   }
+  if (o.gpsPerso) { PH.dvdt = o.gpsPerso; LIVE.gps = 1; }      // ultimo fix al tempo 1 ms: dopo 3,5 s il GPS è perso, l'accelerazione misurata resta in memoria
   app.bind(PH, S, LIVE);
   const Mt = o.mountTrue || o.mount || VERTICALE;
   const toScr = v => [0, 1, 2].map(j => Mt[0][j] * v[0] + Mt[1][j] * v[1] + Mt[2][j] * v[2]);
@@ -109,6 +110,7 @@ const P = [
   ['Sul tavolo, girato a destra e sinistra (cambio bussola), assi standard', { V: 0, tavolo: true, impara: true }],
   ['Sul tavolo, girato, giroscopio con assi beta e gamma scambiati', { V: 0, tavolo: true, impara: true, ordine: [0, 2, 1], daT: 6 }],
   ['Sul tavolo, girato, assi scambiati ma salvati sbagliati come «riconosciuti»', { V: 0, tavolo: true, impara: true, ordine: [0, 2, 1], gmap: { p: 0, s: 1, fixed: true }, daT: 6 }],
+  ['Aereo livellato, GPS perso mentre accelerava (2 m/s² rimasti in memoria)', { V: 32, virata: 0, gpsPerso: 2, daT: 8 }],
   ['Aereo, virata coordinata a destra 30°, giroscopio', { V: 32, aereo: 30, atteso: { roll: 30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
   ['Aereo, virata coordinata a sinistra 30°, giroscopio', { V: 32, aereo: -30, atteso: { roll: -30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
   ['Aereo, virata coordinata a destra 30°, virata dal GPS', { V: 32, aereo: 30, senzaGiro: true, atteso: { roll: 30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],

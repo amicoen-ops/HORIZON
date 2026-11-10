@@ -83,10 +83,14 @@ PH.guidaTasti=function(){
   return `<svg viewBox="0 0 360 230" width="100%" style="max-width:420px;display:block;margin:6px auto" role="img" aria-label="Tasti del fenix 7 in HORIZON">
     <circle cx="180" cy="115" r="84" fill="#1b2530" stroke="#56636e" stroke-width="6"/>
     <circle cx="180" cy="115" r="70" fill="#0b1720"/>
-    <text x="180" y="98" text-anchor="middle" fill="#3ddc84" font-size="10" font-family="system-ui">HORIZON collegato</text>
-    <text x="150" y="128" text-anchor="middle" fill="#fff" font-size="20" font-weight="800" font-family="system-ui">132</text>
-    <text x="210" y="128" text-anchor="middle" fill="#fff" font-size="20" font-weight="800" font-family="system-ui">2450</text>
-    <text x="180" y="150" text-anchor="middle" fill="#3ddc84" font-size="11" font-family="system-ui">VARIO +1.2</text>
+    <polygon points="175,45 185,45 180,53" fill="#fff"/><circle cx="222" cy="62" r="5" fill="#ff5cf0"/>
+    <polygon points="118,84 110,74 121,72" fill="#ff4d4d"/>
+    <text x="180" y="78" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="system-ui">TRK 245°</text>
+    <text x="150" y="124" text-anchor="middle" fill="#fff" font-size="20" font-weight="800" font-family="system-ui">132</text>
+    <text x="210" y="124" text-anchor="middle" fill="#fff" font-size="20" font-weight="800" font-family="system-ui">2450</text>
+    <text x="180" y="142" text-anchor="middle" fill="#3ddc84" font-size="11" font-family="system-ui">VARIO +1.2</text>
+    <text x="180" y="157" text-anchor="middle" fill="#ff5cf0" font-size="9" font-family="system-ui">LIDG 12.3 km 8'</text>
+    <circle cx="174" cy="176" r="2.5" fill="#56636e"/><circle cx="180" cy="176" r="3" fill="#fff"/><circle cx="186" cy="176" r="2.5" fill="#56636e"/>
     ${tasto(96,62,-1,'LIGHT','luce','#9aa4b0')}
     ${tasto(90,112,-1,'SU','◀ manopola','#33e1ff','tieni: PAGINA')}
     ${tasto(96,176,-1,'GIÙ','▶ manopola','#33e1ff')}
@@ -129,7 +133,7 @@ const G=[
     <p>Gli assi del giroscopio si riconoscono da soli (alcuni Android li danno in un altro ordine): girando il telefono nei primi secondi lo Stato passa da «in verifica» a «riconosciuti». Se l'orizzonte fa cose strane: Impostazioni › Registrazione dei sensori › «Registra 20 s e invia».</p>`},
   {id:'mappa',t:'Mappa, terreno e planata',h:`
     <p>PAGINA passa alla mappa. Zoom con due dita o con + e −; trascinando la mappa smette di seguire l'aereo, il tasto ⌖ la riporta sull'aereo.</p>
-    <p>Terreno in <b>rosso</b> se è a meno di 60 m sotto di te (o sopra), <b>giallo</b> sotto 180 m. Il cerchio verde tratteggiato è la <b>planata</b>: altezza sul terreno × efficienza del velivolo × 0,75.</p>
+    <p>Terreno in <b>rosso</b> se è a meno di 60 m sotto di te (o sopra), <b>giallo</b> sotto 180 m. La zona verde tratteggiata è la <b>planata</b>: fin dove arrivi a motore spento, con efficienza del velivolo × 0,75, vento e terreno veri (vedi «Emergenza»).</p>
     <p>Mappe di base: OpenStreetMap, OpenTopoMap, satellite, IGM e ortofoto (Impostazioni › Mappa di base).</p>`},
   {id:'dct',t:'DIRECT TO',h:`
     <p>OK › DIRECT TO: i 250 campi più vicini; scrivendo si cerca per nome o sigla in tutti i 1950 campi (Italia, Francia, Alpi).</p>
@@ -209,10 +213,15 @@ const G=[
     ${PH.guidaTasti()}
     <ul><li><b>START</b> = OK della manopola (premi): menu, conferme, DIRECT TO.</li>
     <li><b>SU</b> e <b>GIÙ</b> = ruota la manopola a sinistra e a destra: zoom della mappa, scelta nei menu, bug di prua.</li>
-    <li><b>SU tenuto</b> (menu dell'orologio), oppure <b>GIÙ + BACK insieme</b> (i due tasti in basso) = cambia pagina, orizzonte o mappa.</li>
-    <li><b>BACK</b> da solo = esci dall'app sull'orologio (dopo un attimo, per distinguerlo dalla combinazione). <b>LIGHT</b> = luce, come sempre.</li></ul>
-    <p>Tasti fisici: in turbolenza si premono a colpo sicuro, senza cercare il punto giusto sullo schermo.</p>
-    <p>Sull'orologio: velocità, quota, vario e destinazione dallo strumento. Con un avviso (terreno, spazi aerei, traffico) vibra e lo scrive: rosso se urgente, giallo se informativo.</p>
+    <li><b>SU tenuto</b> (menu dell'orologio), oppure <b>GIÙ + BACK insieme</b> (i due tasti in basso) = cambia pagina dello strumento, orizzonte o mappa.</li>
+    <li><b>BACK</b> da solo = esci dall'app sull'orologio (dopo un attimo, per distinguerlo dalla combinazione). <b>LIGHT</b> = luce, come sempre.</li>
+    <li><b>Schermo dell'orologio</b> (un tocco, oppure scorri): mostra un'altra pagina dell'orologio per 20 secondi, poi torna quella del momento. I tre punti in basso dicono quale (giallo = scelta a mano).</li></ul>
+    <p><b>Le tre pagine dell'orologio</b>. Non c'è niente da premere: l'orologio mostra da solo la pagina che serve. <b>A terra</b> PILOTA; <b>in rotta</b> VOLO; <b>negli ultimi 10 minuti e all'ingresso in circuito</b> ARRIVO (pista, frequenza, vento); <b>in base e in finale</b> di nuovo VOLO, con velocità, quota e deviazione dall'asse. Gli avvisi passano sopra a tutto.</p>
+    <ul><li><b>VOLO</b>: sul bordo la rosa della bussola che gira con la traccia (in alto c'è dove stai andando: il <b>triangolo rosso</b> è il nord) e un <b>pallino magenta</b> verso la destinazione: quando è in alto ci stai andando dritto. Al centro velocità al suolo e quota, vario, destinazione con chilometri e minuti, la <b>barra di deviazione dalla rotta</b> (l'ago magenta sta dalla parte dove devi andare, come sul CDI dello strumento), battito e SpO₂.</li>
+    <li><b>ARRIVO</b>: destinazione, chilometri e minuti, rilevamento, ora di arrivo in UTC, <b>pista del circuito e frequenza del campo</b>, vento, minuti al tramonto (gialli sotto 45).</li>
+    <li><b>PILOTA</b>: ora UTC, battito e SpO₂ grandi (grigia se la misura ha più di 10 minuti, con i minuti scritti), tempo di volo, autonomia (gialla sotto 45 minuti), QNH, altezza sul terreno, batteria dell'orologio.</li></ul>
+    <p>Se lo strumento perde il GPS, l'orologio passa da solo a velocità, quota e traccia dei <b>suoi</b> sensori (in alto compare «GPS orol.»): non resta mai scritto un numero fermo. Un avviso dello strumento riempie lo schermo per 8 secondi, su più righe, e l'orologio vibra.</p>
+    <p>I comandi dello strumento sono tutti sui tasti fisici: in turbolenza si premono a colpo sicuro. Lo schermo dell'orologio cambia solo la sua pagina, così un tocco per sbaglio non muove la manopola dello strumento. Gli avvisi sono rossi se urgenti, gialli se informativi.</p>
     <p>Dall'orologio allo strumento: <b>GPS</b> (fonte di posizione in più: Impostazioni › Posizione, la più precisa oppure solo orologio), <b>barometro</b> (quota con il QNH, come l'altimetro di bordo), <b>bussola</b> (solo con l'orologio fermo sul cruscotto: al polso si muove con il braccio), battito, saturazione SpO₂ e batteria. In HORIZON 2 le caselle BATTITO e SpO₂ sono tra quelle di partenza (anche PRESSIONE si può aggiungere, Impostazioni › Interfaccia); la SpO₂ è gialla sotto il 92% e rossa sotto l'88%. Per la SpO₂ sull'orologio va acceso il Pulse Ox (Impostazioni › Salute e benessere › Pulse Ox › Tutto il giorno): consuma batteria. Se non misura in diretta, si vede l'ultima misura con la sua età. Tutto in Impostazioni › Orologio Garmin.</p>`},
   {id:'impostazioni',t:'Impostazioni utili',h:`
     <p>In cima <b>Prima di partire</b>: velivolo, LIVELLA, posizione e GLO 2, bussola, quota GPS, tipo di volo, spazi aerei, terreno senza internet, radio e check list, ognuno con lo stato (✓ a posto, ! da fare) e un tasto grande che porta all'azione. In volo (e in simulazione) in cima c'è <b>In volo</b>: voce, interfaccia, orizzonte e bussola più pronti o più morbidi, frequenze, con tasti molto grandi per la turbolenza; in volo tutti i tasti delle pagine diventano più grandi. Le altre sezioni si aprono e si chiudono toccando il titolo.</p>

@@ -31,22 +31,24 @@ function gsAlong(th,tas){
 }
 const ter=(E,N)=>{ const z=terrain(E,N); return z===z?Math.max(0,z):NaN; };
 // fin dove arriva la planata in direzione th, partendo da ac (ENU) a quota alt (m)
+const kx=()=>Math.cos(S.lat*D2R)/Math.cos(ORIGIN.lat*D2R);      // metri veri per metro E di enu(): la scala est-ovest di enu() è quella dell'origine
 function raggio(ac,alt,th,P){
-  const k=P.g*MARG*gsAlong(th,P.tas)/P.tas, ux=Math.sin(th), uy=Math.cos(th); let last=0;
+  const k=P.g*MARG*gsAlong(th,P.tas)/P.tas, ux=Math.sin(th)/kx(), uy=Math.cos(th); let last=ter(ac.E,ac.N); if(last!==last) last=0;
   for(let d=STEP; d<=MAXD; d+=STEP){ const h=alt-d/k, z=ter(ac.E+ux*d,ac.N+uy*d); const zz=z===z?z:last; last=zz;
     if(h<zz+CLR) return Math.max(0,d-STEP/2); }
   return MAXD;
 }
 // arrivo su un campo: quota sul campo all'arrivo (m) e se il terreno lungo la strada lo permette
 function arrivo(ac,alt,f,P){
-  const dx=f.E-ac.E, dy=f.N-ac.N, d=Math.hypot(dx,dy), th=Math.atan2(dx,dy), k=P.g*MARG*gsAlong(th,P.tas)/P.tas;
-  let ok=true, last=0;
+  const dx=f.E-ac.E, dy=f.N-ac.N, d=Math.hypot(dx*kx(),dy), th=Math.atan2(dx*kx(),dy), k=P.g*MARG*gsAlong(th,P.tas)/P.tas;   // distanza e prua vere
+  let ok=true, last=ter(ac.E,ac.N); if(last!==last) last=0;
   for(let s=STEP; s<d-300; s+=STEP){ const h=alt-s/k, z=ter(ac.E+dx*s/d,ac.N+dy*s/d), zz=z===z?z:last; last=zz; if(h<zz+CLR){ ok=false; break; } }
   const sopra=alt-d/k-(f.elev||0);
   return {d,brg:(th*180/Math.PI+360)%360,sopra,ok:ok&&sopra>=ARR,marg:(sopra-ARR)/FT};
 }
 function stato(){
   if(!(S.gpsReal||PH.sim||PH.demo)) return null;
+  if(!PH.sim && !PH.demo && lost('gps')) return null;               // GPS perso: niente planata calcolata da posizione e quota ferme
   const ac=enu(S.lat,S.lon), alt=S.alt*FT2M, z0=ter(ac.E,ac.N), P=par();
   return {ac,alt,agl:z0===z0?alt-z0:null,P};
 }
@@ -56,7 +58,7 @@ PH.glideZone=function(){
   const s=stato(); if(!s||s.agl==null||s.agl<60) return null;
   const now=performance.now();
   if(Z && now-Z.t<1500 && Math.hypot(Z.ac.E-s.ac.E,Z.ac.N-s.ac.N)<300 && Math.abs(Z.alt-s.alt)<30) return Z;
-  const pts=[]; for(let i=0;i<36;i++){ const th=i*10*Math.PI/180, r=raggio(s.ac,s.alt,th,s.P); pts.push({E:s.ac.E+Math.sin(th)*r,N:s.ac.N+Math.cos(th)*r,r}); }
+  const pts=[]; for(let i=0;i<36;i++){ const th=i*10*Math.PI/180, r=raggio(s.ac,s.alt,th,s.P); pts.push({E:s.ac.E+Math.sin(th)*r/kx(),N:s.ac.N+Math.cos(th)*r,r}); }
   Z={t:now,ac:s.ac,alt:s.alt,pts,P:s.P,max:Math.max(...pts.map(p=>p.r))}; return Z;
 };
 // campi in ordine di convenienza: prima i raggiungibili (più margine, piste conosciute), poi i più vicini
@@ -64,7 +66,7 @@ PH.glideFields=function(n){
   const s=stato(); if(!s) return [];
   const lim=Math.min(MAXD,(s.agl||0)*s.P.g*1.6+3000), out=[];
   for(const f of FIELDS){ if(f.kind==='wp'||f.kind==='glac') continue; const d0=Math.hypot(f.E-s.ac.E,f.N-s.ac.N); if(d0>lim) continue;
-    const a=arrivo(s.ac,s.alt,f,s.P), rw=f.rw&&f.rw.length?Math.max(...f.rw.map(r=>r[3]||0)):0;
+    const a=arrivo(s.ac,s.alt,f,s.P), rw=f.rw&&f.rw.length?Math.max(...f.rw.map(r=>r.L||0)):0;
     a.f=f; a.rw=rw; a.score=(a.ok?100000:0)+a.marg+(rw>=250?300:0)+(f.kind==='aero'?150:0)-(f.kind==='alti'?400:0)-a.d/50; out.push(a); }
   out.sort((x,y)=>y.score-x.score); return out.slice(0,n||12);
 };
@@ -142,7 +144,7 @@ PH.emergOpen=function(){
     const c=document.getElementById('hzEmChk'); if(c) c.onclick=()=>{ PH.chkOpen&&PH.chkOpen(chk); };
     d.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{ const a=e.list.find(x=>x.f.id===b.dataset.id); if(a){ scegli(a.f,a); draw(); } }); };
   document.body.appendChild(d); draw();
-  const tm=setInterval(()=>{ if(!document.getElementById('hzEm')){ clearInterval(tm); return; } try{ draw(); }catch(e){} },4000);
+  const tm=setInterval(()=>{ if(!document.getElementById('hzEm')){ clearInterval(tm); return; } try{ const q=d.querySelector('.ph-imp'), y=q?q.scrollTop:0; draw(); const q2=d.querySelector('.ph-imp'); if(q2) q2.scrollTop=y; }catch(e){} },4000);   // l'aggiornamento non riporta la pagina in cima
 };
 // barra rossa sullo strumento finché l'emergenza è attiva
 function barra(){
@@ -150,7 +152,7 @@ function barra(){
   if(!b){ b=document.createElement('button'); b.type='button'; b.id='hzEmBar'; b.hidden=true; b.onclick=()=>PH.emergOpen();
     const nav=document.querySelector('.ph-side .ph-nav'); if(nav) nav.parentNode.insertBefore(b,nav); else document.body.appendChild(b); }
   const e=PH.emerg; if(!e){ b.hidden=true; return; }
-  let t='⚠ EMERGENZA · nessun campo: prato controvento';
+  let t=(!PH.sim&&!PH.demo&&S.gpsReal&&lost('gps'))?'⚠ EMERGENZA · GPS PERSO: distanze non calcolabili':'⚠ EMERGENZA · nessun campo: prato controvento';
   if(e.f){ const s=stato(); const a=s?arrivo(s.ac,s.alt,e.f,s.P):null;
     if(a) t=`⚠ ${e.f.name.toUpperCase()} · ${String(Math.round(a.brg)).padStart(3,'0')}° · ${(a.d/1000).toFixed(1).replace('.',',')} km · ${a.ok?'+'+Math.round(a.marg/10)*10+' ft':'AL LIMITE'}`;
     b.classList.toggle('lim',!!a&&!a.ok); }

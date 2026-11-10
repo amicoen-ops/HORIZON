@@ -51,7 +51,7 @@ function passo(id,d){ const e=document.getElementById(id); if(!e) return; e.valu
 // ---- «Prima di partire» ----
 function righe(){
   const P={}; try{ for(const r of PH.preRows()) P[r[1]]=r; }catch(e){}
-  const st=r=>r?r[0]:wt, tx=r=>r?r[2]:'';
+  const st=r=>r?r[0]:wt, tx=r=>r?esc(r[2]):'';                                  // marche, modello, nome del file degli spazi: testo dell'utente
   let prof='', agl=null; try{ prof=IA517_RULES.PROFILES[IA517_RULES.get()].name; agl=IA517_RULES.vdsMaxAgl(new Date()); }catch(e){}
   const glo=PH.glo&&PH.glo.port, dev=+PH.magDev||0, cal=PH.altCal;
   return [

@@ -9,9 +9,9 @@ Lo lancia il workflow «Licenze per posta» ogni 10 minuti.
    risponde con i prezzi e il link PayPal, mette l'etichetta «Da gestire» e la toglie dalla Posta in arrivo.
    Le risposte dei piloti («ho pagato…») restano in arrivo, con «Da gestire».
 2. Pagate: l'autore, visto il pagamento su PayPal, mette alla mail l'etichetta M, A o P. Qui si crea il codice di
-   quel tipo per quel telefono, si risponde al pilota, si annota nel registro (cifrato, senza indirizzi) e la mail
-   passa a «Gestite», fuori dalla Posta in arrivo. Se nella mail non c'è un codice del telefono valido resta in arrivo
-   con «Da vedere».
+   quel tipo per quel telefono, si risponde al pilota, si annota nel registro (cifrato; tiene anche nome e mail del
+   pilota, per il riepilogo) e la mail passa a «Gestite», fuori dalla Posta in arrivo. Se nella mail non c'è un codice
+   del telefono valido, o se ha più di una etichetta tra M, A e P, resta in arrivo con «Da vedere» e non parte niente.
 
 Il progetto è pubblico: nei log solo numeri, mai indirizzi o codici del telefono.
 Ambiente: GMAIL_UTENTE, GMAIL_LICENZE (password per le app), PRIVATA (pem), PUBBLICA (txt), REGISTRO (json),
@@ -29,6 +29,7 @@ DA_GESTIRE, GESTITE, DA_VEDERE, INBOX = 'Da gestire', 'Gestite', 'Da vedere', '\
 ARCHIVIO = 'Archivio generale licenze'
 PASSI_PAYPAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'licenze', 'paypal-passi.png')
 PREZZI = {'M': 5, 'A': 30, 'P': 150}
+MAX_RIGHE_PISTE = 20          # righe HORIZON-PISTA/CAMPI tenute per ogni mail (l'app ne manda una): vanno su un ramo pubblico
 TEL = re.compile(r'(?<![A-Z0-9])([A-Z2-9]{4})-([A-Z2-9]{4})-([A-Z2-9]{4})(?![A-Z0-9])')
 
 
@@ -95,8 +96,11 @@ class Posta:
         ogg = re.sub(r'[\r\n\t]+', ' ', dec(msg.get('Subject')))[:200]      # mai a capo nell'intestazione
         r['Subject'] = ogg if ogg.lower().startswith('re:') else 'Re: ' + ogg
         if msg.get('Message-ID'):
-            r['In-Reply-To'] = msg['Message-ID']
-            r['References'] = ((msg.get('References') or '') + ' ' + msg['Message-ID']).strip()
+            # su una riga sola: un'intestazione arrivata su più righe (References lungo, tipico delle risposte) tiene
+            # gli a capo, e EmailMessage li rifiuta: il codice non partiva e la mail finiva in «Da vedere»
+            una_riga = lambda h: ' '.join((h or '').split())
+            r['In-Reply-To'] = una_riga(msg['Message-ID'])
+            r['References'] = una_riga((msg.get('References') or '') + ' ' + msg['Message-ID'])
         r.set_content(testo)
         if html:
             r.add_alternative(html, subtype='html')
@@ -321,8 +325,16 @@ def main():
     # 2. pagate: etichetta M, A o P messa dall'autore → codice, poi «Gestite» fuori dalla Posta in arrivo.
     # Mai due codici per la stessa richiesta: il registro tiene il Message-ID della mail a cui si è risposto.
     fatti = set()
+    # Più di una etichetta tra M, A e P sulla stessa mail (un tocco sbagliato sul telefono): non si sceglie da soli,
+    # sarebbe partito il primo tipo in ordine «MAP». Niente codice: «Da vedere», in arrivo, senza le tre etichette.
+    con_tipo = {t: set(posta.cerca(f'label:{t.lower()} -label:gestite -from:me')) for t in 'MAP'}
+    doppi = (con_tipo['M'] & con_tipo['A']) | (con_tipo['M'] & con_tipo['P']) | (con_tipo['A'] & con_tipo['P'])
+    for uid in doppi:
+        try: posta.etichetta(uid, aggiungi=[DA_VEDERE, INBOX], togli=list('MAP')); conti['da vedere'] += 1
+        except Exception: conti['errori'] = conti.get('errori', 0) + 1
     for tipo in 'MAP':
         for uid in posta.cerca(f'label:{tipo.lower()} -label:gestite -from:me'):
+            if uid in doppi: continue                     # anche se togliere le etichette non è riuscito
             try:
                 msg = posta.leggi(uid)
                 if msg is None: continue
@@ -349,6 +361,9 @@ def main():
         # le nostre risposte nella stessa conversazione: l'etichetta M/A/P messa a mano la prendono anche loro
         try:
             for uid in posta.cerca(f'label:{tipo.lower()} from:me'): posta.etichetta(uid, aggiungi=[GESTITE], togli=[tipo, DA_GESTIRE])
+            # e anche le mail già «Gestite» della stessa conversazione (un rinnovo): lì l'etichetta resterebbe per
+            # sempre, e la sveglia in Gmail (tools/gmail-licenze) continuerebbe a far partire questo giro
+            for uid in posta.cerca(f'label:{tipo.lower()} label:gestite'): posta.etichetta(uid, togli=[tipo])
         except Exception: conti['errori'] = conti.get('errori', 0) + 1
     # 2b. piste rilevate e campi usati (segnalazioni anonime dall'app, arrivano qui dalla 1.0.138): se ne salvano solo
     # le righe «HORIZON-PISTA {…}» / «HORIZON-CAMPI {…}» (codice casuale del telefono, niente nomi né indirizzi) in
@@ -367,7 +382,7 @@ def main():
                         except Exception: pass
                 righe = [f'HORIZON-{t} ' + json.dumps(v, ensure_ascii=False, separators=(',', ':'))
                          for t in ('PISTA', 'CAMPI') for v in piste_piloti.righe(testo, t)]
-                righe = list(dict.fromkeys(righe))          # la stessa riga nella parte testo e in quella HTML: una volta
+                righe = list(dict.fromkeys(righe))[:MAX_RIGHE_PISTE]   # la stessa riga nella parte testo e in quella HTML: una volta
                 if righe:
                     nome = f"{datetime.date.today().isoformat()}-{hashlib.sha256((msg.get('Message-ID') or str(uid)).encode()).hexdigest()[:12]}.txt"
                     open(os.path.join(env['PISTE'], nome), 'w').write('\n'.join(righe) + '\n')

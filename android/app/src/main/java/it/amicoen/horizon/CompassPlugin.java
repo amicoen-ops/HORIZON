@@ -7,6 +7,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.os.SystemClock;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -22,6 +23,10 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  */
 @CapacitorPlugin(name = "Compass")
 public class CompassPlugin extends Plugin implements SensorEventListener {
+
+    // Al JavaScript va una lettura ogni 60 ms circa (la prima oltre i 50 ms del filtro): se ne chiede una ogni 30 ms
+    // invece dei 20 ms di SENSOR_DELAY_GAME, e il passo verso la pagina resta quello di prima con un terzo di risvegli in meno.
+    private static final int PERIODO_US = 30_000;
 
     private SensorManager sm;
     private Sensor rv;
@@ -42,7 +47,7 @@ public class CompassPlugin extends Plugin implements SensorEventListener {
     @PluginMethod
     public void start(PluginCall call) {
         if (sm == null || rv == null) { call.reject("bussola non presente su questo telefono"); return; }
-        if (!on) { sm.registerListener(this, rv, SensorManager.SENSOR_DELAY_GAME); on = true; }
+        if (!on) { sm.registerListener(this, rv, PERIODO_US); on = true; }
         JSObject r = new JSObject();
         r.put("sensor", rv.getName());
         call.resolve(r);
@@ -57,7 +62,7 @@ public class CompassPlugin extends Plugin implements SensorEventListener {
 
     @Override
     public void onSensorChanged(SensorEvent e) {
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();           // non l'ora di sistema: se torna indietro il filtro si bloccherebbe
         if (now - last < 50) return;
         last = now;
         try {
@@ -78,7 +83,7 @@ public class CompassPlugin extends Plugin implements SensorEventListener {
     protected void handleOnPause() { if (on && sm != null) sm.unregisterListener(this); }
 
     @Override
-    protected void handleOnResume() { if (on && sm != null) sm.registerListener(this, rv, SensorManager.SENSOR_DELAY_GAME); }
+    protected void handleOnResume() { if (on && sm != null) sm.registerListener(this, rv, PERIODO_US); }
 
     @Override
     protected void handleOnDestroy() { if (sm != null) sm.unregisterListener(this); on = false; }

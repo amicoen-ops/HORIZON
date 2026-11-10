@@ -4,8 +4,10 @@
 // HORIZON Link: l'orologio Garmin collegato a HORIZON 2 sul telefono (tramite l'app Garmin Connect).
 // · Manda al telefono, una volta al secondo: posizione GPS (multibanda se l'orologio la ha), velocità e traccia,
 //   pressione e quota del barometro, prua della bussola, battito.
-// · Riceve dal telefono i dati da mostrare (velocità, quota, vario, destinazione) e gli avvisi: vibra e li scrive.
-// · Tasti: START = OK, SU / GIÙ = ruota a sinistra / destra, SU tenuto (menu) = cambia pagina, INDIETRO = esci.
+// · Riceve dal telefono i dati da mostrare (velocità, quota, vario, traccia, destinazione con distanza, minuti,
+//   rilevamento e frequenza, deviazione dalla rotta, vento, tramonto, tempo di volo, autonomia) e gli avvisi: vibra e li scrive.
+// · Tasti (comandano lo strumento): START = OK, SU / GIÙ = ruota a sinistra / destra, SU tenuto (menu) = cambia pagina
+//   dello strumento, INDIETRO = esci. Schermo (comanda l'orologio): tocco o scorrimento = pagina dell'orologio.
 import Toybox.Activity;
 import Toybox.Application;
 import Toybox.Attention;
@@ -232,6 +234,16 @@ class HorizonApp extends Application.AppBase {
         return oxH;
     }
 
+    // età della saturazione in secondi: 0 se viene dal sensore adesso, altrimenti da quando è stata misurata
+    // (se l'ora della misura non si sa, vale come vecchia)
+    function oxEta() {
+        if (sens != null && (sens has :oxygenSaturation) && sens.oxygenSaturation != null) { return 0; }
+        if (oxH == null) { return 0; }
+        if (oxHT <= 0) { return 99999; }
+        var e = Time.now().value() - oxHT;
+        return e < 0 ? 0 : e;
+    }
+
     // i dati dei sensori in un dizionario piccolo (le chiavi corte occupano meno nella trasmissione)
     function dati() {
         segna("lettura dei sensori");
@@ -269,7 +281,8 @@ class HorizonApp extends Application.AppBase {
     }
 
     function getInitialView() {
-        return [new HorizonView(self), new HorizonDelegate(self)];
+        var v = new HorizonView(self);
+        return [v, new HorizonDelegate(self, v)];
     }
 }
 

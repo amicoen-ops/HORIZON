@@ -26,7 +26,6 @@
     public <init>(...);
 }
 -keepclassmembers class * { @com.getcapacitor.PluginMethod public <methods>; }
--keep class it.ia517.strumento.MainActivity { *; }
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
 -dontwarn com.google.errorprone.annotations.**
 
