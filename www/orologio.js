@@ -86,6 +86,11 @@ PH.fenixMsg=function(){
   if(PH.sun&&PH.sun.set) m.ss=Math.round((PH.sun.set-Date.now())/60000);
   try{ const n=PH.fuelNow(); if(n&&n.burn>0&&n.L>=0) m.fu=Math.round(n.L/n.burn*60); }catch(e){}
   m.qn=Math.round(QNH);
+  // fase del volo: l'orologio mostra da solo la pagina che serve (0 a terra → PILOTA, 1 in rotta e in base/finale → VOLO,
+  // 2 negli ultimi 10 minuti e all'ingresso in circuito → ARRIVO)
+  { const inAria=!!(PH.sim||PH.demo||PH.flight||(vivo&&S.gs>45)), A=NAV.app, R_=NAV.route, ultima=!R_||R_.idx>=R_.r.wps.length-1;   // un punto intermedio della rotta non è un arrivo
+    m.ph=!inAria?0:(vivo&&NAV.dest&&ultima&&!(A&&A.idx>=2)&&(A||(g.ete>0&&g.ete<600))?2:1);
+    if(A&&A.end&&A.end.id!=null) m.rw=String(A.end.id).slice(0,4); }
   if(vivo) try{ const z=terrain(...xy(enu(S.lat,S.lon))); if(z===z) m.ag=Math.round(S.alt-z/FT2M); }catch(e){}
   return m; };
 setInterval(()=>{ if(!PH.fenix.stato.collegato) return;

@@ -1,7 +1,11 @@
 // HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 //
-// Schermate dell'orologio, tre pagine (si cambiano toccando o scorrendo lo schermo):
+// Schermate dell'orologio, tre pagine. La pagina segue il volo da sola, così c'è sempre a vista quello che serve:
+// a terra PILOTA, in rotta VOLO, avvicinandosi alla destinazione (ultimi 10 minuti e ingresso in circuito) ARRIVO,
+// in base e in finale di nuovo VOLO (velocità, quota, vario, deviazione dall'asse). Un tocco o uno scorrimento sullo
+// schermo mostra un'altra pagina per 20 secondi, poi torna quella del momento. Senza la fase dallo strumento
+// (strumento vecchio o non collegato) la pagina resta quella scelta a mano.
 // · VOLO: rosa sottile sul bordo che gira con la traccia (triangolo rosso = nord), pallino magenta verso la destinazione, velocità e quota grandi,
 //   vario, destinazione, barra di deviazione dalla rotta (CDI), battito e saturazione.
 // · ARRIVO: destinazione, distanza e minuti, rilevamento e ora di arrivo (Z), frequenza del campo, vento, tramonto.
@@ -21,7 +25,8 @@ import Toybox.WatchUi;
 class HorizonView extends WatchUi.View {
     var app;
     var pg = 0;                // pagina: 0 volo, 1 arrivo, 2 pilota e tempi
-    var pgT = 0;               // quando è stata cambiata (per mostrare un attimo il nome)
+    var man = false;           // pagina scelta a mano (tocco o scorrimento): vale 20 secondi
+    var manT = 0;
 
     function initialize(a) {
         View.initialize();
@@ -30,7 +35,8 @@ class HorizonView extends WatchUi.View {
 
     function pagina(d) {
         pg = (pg + d + 3) % 3;
-        pgT = System.getTimer();
+        man = true;
+        manT = System.getTimer();
         app.segna("pagina " + pg);
         WatchUi.requestUpdate();
     }
@@ -85,12 +91,18 @@ class HorizonView extends WatchUi.View {
         dc.clear();
         // dati dello strumento: valgono 5 secondi
         var p = (app.phone != null && now - app.phoneT < 5000) ? app.phone : null;
+        // la pagina del momento, dalla fase del volo che manda lo strumento (0 a terra, 1 in rotta, 2 in arrivo)
+        if (man && now - manT > 20000) { man = false; }
+        var fase = (p != null) ? num(p.get("ph")) : null;
+        if (!man && fase != null) {
+            pg = (fase < 0.5) ? 2 : ((fase > 1.5) ? 1 : 0);
+        }
         if (pg == 1) { arrivo(dc, w, h, p); }
         else if (pg == 2) { pilota(dc, w, h, p); }
         else { volo(dc, w, h, p); }
-        // in basso: quale pagina (tre punti)
+        // in basso: quale pagina (tre punti; il punto è giallo finché la pagina è scelta a mano)
         for (var i = 0; i < 3; i++) {
-            dc.setColor(i == pg ? Graphics.COLOR_WHITE : Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(i == pg ? (man && fase != null ? Graphics.COLOR_YELLOW : Graphics.COLOR_WHITE) : Graphics.COLOR_DK_GRAY, Graphics.COLOR_TRANSPARENT);
             dc.fillCircle(w / 2 + (i - 1) * 12, (h * 0.925).toNumber(), i == pg ? 4 : 3);
         }
     }
@@ -308,10 +320,14 @@ class HorizonView extends WatchUi.View {
             grande(dc, w * 0.69, h * 0.375, fmt(et, 0), w * 0.34);
             var ea = p.get("ea");
             dc.drawText(cx, h * 0.565, Graphics.FONT_TINY, "BRG " + gradi(br) + (ea != null ? "  " + ea.toString() : ""), Graphics.TEXT_JUSTIFY_CENTER);
-            var fq = p.get("fq");
-            if (fq != null && fq.toString().length() > 0) {
+            // pista del circuito (quando lo strumento l'ha scelta) e frequenza del campo
+            var fq = p.get("fq"), rw = p.get("rw");
+            var r2 = "";
+            if (rw != null && rw.toString().length() > 0) { r2 = "PISTA " + rw.toString(); }
+            if (fq != null && fq.toString().length() > 0) { r2 += (r2.length() > 0 ? "  " : "RADIO ") + fq.toString(); }
+            if (r2.length() > 0) {
                 dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_TRANSPARENT);
-                dc.drawText(cx, h * 0.655, Graphics.FONT_TINY, "RADIO " + fq.toString(), Graphics.TEXT_JUSTIFY_CENTER);
+                dc.drawText(cx, h * 0.655, Graphics.FONT_TINY, r2, Graphics.TEXT_JUSTIFY_CENTER);
             }
         }
         if (p != null) {
@@ -376,7 +392,8 @@ class HorizonView extends WatchUi.View {
 // strumento, BACK da solo = esci. GIÙ e BACK aspettano un attimo (0,35 s) prima di agire: se nel frattempo arriva
 // l'altro tasto è la combinazione.
 // Schermo (comanda l'orologio): un tocco, o scorrere a sinistra o in su = pagina dopo; scorrere a destra o in giù =
-// pagina prima. Così un tocco per sbaglio sullo schermo non muove più la manopola dello strumento.
+// pagina prima, per 20 secondi; poi torna la pagina del momento. Così un tocco per sbaglio sullo schermo non muove
+// più la manopola dello strumento, e i tasti restano tutti per lo strumento.
 class HorizonDelegate extends WatchUi.BehaviorDelegate {
     var app;
     var view;
