@@ -31,6 +31,13 @@ Come leggere: **provato** = c'è una prova che prima falliva e ora passa; **lett
 | Elenco dei velivoli salvato vuoto: strumento nero a ogni avvio | Si riparte dal profilo di serie | letto |
 | Nomi di spazi aerei, traffici, velivoli e orologio scritti in pagina senza protezione (un file importato o un dato di rete poteva far girare codice) | Protetti (`PH.esc`) | letto |
 
+Dopo il tuo «procedi» (secondo giro, stesso giorno):
+
+| Cosa succedeva | Ora | Prova |
+|---|---|---|
+| TAWS e spazi aerei muti finché il diario non vedeva il decollo (55 km/h al suolo): un velivolo lento in salita controvento restava senza avvisi | Per gli avvisi vale «in volo» anche da 5 s a più di 25 km/h e a più di 60 m sul terreno (`PH.inVolo`). Il diario non cambia | provato |
+| Senza rilievo davanti il TAWS taceva con l'etichetta TERRENO verde | Dopo 10 s bandierina «TERRENO NON DISPONIBILE · NESSUN AVVISO DI TERRENO QUI» (voce ogni 2 minuti) ed etichetta gialla | provato |
+
 ### Moduli (`www/*.js`)
 
 | Cosa succedeva | Ora | Prova |
@@ -79,9 +86,9 @@ Tre pagine (VOLO, ARRIVO, PILOTA), avvisi su più righe, dati in più dallo stru
 
 ## 2. Da decidere (sicurezza: non ho toccato soglie né scelte tue)
 
-1. **TAWS e spazi aerei tacciono finché il diario non vede il decollo.** Il volo parte sopra 55 km/h al suolo: un velivolo lento in salita controvento (85 km/h con 35 di vento) resta «a terra» e non ha avvisi. Lo stesso se in volo la velocità al suolo scende sotto 20 km/h per 30 s. Proposta: per gli avvisi vale «in volo» anche con più di 25 km/h e più di 60 m sul terreno.
+1. ~~TAWS e spazi aerei tacciono finché il diario non vede il decollo.~~ **Fatto** (vedi sezione 1). Resta com'era la quota obiettivo sul terreno («SALI A») e la discesa guidata, che seguono ancora il diario.
 2. **Origine fissa del piano E/N (Carolina).** Lontano dal 45°N assi pista e circuiti sono storti: a Comiso, sull'asse vero a 1500 m, lo strumento calcola 88 m di scarto. Mediana sulle piste: Sicilia 64 m, Sud e Sardegna 44 m, Nord Italia 3 m. Proposta: portare l'origine sulla posizione al primo fix e quando ci si sposta di oltre 100 km. È un lavoro a parte, da provare bene.
-3. **TAWS senza rilievo davanti:** tace e l'etichetta TERRENO resta verde. Proposta: bandierina «TERRENO NON DISPONIBILE» ed etichetta gialla.
+3. ~~TAWS senza rilievo davanti.~~ **Fatto** (vedi sezione 1).
 4. **Tocco sull'avviso rosso:** toglie anche voce e vibrazione per 60 s, anche per «TERRENO! CABRA».
 5. **«TRAMONTO TRA 10 MINUTI»** è rosso al centro e torna ogni secondo per 5 minuti. Proposta: bandierina gialla.
 6. **Vento per la scelta della pista:** lo stimato vecchio di ore e il previsto senza data valgono come «verificato»; il previsto resta quello della destinazione di prima. Proposta: stimato valido 20 minuti, previsto qualche ora, altrimenti «PISTA NON VERIFICATA».
@@ -97,7 +104,9 @@ Tre pagine (VOLO, ARRIVO, PILOTA), avvisi su più righe, dati in più dallo stru
 16. **Piste dei piloti:** i «3 telefoni» sono dichiarati da chi scrive la mail. Proposta: nelle mappe solo dopo `--approva`.
 17. **Workflow:** azioni di terzi e immagine Connect IQ non fissate a una versione esatta (girano con le chiavi); il collaudo su emulatore è sempre verde; l'APK di collaudo con il debug è scaricabile da chiunque; la password del keystore protegge anche chiave e registro delle licenze finché non lanci «cambia-password».
 
-## 3. Tasti dell'orologio: proposta da decidere insieme
+## 3. Tasti dell'orologio: deciso C, con il tocco di A
+
+Fatto: la pagina dell'orologio segue il volo (a terra PILOTA, in rotta VOLO, negli ultimi 10 minuti dell'ultima tratta e all'ingresso in circuito ARRIVO, in base e in finale di nuovo VOLO). Un tocco o uno scorrimento mostra un'altra pagina per 20 secondi (punto giallo), poi torna quella del momento. I tasti restano tutti per lo strumento. Le alternative valutate erano queste:
 
 Oggi: START = OK, SU / GIÙ = manopola, SU tenuto = pagina dello strumento, GIÙ + BACK = pagina dello strumento, BACK = esci. In questo giro lo schermo (tocco, scorrimento) cambia la pagina dell'orologio; i tasti non sono cambiati.
 

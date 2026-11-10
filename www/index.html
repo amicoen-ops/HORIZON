@@ -2886,10 +2886,24 @@ PH.showAlert=function(level,text,key){
 };
 // lo spazio aereo torna ad avvisare quando ne sei uscito da più di 2 minuti
 setInterval(()=>{ const now=Date.now(); for(const k in PH.alertMute) if(PH.alertMute[k]===true && now-(PH.alertSeen[k]||0)>120000) delete PH.alertMute[k]; },10000);
+// «in volo» per gli avvisi di terreno e di spazio aereo: il volo visto dal diario (oltre 55 km/h al suolo), oppure in aria
+// davvero: da 5 secondi a più di 25 km/h e a più di 60 m sul terreno. Un velivolo lento in salita controvento non arriva a
+// 55 km/h al suolo: per il diario era «a terra» e restava senza avvisi (scelta dell'autore del 10/11/2026).
+PH.inVolo=function(){
+  if(PH.flight) return true;
+  let su=false; if(S.gpsReal && S.gs>25 && !lost('gps')){ const ac=enu(S.lat,S.lon), z=terrain(ac.E,ac.N); su=z===z && S.alt*FT2M-z>60; }
+  if(!su){ PH.airT=0; return false; }
+  const now=Date.now(); PH.airT=PH.airT||now; return now-PH.airT>=5000;
+};
 PH.checkTerrain=function(){
-  if(PH.demo || !PH.flight || !S.gpsReal || lost('gps')) return;
+  if(PH.demo || !PH.inVolo() || !S.gpsReal || lost('gps')){ PH.tawsNd=false; PH.tawsNdT=0; return; }
   const ac=enu(S.lat,S.lon); if(tawsInhibit(ac.E,ac.N)) return;
-  const v=S.gs/3.6, tr=(S.trk!=null?S.trk:S.hdg)*D2R; let lvl=null;
+  const v=S.gs/3.6, tr=(S.trk!=null?S.trk:S.hdg)*D2R; let lvl=null, nd=0;
+  for(let t=0;t<=60;t+=5){ const z=terrain(ac.E+Math.sin(tr)*v*t, ac.N+Math.cos(tr)*v*t); if(z!==z) nd++; }
+  // rilievo mancante davanti (fuori dalla zona scaricata, senza rete): il TAWS non può avvisare, e adesso lo dice
+  // (bandierina gialla ed etichetta TERRENO gialla; prima taceva con l'etichetta verde)
+  if(nd>=7){ PH.tawsNdT=PH.tawsNdT||Date.now(); if(Date.now()-PH.tawsNdT>10000){ PH.tawsNd=true; PH.alert('tawsnd','C','TERRENO NON DISPONIBILE · NESSUN AVVISO DI TERRENO QUI',120000); } }
+  else { PH.tawsNdT=0; PH.tawsNd=false; }
   for(let t=0;t<=60;t+=5){
     const E=ac.E+Math.sin(tr)*v*t, N=ac.N+Math.cos(tr)*v*t, z=terrain(E,N); if(z!==z) continue;
     const clr=(S.alt*FT2M+S.vs*t-z)/FT2M;
@@ -2934,7 +2948,7 @@ PH.aspCfg=Object.assign({ant:60,buf:100,off:[]},lsGet('ia517p_aspcfg',{}));
 PH.aspGruppo=function(c){ c=String(c||'').toUpperCase(); if(/^(P|R|OFR)$/.test(c)) return 'vietati'; if(/^(CTR|A|B|C|D)$/.test(c)) return 'controllati';
   if(/^(E|RMZ|TMZ)$/.test(c)) return 'e'; if(/^(Q|DANGER)$/.test(c)) return 'pericolosi'; return 'altri'; };
 PH.checkAirspace=function(){
-  if(!(PH.sim || (PH.flight && S.gpsReal && !PH.demo))) return;
+  if(!(PH.sim || (PH.inVolo() && S.gpsReal && !PH.demo))) return;
   const list=PH.aspList();
   if(!list.length) return;
   const CF=PH.aspCfg, buf=+CF.buf||100, ant=+CF.ant||60, offG=new Set(CF.off||[]);
@@ -3240,7 +3254,7 @@ PH.info=function(g){
   const st=el('phStat'); if(st){
     const gpsOk=S.gpsReal&&!lost('gps'), attOk=!lost('att');
     st.innerHTML=PH.sim?`<i class="w">SIMULAZIONE</i> ${String(PH.sim.name).replace(/</g,'')} · ×${PH.sim.warp} · tocca per fermare`:PH.demo?'<i class="w">DEMO</i> volo dimostrativo':
-      `${(()=>{ const g=PH.gpsQ?PH.gpsQ():{c:gpsOk?'o':'b',n:null}; return `<i class="${g.c}">${PH.src==='glo'?'GLO 2':'GPS'}${g.n!=null?' '+g.n:''}</i>`; })()}<i class="${attOk?'o':'b'}">ASSETTO</i><i class="${PH.dem.size?'o':'w'}">TERRENO</i>${PH.statoHtml?PH.statoHtml():`<i class="${navigator.onLine?'o':'w'}">NET</i>`}`;
+      `${(()=>{ const g=PH.gpsQ?PH.gpsQ():{c:gpsOk?'o':'b',n:null}; return `<i class="${g.c}">${PH.src==='glo'?'GLO 2':'GPS'}${g.n!=null?' '+g.n:''}</i>`; })()}<i class="${attOk?'o':'b'}">ASSETTO</i><i class="${PH.dem.size&&!PH.tawsNd?'o':'w'}">TERRENO</i>${PH.statoHtml?PH.statoHtml():`<i class="${navigator.onLine?'o':'w'}">NET</i>`}`;
   }
   if(S.gpsReal && !lost('att')) PH.seenAll=true;             // dopo il primo fix le perdite le segnalano le bandierine rosse
   const wait=el('phWait'); if(wait) wait.hidden=PH.demo || PH.seenAll || PH.waitClosed || !menuEl.hidden || PH.sim;
@@ -4135,7 +4149,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
-  ["1.0.163","Controllo generale dell'app. In volo: una riattaccata o un tocca-e-riparti non viene più presa per atterraggio; «TERRENO! CABRA» non viene più coperto da un altro avviso; la quota obiettivo alzata per il terreno torna giù a terreno passato; con il GPS perso niente pericoli di traffico, planata o riporti calcolati da una posizione ferma, e l'orizzonte non resta inclinato dall'ultima accelerazione. Carburante impostato a terra: vale anche dopo il decollo, e dopo l'atterraggio resta il residuo. Emergenza: distanze e prue vere anche lontano dal Nord (in Sicilia erano corte del 13%). La pista scelta a mano non resta per il campo dopo. NOTAM sulla mappa anche con gli spazi aerei spenti. Mappa più fluida con lo zoom largo. Piano: NOTAM con la riga Q scritta a larghezza fissa, quote «ASFC», METAR senza vento, rotta non data per libera se manca il terreno. HORIZON 2: l'orologio ha tre pagine (VOLO con rosa della bussola e deviazione dalla rotta, ARRIVO con frequenza, vento e tramonto, PILOTA con ora UTC, tempo di volo e autonomia): tocca o scorri lo schermo per cambiarle; avvisi scritti su più righe."],
+  ["1.0.163","Controllo generale dell'app. Avvisi di terreno e di spazio aereo anche se il diario non ha visto il decollo: bastano 5 secondi a più di 25 km/h e a più di 60 m sul terreno (un velivolo lento in salita controvento restava senza avvisi). Se davanti manca il rilievo (zona non scaricata, senza rete) compare la bandierina «TERRENO NON DISPONIBILE» e l'etichetta TERRENO diventa gialla. In volo: una riattaccata o un tocca-e-riparti non viene più presa per atterraggio; «TERRENO! CABRA» non viene più coperto da un altro avviso; la quota obiettivo alzata per il terreno torna giù a terreno passato; con il GPS perso niente pericoli di traffico, planata o riporti calcolati da una posizione ferma, e l'orizzonte non resta inclinato dall'ultima accelerazione. Carburante impostato a terra: vale anche dopo il decollo, e dopo l'atterraggio resta il residuo. Emergenza: distanze e prue vere anche lontano dal Nord (in Sicilia erano corte del 13%). La pista scelta a mano non resta per il campo dopo. NOTAM sulla mappa anche con gli spazi aerei spenti. Mappa più fluida con lo zoom largo. Piano: NOTAM con la riga Q scritta a larghezza fissa, quote «ASFC», METAR senza vento, rotta non data per libera se manca il terreno. HORIZON 2: l'orologio ha tre pagine (VOLO con rosa della bussola e deviazione dalla rotta, ARRIVO con frequenza, vento e tramonto, PILOTA con ora UTC, tempo di volo e autonomia). La pagina segue il volo da sola: a terra PILOTA, in rotta VOLO, negli ultimi 10 minuti e all'ingresso in circuito ARRIVO, in base e in finale di nuovo VOLO; un tocco sullo schermo mostra un'altra pagina per 20 secondi. I tasti restano tutti per lo strumento. Avvisi scritti su più righe."],
   ["1.0.161","Filigrana in basso su tutte le pagine (HORIZON © E. D'Amico, codice del telefono, impronta): resta in ogni schermata. Impronta dell'autore in Info e nelle segnalazioni. Avvertenze aggiornate con il barometro."],
   ["1.0.158","HORIZON 2: il barometro dell'orologio Garmin si corregge da solo sul barometro del telefono (i sensori da polso leggono anche 4–5 hPa di troppo o di meno, cioè 35–40 m); lo scarto resta salvato e si vede in Stato › Orologio: barometro."],
   ["1.0.153","Barometro del telefono (app Android, se il telefono lo ha): vario e cambi di quota dal barometro, molto più pronti e puliti; la quota vera resta tenuta giusta dal GPS, senza QNH. In Stato la riga «Barometro»; si spegne in Impostazioni › Quota."],
