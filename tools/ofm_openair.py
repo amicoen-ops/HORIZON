@@ -65,6 +65,8 @@ def main(argv):
             if not t: continue
         parti.append(f"* --- {nome} ---\n{t}"); nomi.append(nome)
     if not parti: print("open flightmaps non raggiungibile: nessun file"); return 1
+    # senza l'Italia il file di riserva sembrerebbe buono ma avrebbe solo le Alpi dei vicini: meglio non pubblicarlo
+    if "Italia" not in nomi: print("open flightmaps: manca l'Italia, nessun file"); return 1
     testa = ("* open flightmaps · " + ", ".join(nomi) + " · AIRAC " + "/".join(sorted(cicli)) + "\n"
              "* Contains information from the open flightmaps database · OFMA General Users' License\n"
              "* Errori nei dati: info@openflightmaps.org\n")

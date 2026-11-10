@@ -31,7 +31,7 @@ function gsOn(trk){
 }
 // posizione detta come la vuole l'ente: distanza e settore dal campo più vicino
 function posizione(){
-  if(S.lat==null) return null;
+  if(S.lat==null || !(PH.demo||PH.sim||(S.gpsReal&&!lost('gps')))) return null;   // senza GPS valido niente riporto da leggere (S.lat ha sempre un valore: all'avvio è quello di partenza)
   try{ const v=PH.vrpPos&&PH.vrpPos(); if(v) return {txt:v}; }catch(e){}            // vicino a un punto di riporto VFR: si usa quello
   let best=null; for(const f of FIELDS){ if(f.kind==='wp'||/^campo utente\b/i.test(f.name||'')) continue;   /* i campi senza nome non dicono niente all'ente */ const d=distBrg(f,S).d; if(!best||d<best.d) best={f,d}; }
   if(!best||best.d>25000) return {txt:`${Math.abs(S.lat).toFixed(2)}${S.lat>=0?'N':'S'} ${Math.abs(S.lon).toFixed(2)}${S.lon>=0?'E':'W'}`};
@@ -106,9 +106,9 @@ PH.stimOpen=function(){
   d=document.createElement('div'); d.className='ph-sheet'; d.id='hzSt';
   const draw=()=>{ const y=d.querySelector('.ph-imp')?d.querySelector('.ph-imp').scrollTop:0; d.innerHTML=html();
     d.querySelector('.ph-imp').scrollTop=y;
-    document.getElementById('hzStB').onclick=()=>{ clearInterval(tm); d.remove(); };
-    document.getElementById('hzStF').onclick=()=>{ PH.freqOpen&&PH.freqOpen(); };
-    document.getElementById('hzStN').onclick=()=>{ clearInterval(tm); d.remove(); PH.noteOpen&&PH.noteOpen(); }; };
+    d.querySelector('#hzStB').onclick=()=>{ clearInterval(tm); d.remove(); };
+    d.querySelector('#hzStF').onclick=()=>{ PH.freqOpen&&PH.freqOpen(); };
+    d.querySelector('#hzStN').onclick=()=>{ clearInterval(tm); d.remove(); PH.noteOpen&&PH.noteOpen(); }; };
   document.body.appendChild(d); draw();
   const tm=setInterval(()=>{ if(!document.getElementById('hzSt')){ clearInterval(tm); return; } try{ draw(); }catch(e){} },5000);
   PH.act&&PH.act('stimati');

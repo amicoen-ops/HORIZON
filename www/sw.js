@@ -11,6 +11,14 @@ async function cacheFirst(req,name,max){
   const c=await caches.open(name), hit=await c.match(req); if(hit) return hit;
   const r=await fetch(req); if(r.ok||r.type==='opaque'){ c.put(req,r.clone()); if(max) trim(name,max); } return r;
 }
+// tessere della mappa: chieste con CORS, così la risposta non è «opaca» (una risposta opaca conta circa 7 MB nello spazio del
+// browser, anche se la tessera pesa 20 KB: con migliaia di tessere lo spazio risultava finito). Se il server non lo permette
+// si fa come prima.
+async function tileFirst(req,name,max){
+  const c=await caches.open(name), hit=await c.match(req.url); if(hit) return hit;
+  try{ const r=await fetch(req.url,{mode:'cors',credentials:'omit'}); if(r.ok){ c.put(req.url,r.clone()); if(max) trim(name,max); } return r; }
+  catch(e){ return cacheFirst(req,name,max); }
+}
 async function networkFirst(req,name){
   const c=await caches.open(name);
   try{ const r=await fetch(req); if(r.ok) c.put(req,r.clone()); return r; }
@@ -26,7 +34,7 @@ self.addEventListener('fetch',e=>{
   const u=new URL(req.url);
   if(u.searchParams.has('chk')) return;                     // controllo della versione: sempre dalla rete
   if(u.hostname==='s3.amazonaws.com' && u.pathname.includes('/elevation-tiles-prod/')) e.respondWith(cacheFirst(req,'ia517-dem',4000));
-  else if(/tile\.opentopomap\.org$|tile\.openstreetmap\.org$/.test(u.hostname)) e.respondWith(cacheFirst(req,'ia517-map',3000));
+  else if(/tile\.opentopomap\.org$|tile\.openstreetmap\.org$/.test(u.hostname)) e.respondWith(tileFirst(req,'ia517-map',3000));
   else if(u.hostname==='api.open-meteo.com') e.respondWith(networkFirst(req,'ia517-wx'));
   else if(/fonts\.(googleapis|gstatic)\.com$/.test(u.hostname)) e.respondWith(cacheFirst(req,'ia517-fonts',40));
   else if(u.origin===location.origin && !NATIVE) e.respondWith(staleWhileRevalidate(req));

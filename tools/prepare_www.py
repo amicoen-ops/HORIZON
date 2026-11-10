@@ -10,7 +10,9 @@ SRC = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parent / "android" / "www
 DST = HERE / "www"
 if DST.exists(): shutil.rmtree(DST)
 DST.mkdir()
-for f in ["index.html", "app.html", "version.js", "regole.js", "carburante.js", "prestazioni.js", "licenza.js", "guida.js", "squadriglia.js", "frequenze.js", "radio.js", "stimati.js", "impostazioni.js", "emergenza.js", "livelli.js", "note.js", "schermo.js", "carta.js", "vento.js", "schede.js", "voce.js", "orologio.js", "riservato.js", "spazi3d.js", "three.min.js", "LICENZE.txt", "sw.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png"]:
+# carta-web.js e sqlite3.* servono solo alla versione web, ma www/ è la stessa per il sito e per l'APK e sw.js li elenca
+# in CORE: se mancassero il sito non si installerebbe più. Dall'APK li toglie la compilazione, dopo «cap sync».
+for f in ["index.html", "app.html", "version.js", "regole.js", "carburante.js", "prestazioni.js", "licenza.js", "guida.js", "squadriglia.js", "frequenze.js", "radio.js", "stimati.js", "impostazioni.js", "emergenza.js", "livelli.js", "note.js", "schermo.js", "carta.js", "carta-web.js", "sqlite3.js", "sqlite3.wasm", "vento.js", "schede.js", "voce.js", "orologio.js", "riservato.js", "spazi3d.js", "three.min.js", "LICENZE.txt", "sw.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png"]:
     shutil.copy(SRC / f, DST / f)
 shutil.copy(HERE / "node_modules/@capacitor/core/dist/capacitor.js", DST / "capacitor.js")
 idx = (DST / "index.html").read_text(encoding="utf-8")

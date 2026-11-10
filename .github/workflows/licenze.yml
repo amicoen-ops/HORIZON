@@ -38,6 +38,7 @@ concurrency: licenze-manuale      # gruppo suo: la sveglia della posta non lo an
 jobs:
   licenze:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - name: Ramo «licenze» (registro cifrato, chiavi, revocate)

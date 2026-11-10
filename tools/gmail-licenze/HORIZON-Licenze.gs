@@ -42,11 +42,13 @@ function avviaGiro_(riepilogo) {
 }
 
 function daLavorare_() {
-  // a livello di conversazione: già gestita no; con M/A/P sì; altrimenti solo se nessuno l'ha ancora presa (né Da gestire né Da vedere)
+  // a livello di conversazione: con M/A/P sì, anche se è già gestita (un rinnovo nella stessa conversazione: prima la
+  // sveglia non partiva; il giro toglie M/A/P a tutte le mail, quindi non riparte a vuoto); già gestita no;
+  // altrimenti solo se nessuno l'ha ancora presa (né Da gestire né Da vedere)
   return GmailApp.search(DA_LAVORARE, 0, 20).filter(t => {
     const nomi = t.getLabels().map(l => l.getName());
-    if (nomi.includes('Gestite')) return false;
     if (nomi.some(n => n === 'M' || n === 'A' || n === 'P')) return true;
+    if (nomi.includes('Gestite')) return false;
     return !nomi.includes('Da gestire') && !nomi.includes('Da vedere') && t.getMessages().some(m => !/horizonlicenses@gmail\.com/i.test(m.getFrom()));
   }).length;
 }

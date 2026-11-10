@@ -10,6 +10,11 @@ permissions:
   contents: write
   issues: write
 
+# una compilazione alla volta, senza annullare quella in corso: due unioni vicine non si scavalcano su Release e Google Play
+concurrency:
+  group: build-apk
+  cancel-in-progress: false
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -26,6 +31,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          cache: gradle            # Gradle e le sue librerie non si riscaricano a ogni corsa
 
       - name: Dipendenze
         run: npm ci --no-audit --no-fund
@@ -36,8 +42,12 @@ jobs:
       - name: Versione dentro l'app
         run: echo "window.IA517_BUILD={version:'1.0.${{ github.run_number }}',build:'${{ github.run_number }}',channel:'apk'};" > www/version.js
 
+      # SQLite per il browser (carta VFR della versione web) non serve nell'app: lì la carta la legge CartaPlugin.
+      # Si toglie dopo ogni «cap sync», che ricopia tutta www/ (circa 1,5 MB in meno nell'APK).
       - name: Pagine dentro l'app
-        run: npx cap sync android
+        run: |
+          npx cap sync android
+          rm -f android/app/src/main/assets/public/sqlite3.js android/app/src/main/assets/public/sqlite3.wasm android/app/src/main/assets/public/carta-web.js
 
       - name: Chiave di firma (cifrata nel repository, la password è nel secret KEYSTORE_PASSWORD)
         env:
@@ -72,8 +82,10 @@ jobs:
           set -o pipefail
           echo "window.IA517_BUILD={version:'1.0.${{ github.run_number }}',build:'${{ github.run_number }}',channel:'play'};" > www/version.js
           git checkout -- android/app/src/main/AndroidManifest.xml          # niente permesso di installare app nella versione del Play Store
-          ! grep -q REQUEST_INSTALL_PACKAGES android/app/src/main/AndroidManifest.xml
+          # «! grep» con bash -e non ferma mai il passo: il controllo va fatto con if
+          if grep -q REQUEST_INSTALL_PACKAGES android/app/src/main/AndroidManifest.xml; then echo "::error::REQUEST_INSTALL_PACKAGES è nel manifest: la versione del Play Store non può averlo"; exit 1; fi
           npx cap sync android
+          rm -f android/app/src/main/assets/public/sqlite3.js android/app/src/main/assets/public/sqlite3.wasm android/app/src/main/assets/public/carta-web.js
           (cd android && ./gradlew bundleRelease --no-daemon 2>&1 | tee -a ../build.log)
           cp android/app/build/outputs/bundle/release/app-release.aab HORIZON-1.0.${{ github.run_number }}-play-store.aab
 
@@ -88,6 +100,7 @@ jobs:
           sed -i 's/"webContentsDebuggingEnabled": false/"webContentsDebuggingEnabled": true/' capacitor.config.json
           grep -q '"webContentsDebuggingEnabled": true' capacitor.config.json
           npx cap sync android
+          rm -f android/app/src/main/assets/public/sqlite3.js android/app/src/main/assets/public/sqlite3.wasm android/app/src/main/assets/public/carta-web.js
           (cd android && ./gradlew assembleRelease --no-daemon 2>&1 | tee -a ../build.log)
           cp android/app/build/outputs/apk/release/app-release.apk HORIZON-collaudo.apk
           git checkout -- capacitor.config.json www/version.js
@@ -110,6 +123,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}        # il tag sul commit compilato, non sulla punta di main in quel momento
           name: HORIZON 1.0.${{ github.run_number }}
           body: |
             Scarica il file .apk dal telefono e installalo (sopra la versione precedente, i dati restano).

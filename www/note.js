@@ -27,7 +27,7 @@ PH.vrpDraw=function(toS){
     if(ZOOMS[zi]<=30){ ctx.lineWidth=3*k; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.fillStyle='#7fe0ff'; ctx.strokeText(v.code,p.x+s*1.2,p.y); ctx.fillText(v.code,p.x+s*1.2,p.y); } }
   ctx.restore();
 };
-{ const orig=PH.mapUnder; PH.mapUnder=function(toS,sc,c){ if(orig&&PH.lyr&&PH.lyr.asp!==false) orig.apply(this,arguments); else PH.vrpDraw(toS); }; }
+{ const orig=PH.mapUnder; PH.mapUnder=function(toS,sc,c){ if(orig) orig.apply(this,arguments); if(!(orig&&PH.lyr&&PH.lyr.asp!==false)) PH.vrpDraw(toS); }; }   // orig disegna anche i NOTAM: va chiamato anche con gli spazi aerei spenti
 // riporto di posizione: vicino a un punto VFR si usa quello
 PH.vrpPos=function(){ const n=PH.vrpNear(1,3)[0]; if(!n) return null; const v=n.v, nm=v.label||v.short||v.code;
   if(n.d<800) return 'sopra '+nm; return `${(n.d/1000).toFixed(0)} km a ${SETT[Math.round(distBrg(v,S).brg/45)%8]} di ${nm}`; };

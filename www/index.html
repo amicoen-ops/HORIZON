@@ -590,6 +590,7 @@ function windSample(gE,gN,tas){
 // ---------------- navigazione ----------------
 function directTo(f,alt,keepRoute){
   if(!keepRoute) NAV.route=null;
+  if(!NAV.dest || NAV.dest.id!==f.id) NAV.rwyMode='AUTO';
   NAV.dest=f; NAV.from={lat:S.lat,lon:S.lon}; NAV.app=null; NAV.warnNoRwy=false;
   NAV.altTgt=alt!=null?alt:Math.round(S.alt/50)*50;
   if(!keepRoute) toast('DIRECT TO '+f.short);
@@ -713,11 +714,14 @@ function landingCheck(h){
   if(S.alt*FT2M-terrain(ac.E,ac.N)>30) NAV.airborne=true;
   const Rr=NAV.roll;
   if(Rr){
+    // riattaccata, passaggio basso o tocca-e-riparti: di nuovo alti sul campo o lontani dalla pista → si torna in volo
+    // (prima NAV.roll restava fino al primo arresto: riquadro ARRESTO in aria, TAWS zitto vicino al campo, nessun altro atterraggio visto)
+    if(!Rr.done && !S.auto && (S.alt*FT2M-Rr.f.elev>45 || Math.hypot(ac.E-Rr.e.C.E,ac.N-Rr.e.C.N)>Rr.e.L/2+400)){ NAV.roll=null; NAV.airborne=true; toast('RIATTACCATA · DI NUOVO IN VOLO'); PH&&PH.act&&PH.act('riattaccata'); return; }
     const v=gsK/3.6; Rr.dist+=v*h;
     if(!Rr.done){
       if(v<1.5){ Rr.still+=h; if(Rr.still>1.5){ Rr.done=true; Rr.tDone=simClock;
         const key=Rr.e.r.paved?'paved':'grass', aM=Rr.v0*Rr.v0/(2*Math.max(10,Rr.dist));
-        DECEL[key]=+(DECEL[key]*0.7+aM*0.3).toFixed(2); try{ localStorage.setItem('ia517_decel',JSON.stringify(DECEL)); }catch(e){}
+        if(Rr.dist<=Rr.e.L+100 && aM>=0.5 && aM<=4){ DECEL[key]=+(DECEL[key]*0.7+aM*0.3).toFixed(2); try{ localStorage.setItem('ia517_decel',JSON.stringify(DECEL)); }catch(e){} }   // si impara solo da una corsa vera, dentro la pista
         Rr.aMeas=aM; toast(`FERMO IN ${Math.round(Rr.dist)} m · STIMA AL CONTATTO ${Math.round(Rr.dEst0)} m`); } }
       else Rr.still=0;
     } else if(simClock-Rr.tDone>8 || v>12){ NAV.roll=null; if(S.auto) demoTakeoff(); }
@@ -1462,7 +1466,7 @@ function simStep(h){
     }
   }
   simClock+=h;
-  if(!S.gpsReal){
+  if(!S.gpsReal && !LIVE.any){                     // solo demo, simulazione e prova al computer: dal vivo, prima del primo fix, l'aereo sta fermo
     if(NAV.roll){
       const Rr=NAV.roll, v=S.auto?Rr.vg:Math.max(0,tasOf(S.ias,S.alt)), hr=Rr.e.hdg*D2R;
       S.lat+=v*Math.cos(hr)*h/110540; S.lon+=v*Math.sin(hr)*h/(111320*Math.cos(S.lat*D2R));
@@ -1498,9 +1502,10 @@ function frameBody(now){
   if(S.auto) syncInputs();
   if(!menuEl.hidden && (Math.round(now/500)%2===0)) renderMenuPos();
   ctx.clearRect(0,0,W,H);
-  if(PAGE==='pfd') drawPFD(g); else drawMap(g);
+  let drawErr=null; try{ if(PAGE==='pfd') drawPFD(g); else drawMap(g); }catch(e){ drawErr=e; }
   if(PH) PH.afterFrame(g,dt);
   learnUpdate(dt);
+  if(drawErr) throw drawErr;                       // l'errore resta segnalato come prima, ma dopo i controlli di sicurezza
   if(PROMPT && performance.now()>PROMPT.until) promptAnswer(false);
 }
 
@@ -1922,7 +1927,7 @@ function learnPropose(seg,kind){
   let u;
   if(near){ const old=USER_FIELDS.find(x=>x.id===near.id);
     u=Object.assign({id:near.id,short:near.short,name:near.name,lat:near.lat,lon:near.lon,kind:near.kind,elevFt:near.elft!=null?near.elft:elev},old||{});
-    u.runways=[...((old&&old.runways)||[]),rw]; u.source='rilevato'; }
+    u.runways=[...((old&&old.runways)||(near.rw||[]).map(r=>({le:r.le,he:r.he,hdg:r.hdg,len:r.L,paved:r.paved?1:0}))),rw]; u.source='rilevato'; }   // le piste già nei dati restano
   else u={id:'U-'+Date.now().toString(36).toUpperCase(),short:'CAMPO '+(USER_FIELDS.length+1),name:'Campo rilevato '+(USER_FIELDS.length+1),
     lat:+mid.lat.toFixed(6),lon:+mid.lon.toFixed(6),elevFt:elev,kind:'ulm',runways:[rw],source:'rilevato'};
   LB.asked=performance.now()/1000;
@@ -2022,7 +2027,7 @@ function terrain(E,N){
     const w=Math.exp(-(dx*dx+dy*dy)/(f.flat*f.flat)); z+=(tgt-z)*w; }
   return z;
 }
-PH_nearFields=function(){ if(!PH) return; const ac=enu(S.lat,S.lon), r=Math.max(30000,ZOOMS[zi]*1500), r2=r*r;
+PH_nearFields=function(){ if(!PH) return; const ac=enu(S.lat,S.lon), r=Math.min(45000,Math.max(30000,ZOOMS[zi]*1500)), r2=r*r;
   PH.nearF=FIELDS.filter(f=>{ const dx=f.E-ac.E, dy=f.N-ac.N; return dx*dx+dy*dy<r2; }); };
 // vista sintetica: come quella dello strumento, ma dove il terreno non è noto non disegna niente.
 // Griglia più fitta (fino a 47×95 riquadri, lati di ~120 m vicino all'aereo) ma disegnata in modo più leggero:
@@ -2201,7 +2206,7 @@ PH.say=function(text,urgent){
   if(!PH.voice || (!window.speechSynthesis && !(PH.native&&PH.native.tts))) return;
   let t=String(text).replace(/·/g,',').replace(/\bSX\b/g,'sinistro').replace(/\bDX\b/g,'destro').replace(/\bft\b/gi,'piedi')
     .replace(/\bPISTA (\d)(\d)([LRC]?)\b/gi,(m,a,b,c)=>`pista ${a} ${b}${c?' '+({L:'sinistra',R:'destra',C:'centro'}[c.toUpperCase()]):''}`)
-    .replace(/(\d+)°\/(\d+)/g,'$1 gradi, $2 chilometri orari').replace(/(\d+)°/g,'$1 gradi').replace(/ km\b/g,' chilometri').replace(/'/g,' minuti');
+    .replace(/(\d+)°\/(\d+)/g,'$1 gradi, $2 chilometri orari').replace(/(\d+)°/g,'$1 gradi').replace(/ km\b/g,' chilometri').replace(/(\d)'/g,'$1 minuti');
   t=t.toLowerCase();
   if(PH.native&&PH.native.tts){ PH.native.tts.speak({text:t,lang:'it-IT',rate:1.05,pitch:1.0,volume:1.0,category:'playback',queueStrategy:urgent?0:1}).catch(()=>{}); return; }
   try{ if(urgent) speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.lang='it-IT'; u.rate=1.08;
@@ -2479,7 +2484,8 @@ PH.onMotion=function(e){
   if(!PH.ahrsInit){ PH.ahrs.levelFrom(fb[0],fb[1],fb[2]); PH.ahrsInit=true; PH.attF=null; PH.hdg=S.trk!=null?S.trk:S.hdg; }
   // compensazione di virata e accelerazione con la velocità GPS (come la scheda sensori con il Pitot)
   const V=(S.gpsReal && S.gs>15)?(PH.tas||S.gs/3.6):0;
-  let fx=fb[0]-(V>0?PH.dvdt/9.80665:0), fy=fb[1]-wb[2]*V/9.80665, fz=fb[2]+wb[1]*V/9.80665;
+  const gpsVivo=!(LIVE.gps>0 && performance.now()-LIVE.gps>3500);     // come STALE.gps
+  let fx=fb[0]-(V>0&&gpsVivo?PH.dvdt/9.80665:0), fy=fb[1]-wb[2]*V/9.80665, fz=fb[2]+wb[1]*V/9.80665;
   // virata dal GPS: finché l'inclinazione stimata non ha raggiunto quella vera, la compensazione fatta con l'assetto stimato
   // lascia un vettore più lungo di 1 g e il filtro lo scarterebbe. Se la forza misurata è quella attesa dalla virata
   // (√(1+(V·ω/g)²), in volo come in macchina) ne tengo solo la direzione, così l'inclinazione converge da sola.
@@ -2612,7 +2618,7 @@ PH.autoCal=function(msl,gs,acc,src,t){
   if(gs>0.8 || acc>20 || (PH.stillBuf.length && PH.stillBuf[0].src!==src)){ PH.stillBuf=[]; if(gs>0.8||acc>20) return; }
   PH.stillBuf.push({m:msl,t,src}); if(t-PH.stillBuf[0].t<20000 || PH.stillBuf.length<10) return;
   const f=FIELDS.map(x=>({x,d:distBrg(S,x).d})).filter(o=>o.d<700 && !o.x.elevUnknown && (ELEV_CONFIRMED[o.x.id]!=null||o.x.elft!=null)).sort((a,b)=>a.d-b.d)[0];
-  if(!f){ PH.stillBuf.shift(); return; }
+  if(!f){ PH.stillBuf=[]; return; }
   const mean=PH.stillBuf.reduce((s,v)=>s+v.m,0)/PH.stillBuf.length, ofs=f.x.elev-mean;
   PH.stillBuf=[];
   if(Math.abs(ofs)>120) return;
@@ -2678,7 +2684,11 @@ PH.logFix=function(gs,tFix){
 };
 PH.saveFlight=function(){ try{ localStorage.setItem('ia517p_curflight',JSON.stringify(PH.flight)); }catch(e){} };
 PH.endFlight=function(tEnd){
-  const F_=PH.flight; if(!F_) return; PH.flight=null;
+  const F_=PH.flight; if(!F_) return;
+  // carburante corretto a mano: all'atterraggio resta il residuo (prima tornava al valore impostato, senza il consumo del volo)
+  const tL=Date.now();                                          // stessa ora per il residuo e per l'atterraggio: il residuo vale per il volo dopo
+  try{ const fx=lsGet('ia517p_fuelfix',null), n=PH.fuelNow&&PH.fuelNow(); if(fx && n && /^impostato/.test(n.how)) lsSet('ia517p_fuelfix',{L:+n.L.toFixed(1),t:tL}); }catch(e){}
+  PH.flight=null; lsSet('ia517p_lastland',tL);
   try{ localStorage.removeItem('ia517p_curflight'); }catch(e){}
   const near=FIELDS.map(x=>({x,d:distBrg(S,x).d})).sort((a,b)=>a.d-b.d)[0];
   F_.end=tEnd||Date.now(); F_.to=near&&near.d<3000?near.x.short:'';
@@ -2824,10 +2834,10 @@ PH.profDraw=function(){
   const ahead=S2.filter(p=>p.ft===p.ft), mx=ahead.reduce((m,p)=>p.ft>m.ft?p:m,{ft:-1e9,d:0});
   const firstBad=runs.filter(r=>{ try{ return R_.verdict(r.a).status==='bad'; }catch(e){ return false; } }).map(r=>({r,d:S2[r.k0].d,lo:r.cols[0].lo,hi:r.cols[0].hi})).filter(q=>{ const pa=altAt(q.d); return q.lo-50<=Math.max(S.alt||0,pa||0)&&q.hi+50>=Math.min(S.alt||0,pa||1e9); }).sort((a,b)=>a.d-b.d)[0];
   const clr=mx.ft>-1e8?Math.round((S.alt||0)-mx.ft):null, h=PH.aspHere&&PH.aspHere();
-  const here=h&&h.inside&&h.inside.length?h.inside.map(q=>`${q.a.cls} ${q.a.name}`).slice(0,2).join(' · '):'classe G';
+  const here=h&&h.inside&&h.inside.length?h.inside.map(q=>PH.esc(`${q.a.cls} ${q.a.name}`)).slice(0,2).join(' · '):'classe G';
   el('phProfInfo').innerHTML=`<div>${P.what==='traccia'?'Davanti, sulla traccia':(P.what==='rotta'?'Lungo la rotta':'Verso la destinazione')} · ${(tot/1000).toFixed(tot<10000?1:0)} km · ora in: <b>${here}</b></div>`+
     (mx.ft>-1e8?`<div class="${clr<500?'b':(clr<1000?'w':'o')}">Terreno più alto: ${Math.round(mx.ft)} ft a ${(mx.d/1000).toFixed(1)} km · margine alla quota attuale ${clr} ft</div>`:'<div class="w">Quote del terreno in arrivo…</div>')+
-    (firstBad?`<div class="b">${firstBad.d<150?'Sei dentro':'A '+(firstBad.d/1000).toFixed(1)+' km'}: ${firstBad.r.a.cls} ${firstBad.r.a.name} (${firstBad.r.a.lo.txt}–${firstBad.r.a.hi.txt}) vietato per il tuo tipo di volo</div>`:'')+
+    (firstBad?`<div class="b">${firstBad.d<150?'Sei dentro':'A '+(firstBad.d/1000).toFixed(1)+' km'}: ${PH.esc(firstBad.r.a.cls+' '+firstBad.r.a.name)} (${PH.esc(firstBad.r.a.lo.txt)}–${PH.esc(firstBad.r.a.hi.txt)}) vietato per il tuo tipo di volo</div>`:'')+
     (P.what==='rotta'&&!legAlt?'<div class="w">Rotta senza quote per tratta: aprila nel Piano, «Calcola rotta» e salvala di nuovo (quote sotto le zone e nel limite del tuo tipo di volo).</div>':'')+
     (vMax&&legAlt&&P.pts.some((p,i)=>i&&p.altFt!=null&&vMax.some(q=>q.ft===q.ft&&q.d>P.pts[i-1].d&&q.d<=p.d&&p.altFt>q.ft+50))?'<div class="b">Una tratta pianificata supera il massimo del VDS basico (linea arancio): ricalcola nel Piano.</div>':'')+
     (asp.length?'':'<div class="w">Spazi aerei non caricati: Piano › Briefing.</div>');
@@ -2863,6 +2873,11 @@ PH.alert=function(key,level,text,every){
 };
 PH.showAlert=function(level,text,key){
   const d=el('phAlert'); if(!d) return;
+  const URG=/^(taws|terrturn)$/, k0=key||'', nowA=Date.now(), hide=()=>{ clearTimeout(PH.alertT); PH.alertT=setTimeout(()=>{ d.hidden=true; },level==='W'?4000:6000); };
+  // il terreno urgente resta visibile: un altro avviso (spazio aereo, tramonto) arrivato nello stesso giro non lo copre (la voce parla lo stesso)
+  if(!d.hidden && URG.test(d.dataset.key||'') && !URG.test(k0) && nowA-(+d.dataset.t||0)<1500) return;
+  if(!d.hidden && d.dataset.key===k0 && d.dataset.txt===text && d.dataset.lv===level){ d.dataset.t=nowA; hide(); return; }   // stesso avviso: si rinnova solo il tempo
+  d.dataset.t=nowA; d.dataset.txt=text; d.dataset.lv=level;
   d.innerHTML=''; d.append(document.createTextNode(text)); const sm=document.createElement('small'); sm.textContent='tocca per togliere'; d.append(sm);
   d.className='ph-alert '+(level==='W'?'w':'c'); d.hidden=false; d.dataset.key=key||'';
   if(!d.onclick) d.onclick=ev=>{ ev.stopPropagation(); const k=d.dataset.key; d.hidden=true; clearTimeout(PH.alertT);
@@ -2898,6 +2913,7 @@ PH.dctSmart=function(f,quiet){
   Promise.resolve(w.IA517_dctRoute(from,{id:f.id,short:f.short,name:f.name,lat:f.lat,lon:f.lon})).then(R=>{
     if(id!==PH.dctN || NAV.dest!==f && !(NAV.route&&NAV.route.r&&NAV.route.r.dct===f.id)) return;   // nel frattempo si è scelto altro
     if(!R || !R.wps || R.wps.length<2){ PH.act&&PH.act('direct to: calcolo rotta non disponibile'); return; }
+    if(R.pending){ toast(`DIRECT TO ${f.short} · TERRENO NON DISPONIBILE: ROTTA E QUOTA NON VERIFICATE`); PH.act&&PH.act(`direct to ${f.short}: terreno non disponibile, resta il diretto non verificato`); return; }   // niente «DIRITTO LIBERO» né deviazioni calcolate alla cieca
     const alts=R.wps.slice(1).map(p=>p.altFt).filter(x=>x!=null), zone=R.zone&&R.zone.length?' · ATTENZIONE: '+R.zone.slice(0,2).join(', '):'';
     if(R.wps.length>2){
       const r={id:'DCT-'+f.id,dct:f.id,name:'→ '+f.short,cruiseFt:R.cruiseFt,wps:R.wps.map((p,i)=>i===R.wps.length-1?Object.assign({},p,{id:f.id,field:true}):p)};
@@ -2926,9 +2942,9 @@ PH.checkAirspace=function(){
   const at=t=>({lat:S.lat+Math.cos(tr)*v*t/110540, lon:S.lon+Math.sin(tr)*v*t/(111320*cosl), ft:S.alt+S.vs*t/FT2M});
   const lim=(L,p)=>{ if(L.ref==='AGL'){ const z=terrain(...xy(enu(p.lat,p.lon))); return L.ft+(z===z?z/FT2M:0); } return L.ft; };
   for(const a of list){
+    const bb=a.bb; if(!bb || S.lat<bb[0]-0.1 || S.lat>bb[1]+0.1 || S.lon<bb[2]-0.15 || S.lon>bb[3]+0.15) continue;
     if(!window.IA517_RULES || !IA517_RULES.alerting(a)) continue;
     { const g=PH.aspGruppo(a.cls); if(g!=='vietati' && offG.has(g)) continue; }
-    const bb=a.bb; if(!bb || S.lat<bb[0]-0.1 || S.lat>bb[1]+0.1 || S.lon<bb[2]-0.15 || S.lon>bb[3]+0.15) continue;
     const label=`${a.cls} ${a.name}`.slice(0,40);
     for(const t of [0,Math.round(ant/2),ant]){ const p=at(t);
       if(PH.pip(p,a.pts) && p.ft>=lim(a.lo,p)-buf && p.ft<=lim(a.hi,p)+buf){
@@ -3035,11 +3051,12 @@ function phoneBase(ac,sc,ax,ay,t){
   z=clamp(z,Math.max(4,bd.min||4),bd.max||17);
   const n=2**z;
   const lat2y=la=>{ const r=la*D2R; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n; };
-  const pn=PH.pan, cLat=S.lat+(pn?pn.N/110540:0), cLon=S.lon+(pn?pn.E/(111320*cosl):0);   // centro della vista (mappa spostata col dito)
+  const cos0=Math.cos(ORIGIN.lat*D2R);                    // i metri E/N della vista sono quelli di enu()
+  const pn=PH.pan, cLat=S.lat+(pn?pn.N/110540:0), cLon=S.lon+(pn?pn.E/(111320*cos0):0);   // centro della vista (mappa spostata col dito)
   // tessere che servono: gli angoli del riquadro visibile (ruotato con la traccia) portati in latitudine e longitudine
   const ct0=Math.cos(t), st0=Math.sin(t); let la0=90,la1=-90,lo0=180,lo1=-180;
   for(const [px,py] of [[0,0],[W,0],[0,H],[W,H]]){ const u=(px-ax)*1.04/sc, v=-(py-ay)*1.04/sc, dE=u*ct0+v*st0, dN=-u*st0+v*ct0;
-    const la=cLat+dN/110540, lo=cLon+dE/(111320*cosl); la0=Math.min(la0,la); la1=Math.max(la1,la); lo0=Math.min(lo0,lo); lo1=Math.max(lo1,lo); }
+    const la=cLat+dN/110540, lo=cLon+dE/(111320*cos0); la0=Math.min(la0,la); la1=Math.max(la1,la); lo0=Math.min(lo0,lo); lo1=Math.max(lo1,lo); }
   const x0=Math.floor((lo0+180)/360*n), x1=Math.floor((lo1+180)/360*n);
   const y0=Math.floor(lat2y(la1)), y1=Math.floor(lat2y(la0));
   if((x1-x0+1)*(y1-y0+1)>160) return;
@@ -3420,7 +3437,7 @@ PH.renderImp=function(){
   el('phMagZero').onclick=()=>{ PH.magDev=0; lsSet('ia517p_magdev',0); PH.mag.hdg=null; el('phMagDevTxt').textContent=PH.magDevTxt(); toast('CORREZIONE BUSSOLA TOLTA'); };
   el('phDecl').onchange=()=>{ const v=+el('phDecl').value; if(v>=-30&&v<=30){ PH.decl=v; lsSet('ia517p_decl',v); } };
   el('phAltSet').onclick=()=>{ const v=+el('phAltKnown').value, src=PH.src||'phone';
-    if(!isFinite(PH.mslRaw)){ toast('ASPETTA IL GPS E RIPROVA'); return; } if(!(v>-100&&v<5000)){ toast('QUOTA NON VALIDA'); return; }
+    if(!isFinite(PH.mslRaw)){ toast('ASPETTA IL GPS E RIPROVA'); return; } if(el('phAltKnown').value.trim()==='' || !(v>-100&&v<5000)){ toast('QUOTA NON VALIDA'); return; }
     PH.altOfsBy[src]=v-PH.mslRaw; PH.altOfs=PH.altOfsBy[src]; PH.altCal={field:'manuale',t:Date.now(),src}; lsSet('ia517p_altofs2',PH.altOfsBy); lsSet('ia517p_altcal',PH.altCal); PH.vario.h=NaN;
     toast(`QUOTA TARATA: ${Math.round(v)} m (${Math.round(v/FT2M)} ft)`); stat(); };
   el('phAltReset').onclick=()=>{ PH.altOfs=0; PH.altOfsBy={phone:0,glo:0}; PH.altCal=null; lsSet('ia517p_altofs2',PH.altOfsBy); lsSet('ia517p_altcal',null); PH.vario.h=NaN; stat(); };
@@ -3849,7 +3866,10 @@ PH.fuelPlan=()=>lsGet('ia517_plan',{})||{};
 PH.fuelNow=function(){
   const P=PH.fuelPlan(), a=PH.ac||{}, burn=+P.burn||+a.burn||14, fix=lsGet('ia517p_fuelfix',null), now=Date.now();
   const start=PH.flight&&PH.flight.start;
-  if(fix && (!start || fix.t>=start-60e3) && now-fix.t<12*3600e3) return {L:Math.max(0,fix.L-(PH.flight?(now-fix.t)/3600e3*burn:0)),how:`impostato alle ${new Date(fix.t).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}${PH.flight?' meno il consumo':''}`,burn};
+  // la correzione a mano vale se è stata fatta dopo l'ultimo atterraggio (anche a terra, prima del decollo: prima veniva
+  // scartata al decollo e l'autonomia tornava quella del piano); il consumo si conta dal decollo o dalla correzione, il più tardi
+  const land=+lsGet('ia517p_lastland',0)||0;
+  if(fix && (!start || fix.t>=Math.min(land,start)) && now-fix.t<12*3600e3) return {L:Math.max(0,fix.L-(PH.flight?(now-Math.max(fix.t,start))/3600e3*burn:0)),how:`impostato alle ${new Date(fix.t).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}${PH.flight?' meno il consumo':''}`,burn};
   const L0=(+P.fuel||0)-(+P.taxi||0);
   if(start){ const h=(now-start)/3600e3; return {L:Math.max(0,L0-h*burn),how:`${L0.toFixed(0)} L al decollo (${new Date(start).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}) − ${Math.round(h*60)} min × ${burn} L/h`,burn}; }
   return {L:Math.max(0,L0),how:'a bordo secondo il piano, meno il rullaggio',burn};
@@ -3900,26 +3920,32 @@ PH.tuAsp=function(fromFt,toFt){                                   // spazi qui i
 PH.terrUp=function(){
   try{
     const now=performance.now(), flying=PH.sim || (PH.flight && S.gpsReal && !PH.demo);
+    if(!PH.sim && !PH.demo && lost('gps')) return;               // GPS perso: resta tutto com'è, niente calcoli da una posizione ferma
     let T=PH.TU;
     if(!flying || !NAV.dest || NAV.app || NAV.altTgt==null){ if(T){ if(NAV.altTgt===T.alt) NAV.altTgt=T.base; PH.TU=null; } return; }
-    if(T && NAV.altTgt!==T.alt) T.base=NAV.altTgt;              // obiettivo cambiato (nuovo punto della rotta o scelto a mano)
+    if(T && NAV.altTgt!==T.alt){ PH.TU=T=null; }                // obiettivo cambiato (nuovo punto della rotta o scelto a mano): si riparte da quello, senza il numero della cresta di prima
     const base=T?T.base:NAV.altTgt;
     if(!PH.tuT || now-PH.tuT>500){ PH.tuT=now;
       // sguardo adattivo: entro 1 km sempre; più avanti (fino a 10 km) solo i rilievi per cui, con la velocità e il rateo
       // di salita del velivolo, bisogna cominciare a salire adesso per passarli col margine giallo
       const ac=enu(S.lat,S.lon), tr=(S.trk!=null?S.trk:S.hdg)*D2R, sx=Math.sin(tr), cy=Math.cos(tr);
       const gs=Math.max(15,(S.gs!=null?S.gs:S.ias||100)/3.6), roc=Math.max(0.5,PH.rocNow()*0.00508), now_m=(S.alt||0)*FT2M;
-      let zm=-1e9, dm=1000, look=1000;
+      let zm=-1e9, dm=1000, look=1000, nd=0;
       for(let d=100; d<=10000; d+=d<2000?100:250){ let zz=-1e9;
         for(const l of [-150,0,150]){ const z=terrain(ac.E+d*sx+l*cy, ac.N+d*cy-l*sx); if(z===z && z>zz) zz=z; }
         if(!(zz>-1e8)) continue;
         const req=zz+TAWS_YEL, urgent=d<=1000 || (req-now_m) > roc*d/gs*0.7;   // 0,7: in crociera si sale meno del rateo massimo dichiarato
-        if(urgent && base*FT2M<req){ look=Math.max(look,d); if(zz>zm){ zm=zz; dm=d; } } }
-      PH.tuZ=zm; PH.tuD=dm; PH.tuLook=look; }
-    const zm=PH.tuZ; if(!(zm>-1e8)) return;
+        nd++; if(urgent && base*FT2M<req){ look=Math.max(look,d); if(zz>zm){ zm=zz; dm=d; } } }
+      PH.tuZ=zm; PH.tuD=dm; PH.tuLook=look; PH.tuN=nd; }
+    const zm=PH.tuZ;
+    if(!(zm>-1e8)){                                               // nessun rilievo davanti che chieda di salire
+      // terreno passato (e il rilievo davanti c'è, non manca): dopo 20 s la quota obiettivo torna quella di prima
+      if(T && PH.tuN>20){ T.clearT=T.clearT||now;
+        if(now-T.clearT>20000){ NAV.altTgt=T.base; PH.TU=null; toast(`TERRENO LIBERO · PUOI TORNARE A ${T.base} FT`); PH.act&&PH.act('terreno libero: obiettivo '+T.base+' ft'); } }
+      return; }
     if(base*FT2M-zm<TAWS_YEL){                                    // alla quota obiettivo il terreno davanti sarebbe giallo
       const need=Math.max(base,Math.ceil(((zm+TAWS_YEL+30)/FT2M)/100)*100);
-      if(!T || need>T.alt){ const first=!T, said=T?T.said:0, turn=T?T.turn:0; PH.TU=T={alt:need,base,clearT:0,said,turn,asp:PH.tuAsp(base,need)}; NAV.altTgt=need;
+      if(!T || need>T.alt){ const first=!T, said=T?T.said:0, turn=T?T.turn:0, tt0=T?T.turnT0:0; PH.TU=T={alt:need,base,clearT:0,said,turn,turnT0:tt0,asp:PH.tuAsp(base,need)}; NAV.altTgt=need;
         if(first||!T.said||need-T.said>=300){ T.said=need; PH.act&&PH.act(`terreno: quota obiettivo ${base} → ${need} ft`+(T.asp.length?' (entra in '+T.asp.join(', ')+')':'')); } }
       else T.clearT=0;
       // un solo avviso che si aggiorna (la voce al massimo ogni 8 s)
@@ -3945,7 +3971,8 @@ PH.terrUp=function(){
 
 // ---------------- manovre: spirale in salita / in discesa, inversione, poi si riprende la rotta ----------------
 // Rateo di salita adesso: dal modello del velivolo (quota, peso con il carburante stimato a bordo).
-PH.rocNow=function(){ const P=window.IA517_PERF, a=PH.ac||{}; if(!P) return +a.roc||600;
+{ let v=0,tv=-1e9; PH.rocNow=function(){ const n=performance.now(); if(n-tv>2000){ v=PH.rocNow0(); tv=n; } return v; }; }
+PH.rocNow0=function(){ const P=window.IA517_PERF, a=PH.ac||{}; if(!P) return +a.roc||600;
   let fuelL=null; try{ fuelL=PH.fuelNow?PH.fuelNow().L:null; }catch(e){}
   const pl=lsGet('ia517_plan',{})||{}, wb=pl.wb||{}, W=P.weight(a,{pil:wb.pil,pax:wb.pax,bag:wb.bag,fuelL});
   return P.roc(a,S.alt||0,{W}); };
@@ -3977,7 +4004,7 @@ PH.manPlan=function(needFt){
 // discesa: troppo alto vicino al campo d'arrivo per scendere al circuito col rateo del velivolo → spirale in discesa
 PH.manDescCheck=function(){
   const f=NAV.dest; if(PH.MAN || !f || NAV.app || !f.ends || !f.ends.length || f.elev!==f.elev) return;
-  const flying=PH.sim || (PH.flight && S.gpsReal && !PH.demo); if(!flying || PH.descFor===f.id) return;
+  const flying=PH.sim || (PH.flight && S.gpsReal && !PH.demo && !lost('gps')); if(!flying || PH.descFor===f.id) return;
   const P=window.IA517_PERF, a=PH.ac||{}; if(!P) return;
   const d=distBrg({lat:S.lat,lon:S.lon},f).d; if(d>8000) return;
   const circ=Math.round((f.elev/FT2M+(+a.hcFt||1000))/50)*50, gs=Math.max(15,(S.gs!=null?S.gs:S.ias||100)/3.6), canLose=P.rod(a)*(Math.max(0,d-1500)/gs)/60;
@@ -4108,6 +4135,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.163","Controllo generale dell'app. In volo: una riattaccata o un tocca-e-riparti non viene più presa per atterraggio; «TERRENO! CABRA» non viene più coperto da un altro avviso; la quota obiettivo alzata per il terreno torna giù a terreno passato; con il GPS perso niente pericoli di traffico, planata o riporti calcolati da una posizione ferma, e l'orizzonte non resta inclinato dall'ultima accelerazione. Carburante impostato a terra: vale anche dopo il decollo, e dopo l'atterraggio resta il residuo. Emergenza: distanze e prue vere anche lontano dal Nord (in Sicilia erano corte del 13%). La pista scelta a mano non resta per il campo dopo. NOTAM sulla mappa anche con gli spazi aerei spenti. Mappa più fluida con lo zoom largo. Piano: NOTAM con la riga Q scritta a larghezza fissa, quote «ASFC», METAR senza vento, rotta non data per libera se manca il terreno. HORIZON 2: l'orologio ha tre pagine (VOLO con rosa della bussola e deviazione dalla rotta, ARRIVO con frequenza, vento e tramonto, PILOTA con ora UTC, tempo di volo e autonomia): tocca o scorri lo schermo per cambiarle; avvisi scritti su più righe."],
   ["1.0.161","Filigrana in basso su tutte le pagine (HORIZON © E. D'Amico, codice del telefono, impronta): resta in ogni schermata. Impronta dell'autore in Info e nelle segnalazioni. Avvertenze aggiornate con il barometro."],
   ["1.0.158","HORIZON 2: il barometro dell'orologio Garmin si corregge da solo sul barometro del telefono (i sensori da polso leggono anche 4–5 hPa di troppo o di meno, cioè 35–40 m); lo scarto resta salvato e si vede in Stato › Orologio: barometro."],
   ["1.0.153","Barometro del telefono (app Android, se il telefono lo ha): vario e cambi di quota dal barometro, molto più pronti e puliti; la quota vera resta tenuta giusta dal GPS, senza QNH. In Stato la riga «Barometro»; si spegne in Impostazioni › Quota."],
@@ -4643,7 +4671,7 @@ PH.acChkPh=function(a){ const out=[]; let cur=null;
     else { if(!cur){ cur={t:'Controlli',items:[]}; out.push(cur); } cur.items.push(x); } }
   return out.filter(f=>f.items.length); };
 PH.acChk=a=>PH.acChkPh(a).flatMap(f=>f.items);
-PH.acs=lsGet('ia517p_aircraft',null)||[Object.assign({},PH.wasInstalled?PH.AC_LEGACY:PH.AC_DEF)];
+PH.acs=lsGet('ia517p_aircraft',null); if(!Array.isArray(PH.acs) || !PH.acs.length || !PH.acs[0] || PH.acs[0].id==null) PH.acs=[Object.assign({},PH.wasInstalled?PH.AC_LEGACY:PH.AC_DEF)];
 PH.acId=lsGet('ia517p_acid',PH.acs[0].id);
 PH.ac=PH.acs.find(a=>a.id===PH.acId)||PH.acs[0];
 PH.acSave=function(){ lsSet('ia517p_aircraft',PH.acs); lsSet('ia517p_acid',PH.ac.id); };
@@ -4695,7 +4723,7 @@ PH.acSectionHtml=function(){
   </section>`; };
 PH.acSectionWire=function(){
   const box=el('phAcList'); if(!box) return;
-  const gl=el('phGlide'); if(gl) gl.onchange=()=>{ PH.glideOn=gl.checked; lsSet('ia517p_glide',PH.glideOn); toast(PH.glideOn?'CERCHIO DI PLANATA ACCESO':'CERCHIO DI PLANATA SPENTO'); };
+  const gl=el('phGlide'); if(gl) gl.onchange=()=>{ PH.glideOn=gl.checked; lsSet('ia517p_glide',PH.glideOn); toast(PH.glideOn?'ZONA DI PLANATA ACCESA':'ZONA DI PLANATA SPENTA'); };
   box.querySelectorAll('input[name=phAc]').forEach(r=>r.onchange=()=>{ PH.acSelect(r.value); PH.renderImp(); });
   box.querySelectorAll('[data-ace]').forEach(b=>b.onclick=ev=>{ ev.preventDefault(); PH.acEdit(PH.acs.find(a=>a.id===b.dataset.ace)); });
   if(el('phAcCat')) el('phAcCat').onclick=()=>PH.guidaOpen&&PH.guidaOpen('catalogo');
@@ -4802,6 +4830,7 @@ PH.trfFmtReg=function(raw){
   if(/^[IDFGCMB][A-Z0-9]{3,5}$/.test(s)) return s[0]+'-'+s.slice(1);
   return s;
 };
+PH.esc=x=>String(x??'').replace(/[<&>"']/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));   // per tutto il testo che viene da fuori e finisce in innerHTML
 PH.trfName=t=>String(t.reg||PH.trfFmtReg(t.cn)||t.addr||'?').replace(/</g,'');
 PH.trfIsMe=function(t){
   const me=PH.trfNorm(PH.TRF.me), reg=PH.trfNorm(PH.ac&&PH.ac.reg);
@@ -4831,7 +4860,7 @@ PH.trfAdsb=async function(lat,lon){
     if(age>180) continue;
     out.push({id:'A'+String(a.hex||'').replace(/^~/,''), addr:String(a.hex||'').replace(/^~/,''), reg:a.r||'', cn:String(a.flight||'').trim(), lat:+a.lat, lon:+a.lon,
       altM:alt!=null?alt*FT2M:NaN, trk:+(a.track!=null?a.track:(a.true_heading||0)), kmh:(+a.gs||0)*1.852, vz:(+(a.geom_rate!=null?a.geom_rate:(a.baro_rate||0)))*0.00508,
-      t0:now-age*1000, ground, src:'ADS-B', type:a.category||'', model:a.t||'', baro:a.alt_geom==null}); }
+      t0:now-age*1000, ground, air:!ground&&a.gs==null, src:'ADS-B', type:a.category||'', model:a.t||'', baro:a.alt_geom==null}); }
   return out;
 };
 PH.trfFetch=async function(){
@@ -4867,10 +4896,10 @@ PH.gdlIn=function(o){
     return; }
   const addr=String(o.addr||'').toUpperCase(), id='G'+addr, own=T.gdlOwn;
   if(own && own.addr && own.addr===addr) return;          // il tuo aereo rimandato come traffico
-  T.tg.delete('A'+addr); T.tg.delete('O'+addr);          // lo stesso aereo arrivato prima da internet
+  for(const k of [addr,String(addr).toLowerCase(),String(addr).toUpperCase()]){ T.tg.delete('A'+k); T.tg.delete('O'+k); }   // lo stesso aereo arrivato prima da internet (là l'esadecimale è minuscolo)
   const cs=String(o.cs||'').replace(/^sy/,'').trim(), rg=PH.trfFmtReg(cs);
   T.tg.set(id,{id,addr,reg:rg.includes('-')?rg:'',cn:cs,lat:+o.lat,lon:+o.lon,altM:o.altFt!=null?o.altFt*FT2M:NaN,trk:+o.trk||0,
-    kmh:o.kt!=null?o.kt*1.852:0,vz:o.fpm!=null?o.fpm*0.00508:0,t0:now,ground:!o.inVolo&&(o.kt||0)<30,src:'SafeSky',type:o.cat});
+    kmh:o.kt!=null?o.kt*1.852:0,vz:o.fpm!=null?o.fpm*0.00508:0,t0:now,ground:!o.inVolo&&(o.kt||0)<30,air:!!o.inVolo&&o.kt==null,src:'SafeSky',type:o.cat});
   T.src.gdl.t=now;
 };
 PH.gdlLive=()=>PH.TRF.gdlOn && Date.now()-PH.TRF.src.gdl.t<15000;
@@ -4898,9 +4927,9 @@ PH.trfDemo=function(){
 PH.trfEval=function(){
   const T=PH.TRF, now=Date.now(), cl=Math.cos(S.lat*D2R), out=[];
   const ownV=(S.gs||0)/3.6, ownB=(((S.trk!=null)?S.trk:S.hdg)||0)*D2R, ovx=Math.sin(ownB)*ownV, ovy=Math.cos(ownB)*ownV, ovz=S.vs||0;
-  const air=!!PH.flight || (S.gs||0)>40 || PH.demo, altO=(S.alt||0)*FT2M;
+  const air=(!!PH.flight || (S.gs||0)>40 || PH.demo) && (PH.demo || !lost('gps')), altO=(S.alt||0)*FT2M;   // GPS perso: nessun pericolo calcolato da una posizione ferma
   for(const [id,t] of T.tg){
-    const age=(now-t.t0)/1000; if(age>180){ T.tg.delete(id); continue; }
+    const age=(now-t.t0)/1000; if(age>180){ T.tg.delete(id); T.ghost.delete(id); T.ghostAt.delete(id); T.scia&&T.scia.delete(id); continue; }
     const pe=Math.min(age,45), v=t.kmh/3.6, b=t.trk*D2R, vx=Math.sin(b)*v, vy=Math.cos(b)*v;
     const x=(t.lon-S.lon)*111320*cl+vx*pe, y=(t.lat-S.lat)*110540+vy*pe, z=t.altM===t.altM?t.altM+t.vz*pe-(t.src==='SafeSky'&&T.gdlOfs!=null&&Date.now()-(T.gdlOwn&&T.gdlOwn.t||0)<60000?T.gdlOfs*FT2M:0):NaN;
     const d=Math.hypot(x,y), dz=z===z?z-altO:NaN;
@@ -4912,7 +4941,7 @@ PH.trfEval=function(){
       const same=d<150 && dz===dz && Math.abs(dz)<120 && (slow || (Math.abs(((t.trk-(ownB/D2R))%360+540)%360-180)<30 && Math.abs(t.kmh-(S.gs||0))<25));
       if(g0<3) T.ghost.set(id,same?g0+1:0); else if(d>1000) T.ghost.set(id,0); }   // se si allontana non sei tu
     if(PH.trfIsMe(t)){ e.me=true; out.push(e); continue; }
-    const grounded=t.ground || t.kmh<25;
+    const grounded=t.ground || (!t.air && t.kmh<25);          // t.air: in volo ma senza dato di velocità (non va preso per fermo)
     { const rx=vx-ovx, ry=vy-ovy, rz=(t.vz||0)-ovz, vv=rx*rx+ry*ry;
       if(vv>0.01){ const tc=-(x*rx+y*ry)/vv; if(tc>0 && tc<1800) e.cpa={tc, dm:Math.hypot(x+rx*tc,y+ry*tc), dzm:dz===dz?dz+rz*tc:NaN}; } }
     if(air && !grounded && dz===dz && age<=30){
@@ -4961,7 +4990,7 @@ PH.trfDraw=function(){
 
 // traffico sulla mappa mobile: stessa scala e stessa rotazione (traccia in alto) di drawMap
 PH.trfMap=function(){
-  const T=PH.TRF, ev=T.view; if(!T.on || !ev || !ev.length || !ctx || (PH.lyr&&PH.lyr.trf===false)) return;   // livello spento: gli avvisi restano
+  const T=PH.TRF, ev=T.view; if(!T.on || !ev || !ev.length || !ctx || (PH.lyr&&PH.lyr.trf===false)){ if(ctx===PH.ctxMain) T.mapHits=[]; return; }   // livello spento: gli avvisi restano
   const pan=PH.pan, t0=pan?0:((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000, sc=1.3*R/rng, ax=CX, ay=CY+(pan?0:0.3*R), ct=Math.cos(t0), st=Math.sin(t0);
   const pE=pan?pan.E:0, pN=pan?pan.N:0, main=ctx===PH.ctxMain; if(main) T.mapHits=[];
   ctx.save(); ctx.beginPath(); ctx.rect(0,0,W,H); ctx.clip();                  // mappa a tutto riquadro
@@ -5049,7 +5078,7 @@ PH.trfPage=function(){
   // elenco e fonti
   const ago=t=>t?Math.round((Date.now()-t)/1000)+' s fa':'mai';
   const sl=(k,name)=>{ const s=T.src[k]; return s.err&&(!s.t||s.te>s.t)?`<span class="b">${name}: non risponde (${s.err.replace(/</g,'')})</span>`:`<span class="${s.t&&Date.now()-s.t<30000?'o':'w'}">${name}: ${s.n} · ${ago(s.t)}</span>`; };
-  const row=e=>`<div class="ph-trf-r ${e.lvl>=2?'b':(e.lvl===1?'w':'')}${T.sel===e.t.id?' sel':''}" data-id="${e.t.id}"><b>${PH.trfName(e.t)}</b>`+
+  const row=e=>`<div class="ph-trf-r ${e.lvl>=2?'b':(e.lvl===1?'w':'')}${T.sel===e.t.id?' sel':''}" data-id="${PH.esc(e.t.id)}"><b>${PH.esc(PH.trfName(e.t))}</b>`+
     `<span>${(e.d/1000).toFixed(1).replace('.',',')} km · ore ${PH.trfClock(e)} · ${PH.trfDz(e)}${e.t.vz>1?' ↑':(e.t.vz<-1?' ↓':'')} · ${Math.round(e.t.kmh)} km/h</span>`+
     `<small>${e.t.src}${e.t.baro?' (quota baro)':''} · ${Math.round(e.age)} s${e.lvl?(e.tc?` · incontro tra ${Math.round(e.tc)} s`:' · troppo vicino'):''}</small></div>`;
   const list=shown.slice(0,12), hid=ev.filter(e=>!e.me && e.d<=T.rng*1000*1.05).length-shown.length, me=ev.find(e=>e.me);

@@ -107,7 +107,7 @@ PH.radioTick=tick;
 
 // ---- pagina FREQUENZE ----
 function vicini(n,km){
-  if(typeof S==='undefined'||S.lat==null) return [];
+  if(typeof S==='undefined'||S.lat==null||!(PH.demo||PH.sim||S.gpsReal)) return [];   // mai avuto un fix: niente campi «vicini» al punto di partenza di serie
   return FIELDS.filter(f=>f.kind!=='wp'&&PH.freqOf(f).length).map(f=>({f,d:distBrg(S,f).d})).filter(x=>x.d<km*1000).sort((a,b)=>a.d-b.d).slice(0,n);
 }
 const riga=(v,extra)=>`<div class="ph-row"><span><b>${esc(mhz(v[2]))}</b> · ${esc(v[0]==='NOTA'?'note del campo':v[0])}${v[1]&&v[1]!==v[0]?' · '+esc(v[1]):''}</span>${extra?`<small>${extra}</small>`:''}</div>`;

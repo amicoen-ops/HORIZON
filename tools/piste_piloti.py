@@ -39,14 +39,55 @@ def scrivi(p, v):
     p.write_text(json.dumps(v, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+# Le righe arrivano per posta: può scriverle chiunque conosca l'indirizzo, e finiscono in chiaro sul ramo «licenze».
+# Si tengono solo le chiavi che manda l'app, con tipo e intervallo controllati e stringhe corte; il resto si scarta.
+MAX_CAMPI = 300                                                  # campi contati in un solo invio «Campi usati»
+
+
+def _num(v, lo, hi):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and lo <= v <= hi
+
+
+def _sigla(v, n):                                                # nome breve: lettere, cifre, spazio e pochi segni
+    return isinstance(v, str) and 0 < len(v) <= n and all(c.isalnum() or c in " .-_'/()" for c in v)
+
+
+def pulita(v, tipo):
+    """La riga con le sole chiavi attese, oppure None se un valore non è quello che manda l'app."""
+    if not isinstance(v, dict) or not (isinstance(v.get("dev"), str) and re.fullmatch(r"[0-9A-Za-z_-]{1,16}", v["dev"])): return None
+    r = {"dev": v["dev"]}
+    if _num(v.get("v"), 0, 999) and isinstance(v["v"], int): r["v"] = v["v"]
+    if isinstance(v.get("app"), str) and re.fullmatch(r"[0-9A-Za-z. _-]{1,16}", v["app"]): r["app"] = v["app"]
+    if tipo == "PISTA":
+        pista = lambda x: isinstance(x, str) and re.fullmatch(r"[0-9]{1,2}[LRC]?", x)
+        if not (_num(v.get("lat"), -90, 90) and _num(v.get("lon"), -180, 180) and _num(v.get("hdg"), 0, 360)
+                and _num(v.get("len"), 30, 6000) and pista(v.get("le")) and pista(v.get("he"))): return None
+        for k in ("lat", "lon", "hdg", "len", "le", "he"): r[k] = v[k]
+        if _sigla(v.get("campo"), 24): r["campo"] = v["campo"]
+        if _sigla(v.get("sigla"), 24): r["sigla"] = v["sigla"]
+        if _num(v.get("elev"), -1500, 20000): r["elev"] = v["elev"]      # piedi
+        if v.get("da") in ("d", "a"): r["da"] = v["da"]
+        return r
+    data = lambda x: isinstance(x, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", x)
+    if not (data(v.get("dal")) and data(v.get("al")) and isinstance(v.get("campi"), dict)): return None
+    campi = {}
+    for cid, c in list(v["campi"].items())[:MAX_CAMPI]:
+        if _sigla(cid, 24) and isinstance(c, dict) and _num(c.get("d", 0), 0, 10000) and _num(c.get("a", 0), 0, 10000):
+            campi[cid] = {"d": int(c.get("d", 0)), "a": int(c.get("a", 0))}
+    if not campi: return None
+    r.update(dal=v["dal"], al=v["al"], campi=campi)
+    return r
+
+
 def righe(testo, tipo):                                          # testo semplice o HTML: il JSON si legge da dove comincia
     testo = html.unescape(testo); dec = json.JSONDecoder()
     for m in re.finditer(r"HORIZON-" + tipo + r"\s+\{", testo):
         try:
             v, _ = dec.raw_decode(testo, m.end() - 1)
-            if isinstance(v, dict): yield v
-        except json.JSONDecodeError:
-            pass
+        except (ValueError, RecursionError):                     # JSON rotto o annidato all'infinito: la riga si salta
+            continue
+        v = pulita(v, tipo)                                      # una riga guasta si scarta, non ferma il lavoro
+        if v is not None: yield v
 
 
 def dist(a, b):

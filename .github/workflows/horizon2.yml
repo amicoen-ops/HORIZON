@@ -83,6 +83,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          cache: gradle            # Gradle e le sue librerie non si riscaricano a ogni corsa
 
       - name: Dipendenze
         run: npm ci --no-audit --no-fund
@@ -93,8 +94,11 @@ jobs:
           sed -i 's#<string name="app_name">HORIZON</string>#<string name="app_name">HORIZON 2</string>#' android/app/src/main/res/values/strings.xml
           sed -i 's#<string name="title_activity_main">HORIZON</string>#<string name="title_activity_main">HORIZON 2</string>#' android/app/src/main/res/values/strings.xml
 
+      # SQLite per il browser (carta VFR della versione web) non serve nell'app: lì la carta la legge CartaPlugin
       - name: Pagine dentro l'app
-        run: npx cap sync android
+        run: |
+          npx cap sync android
+          rm -f android/app/src/main/assets/public/sqlite3.js android/app/src/main/assets/public/sqlite3.wasm android/app/src/main/assets/public/carta-web.js
 
       - name: Chiave di firma
         env:
