@@ -341,7 +341,7 @@ REPO = [
     ('www/capacitor.js', 'Runtime di Capacitor (generato, vendorizzato)'),
     ('www/sqlite3.js', 'sqlite-wasm 3.53.4 (vendorizzato, Apache-2.0)'),
     ('www/three.min.js', 'three.js r160 (vendorizzato, MIT)'),
-    ('android/app/src/main/java/it/amicoen/horizon', '9 classi Java: MainActivity e 8 file dei plugin (Gdl90Parser compreso)'),
+    ('android/app/src/main/java/it/amicoen/horizon', '10 classi Java: MainActivity e 9 file dei plugin (Gdl90Parser compreso)'),
     ('android/app/src/h2/java/it/amicoen/horizon/GarminPlugin.java', 'Orologio Garmin (solo HORIZON 2, `-Ph2`)'),
     ('android/app/build.gradle', 'Compilazione, firma, variante H2 (`applicationId` horizon2, SDK Connect IQ 2.4.0)'),
     ('garmin/source/HorizonApp.mc', 'App per l\'orologio: sensori, messaggi, tasti, scatola nera'),
@@ -414,7 +414,8 @@ s += [P('È la parte più delicata dello strumento: tutto quello che il pilota v
           ['Orologio Garmin', '`GarminPlugin` evento «dati»', '≈ 1 Hz', '`dati()` in `orologio.js` → `PH.fixIn`', 'come sopra; quota baro; bussola'],
           ['Accelerometro e giroscopio', 'evento `devicemotion`', '60–200 Hz', '`PH.onMotion` (Mahony)', '`S.roll/pitch/slip/hdg`, vario'],
           ['Bussola', '`CompassPlugin` «rot» (20 Hz) o `deviceorientation(absolute)`', '≤ 20 Hz', '`PH.magFromR`', '`PH.mag.hdg` → `S.hdg` a terra'],
-          ['Quota e vario', 'GPS (+ accelerazione verticale; barometro dell\'orologio)', 'fix + eventi di moto', '`PhVario`', '`S.alt`, `S.vs`'],
+          ['Barometro del telefono', '`BarometroPlugin` evento «p» {hPa} (`TYPE_PRESSURE`)', '≈ 5 Hz', '`PH.baroIn` → `PhVario.correct`', '`S.alt`, `S.vs`; scarto tenuto giusto dal GPS'],
+          ['Quota e vario', 'barometro del telefono se c\'è, altrimenti GPS; accelerazione verticale; barometro dell\'orologio (corretto)', 'fix + eventi di moto', '`PhVario`', '`S.alt`, `S.vs`'],
           ['Traffico GDL90', '`Gdl90Plugin` evento «traffico» (UDP 4000)', 'per pacchetto', '`PH.gdlIn` → `PH.trfEval` (1 Hz)', '`PH.TRF.tg`, triangolo, mappa'],
           ['Stato del telefono', '`StatoTelefonoPlugin.get()`', 'ogni 5 s', '`PH.statoPoll`', 'riga di stato, qualità GPS'],
       ], [24 * mm, 46 * mm, 24 * mm, 34 * mm, 46 * mm])]
@@ -437,7 +438,9 @@ s += bullets(['App Android: `GloSerialPlugin.connect({address})` apre un socket 
 s += [Paragraph('Orologio Garmin (HORIZON 2)', H3)]
 s += bullets(['`orologio.js` si attiva solo se `Capacitor.isPluginAvailable(\'Garmin\')`. Dei dati dell\'orologio usa la posizione solo con qualità ≥ 2 e stima '
               'la precisione dalla qualità Garmin: 4 → 4 m, 3 → 10 m, 2 → 25 m, 1 → 60 m (`QM`).',
-              'Se «Quota dal barometro» è accesa (di serie sì), la quota del fix è barometrica: `44330,77 · (1 − (p / (QNH·100))^0,190263)` con la pressione `p` in Pa e il QNH dello strumento.',
+              'Se «Quota dal barometro» è accesa (di serie sì), la quota del fix è barometrica: `44330,77 · (1 − ((p + pOfs) / (QNH·100))^0,190263)` con la pressione `p` in Pa e il QNH dello strumento. '
+              '`pOfs` è lo scarto del barometro dell\'orologio imparato dal barometro del telefono quando sono freschi tutti e due (media sulle prime 30 letture, poi circa 5 minuti; salvato in `ia517p_fenix_pofs`). '
+              'Misurato: fenix 7 −4,4 hPa (circa 37 m); la calibrazione dell\'orologio non lo toglie.',
               'Il capitolo 8 descrive il protocollo completo.'])
 s += [Paragraph('Scelta della fonte: PH.srcPick', H3)]
 s += bullets(['`PH.srcPref` (`ia517p_src`): «auto» oppure una fonte fissa (`phone`, `glo`, `fenix`); con una fonte fissa che tace compaiono le bandierine rosse.',
@@ -501,14 +504,20 @@ s += bullets(['<b>CompassPlugin</b>: sensore `TYPE_ROTATION_VECTOR` (o, se manca
               'e la filtra (τ = `hdgSmooth` × 0,25 s). La bussola tiene la prua solo se `PH.magInUse()`: dato recente e modo «ground» (fino a 25 km/h) o «always».',
               '`PH.magAuto` sfrutta la corsa di decollo (20–55 km/h, traccia stabile): con almeno 5 campioni coerenti (dispersione sotto 8°) aggiorna la deviazione, senza domande.'])
 s += sec('3.4 Quota, vario e QNH')
-s += [fig('fig-quota.png', 'Quota e vario: la quota delle fonti di posizione (corretta dalla taratura) e l\'accelerazione verticale entrano nel filtro complementare `PhVario`.')]
+s += [fig('fig-quota.png', 'Quota e vario: il barometro del telefono (5 Hz) corregge il filtro `PhVario`; il GPS tarato tiene giusto lo scarto. Senza barometro il filtro usa la quota GPS come prima.')]
 s += [P('`PhVario` è un filtro complementare del 3° ordine (τ = 3 s: guadagni 3/τ, 3/τ², 1/τ³) che stima quota, velocità verticale e bias dell\'accelerometro. '
         '`predict` integra l\'accelerazione verticale ricavata da `onMotion` solo se un fix è arrivato da meno di 3 s (altrimenti il vario si smorza verso zero); '
         '`correct` usa la quota della fonte in uso, scarta un salto isolato di oltre 150 m e riparte dopo tre salti o dopo un buco di oltre 3 s. Uscite: `S.alt` in piedi, '
         '`S.vs` in m/s (limitato a ±30).'),
-      warn('<b>Barometro.</b> Il barometro del telefono non è usato: non ci sono chiamate a sensori di pressione in `www/` né in Java. La quota mostrata è GPS con geoide fisso e taratura sul campo; '
-           'solo HORIZON 2 può usare il barometro dell\'orologio. Il QNH (950–1060 hPa, di serie 1020, `ia517_qnh`) si imposta dalla manopola, dalle NOTE ENTE o dal Piano e serve alla quota '
-           'barometrica dell\'orologio e alla scritta sull\'orizzonte; il codice di `applyNMEA` che converte la pressione con il QNH appartiene allo strumento fisico (scheda sensori via Raspberry).')]
+      P('<b>Barometro del telefono (dal 9 novembre 2026).</b> `BarometroPlugin.java` legge `TYPE_PRESSURE` circa 5 volte al secondo (evento «p» {hPa}) e si ferma quando l\'app va in pausa. '
+        '`PH.baroIn` trasforma la pressione in quota-pressione standard `44330 · (1 − (p/1013,25)^0,190263)` e, una volta agganciato lo scarto `PH.baro.ofs`, chiama `PhVario.correct(pa + ofs)` a 5 Hz. '
+        'In `PH.applyFix`, con il barometro fresco, il GPS non corregge più il filtro ma solo lo scarto: `ofs += (quota GPS tarata − (pa + ofs)) · dt / τ`, con τ = 20 s a terra e 120 s in volo, ignorando i fix con precisione peggiore di 30 m. '
+        'Lo scarto si riaggancia subito quando il filtro riparte (taratura sul campo, «Tara qui», cambio di fonte, avvio). Barometro fermo da 2 s, spento (`ia517p_baro`) o volo dimostrativo/simulazione: si torna al solo GPS. '
+        'Così il vario viene dal barometro e la quota assoluta resta quella del GPS tarato, senza bisogno del QNH. Simulazione con GPS ±15 m: rumore del vario da ±2,4–3,6 a ±0,05–0,11 m/s, errore di quota da 5–8 a 2–5 m.'),
+      P('Il QNH (950–1060 hPa, di serie 1020, `ia517_qnh`) si imposta dalla manopola, dalle NOTE ENTE o dal Piano («Invia QNH» sui METAR) e serve alla quota barometrica dell\'orologio e alla scritta sull\'orizzonte; '
+        'il codice di `applyNMEA` che converte la pressione con il QNH appartiene allo strumento fisico (scheda sensori via Raspberry). In Stato la riga «Barometro» dice se c\'è, quanti hPa legge e se è in uso.'),
+      tip('<b>Misure vere</b> (`docs/sensori/scarti.json`, 9 novembre 2026): Galaxy S23 FE 982,5 hPa → QNH 1021,5 contro il METAR di LIMF 1022 (−0,5 hPa); Galaxy S23 −0,4 hPa rispetto all\'S23 FE; '
+          'fenix 7 −4,4 hPa (circa 37 m), corretto da `orologio.js`. Ogni nuova prova su un dispositivo si aggiunge a quel file.')]
 s += sec('3.5 Traffico GDL90 (SafeSky, SkyEcho, PilotAware)')
 s += [fig('fig-traffico.png', 'Traffico: GDL90 via UDP 4000 (plugin e parser Java) oppure OGN e adsb.lol da internet, valutazione del pericolo e visualizzazione.')]
 s += bullets(['`Gdl90Plugin.start({porta:4000})` apre un `DatagramSocket` riusabile con broadcast e prende un `MulticastLock` del Wi-Fi (senza, i pacchetti broadcast di SkyEcho e Stratux non arrivano).',
@@ -647,6 +656,7 @@ s += [P('Tutti i plugin estendono `com.getcapacitor.Plugin` e si registrano in `
       table(['Plugin (nome JS)', 'Metodi', 'Eventi', 'Cosa fa'], [
           ['GloSerial', '`paired`, `connect({address})`, `disconnect`', '«nmea» {lines}, «state»', 'GPS Bluetooth classico (SPP/RFCOMM), lettura NMEA in un thread; permesso BLUETOOTH_CONNECT'],
           ['Compass', '`start`, `stop`', '«rot» {R[9], acc}', 'Sensore di rotazione di Android (≤ 20 Hz), sospeso in pausa'],
+          ['Barometro', '`info`, `start`, `stop`', '«p» {hPa, acc}', 'Sensore di pressione di Android (`TYPE_PRESSURE`, ≈ 5 Hz), sospeso in pausa; rifiuta se il telefono non ce l\'ha'],
           ['Gdl90', '`start({porta})`, `stop`, `status`', '«traffico» {proprio, addr, lat, lon, altFt, kt, fpm, trk, cs…}', 'Ricevitore UDP con MulticastLock e `Gdl90Parser` (senza dipendenze da Android)'],
           ['StatoTelefono', '`get`', '—', 'Batteria, rete, segnale 2G–5G, satelliti GNSS'],
           ['Carta', '`scarica({url,nome})`, `info`, `tile({nome,z,x,y})`, `cancella`', '«progresso» {done,total}', 'MBTiles della carta VFR in `files/carte/`'],
@@ -801,7 +811,10 @@ s += bullets(['`tools/emu_test.sh`: installa l\'APK di collaudo, primo avvio sen
               '`tools/emu_cdp.py`: trova il socket `webview_devtools_remote_*`, valuta espressioni nella pagina e fa schermate: avvio e versione, accettazione delle condizioni, fix GPS, «Prima del volo», Impostazioni, Piano, Info, '
               'pagine e zoom, spazi aerei, carburante, rotta, profilo, traffico, volo dimostrativo, telefono in orizzontale; misura anche il blocco più lungo del disegno.',
               'Limiti: l\'emulatore non ha sensori di movimento reali, Bluetooth, GDL90 né orologio; la parte Java non è coperta da test unitari.'])
-s += sec('11.4 Altre verifiche')
+s += sec('11.4 Archivio degli scarti dei sensori')
+s += [P('`docs/sensori/scarti.json` raccoglie le misure vere dei sensori di pressione: dispositivo (solo il modello), pressione letta, riferimento (METAR o altro dispositivo), scarto in hPa e in metri, note e osservazioni '
+        '(per esempio l\'«avviso temporale» del fenix nelle salite e discese rapide). Serve da riferimento e, in futuro, come scarto di partenza per i dispositivi dello stesso modello. Prime misure: Galaxy S23 FE, Galaxy S23, fenix 7.')]
+s += sec('11.5 Altre verifiche')
 s += bullets(['`SKILL.md` chiede, prima di dire «provato», la compilazione con `vm.Script` di ogni `<script>` inline, il test dell\'assetto e una prova nel browser con Playwright (errori di pagina e di console).',
               'Nessun test automatico per: verifica dei codici di licenza tra Python e WebCrypto, `posta_licenze.py`, `Gdl90Parser`, lettura NMEA, TAWS, parser OpenAir e NOTAM, Calcola rotta, service worker, app dell\'orologio.'])
 
@@ -820,7 +833,13 @@ s += bullets(['Tutto il codice (con licenza «tutti i diritti riservati»), i wo
               'la chiave pubblica di Web3Forms (`PH_INFO.w3f`, fatta per stare nelle pagine), l\'indirizzo della casella di HORIZON e il link PayPal dell\'autore.',
               'Sul ramo `licenze`: `revocate.json` (numeri e date), `chiave_pubblica.txt`, i file cifrati, `ultimo_riepilogo.txt` (una data), le righe anonime delle piste.',
               'I campi di input di `licenze.yml` finiscono nei log di GitHub: il workflow avverte di non mettere dati personali; il codice di licenza può comparire perché vale solo sul telefono per cui è fatto.'])
-s += sec('12.3 Privacy (sintesi di PRIVACY.md)')
+s += sec('12.3 Impronta e filigrana dell\'autore')
+s += bullets(['<b>Impronta nel codice</b>: `PH_INFO.impronta` = `HZ·ED·2026·DA8A3A7ED40C` (prime 12 cifre dello SHA-256 di una frase con il nome dell\'autore). Non è un commento: il codice la usa nella prima riga di `PH.diag` '
+              '(quindi in ogni segnalazione), in Info sotto la licenza e nella filigrana, per cui resta anche nel codice compresso o copiato.',
+              '<b>Filigrana sulle schermate</b>: `#hzFil`, un testo fisso in basso a sinistra su tutte le pagine di `index.html` (in `app.html` solo se aperto da solo): «HORIZON © E. D\'Amico · codice del telefono · fine dell\'impronta». '
+              'Carattere di 8 px ridotto a metà, grigio, opacità 0,2 e trasparente ai tocchi: durante l\'uso non si nota, ma si legge ingrandendo uno screenshot e dice da quale telefono viene.',
+              'Restano le intestazioni «© 2026 Enrico D\'Amico · Tutti i diritti riservati» in testa ai file. La prova più forte dell\'origine è la storia pubblica di git, con le date di ogni modifica; la filigrana è un deterrente e una traccia.'])
+s += sec('12.4 Privacy (sintesi di PRIVACY.md)')
 s += bullets(['Nessun account, pubblicità o analisi. Posizione, assetto, rotte, campi, diario e impostazioni restano sul telefono (posizione usata solo con l\'app aperta).',
               'Escono: tessere di mappe e terreno della zona mostrata, coordinate dei campi a Open-Meteo, sigle ICAO ad aviationweather.gov, riquadro arrotondato a 0,1° a Overpass e ai servizi di traffico, '
               'controllo degli aggiornamenti a GitHub, segnalazioni inviate dal pilota (con dati tecnici facoltativi, mai la posizione).',
@@ -856,7 +875,7 @@ PROP = [
     ['P3', 'Libreria SQLite anche nell\'APK', '`prepare_www.py` esclude `sqlite3.js`, `sqlite3.wasm` e `carta-web.js` dall\'APK, ma la CI fa `cap sync` direttamente su `www/` del repository: circa 1,5 MB inutili nell\'app Android (lì c\'è il plugin nativo).'],
     ['P3', 'Due calcoli del ciclo AIRAC', '`PH.airac` in `carta.js` e `airac` in `app.html` fanno la stessa cosa in due modi: una funzione sola eviterebbe divergenze.'],
     ['P3', 'Nomi e percorsi', '«Sonda fonti spazi aerei» prova in realtà Polar; `build_manuale_app.py` scrive in percorsi fuori dal repository (`/mnt/user-data`, `/home/claude`) e non è riproducibile da qui; la cache del service worker ha un nome fisso (`ia517-app-1.0.0`).'],
-    ['P3', 'Barometro del telefono', 'Molti telefoni hanno un barometro (Android `TYPE_PRESSURE`): un plugin come `CompassPlugin` darebbe al vario e alla quota una fonte meno rumorosa del GPS, con il QNH già presente.'],
+    ['Fatto', 'Barometro del telefono (9 novembre 2026)', 'Plugin `BarometroPlugin` e fusione con il GPS in `PhVario`: vario dal barometro, quota assoluta dal GPS tarato; barometro dell\'orologio corretto sul telefono (capitolo 3.4). Da verificare in volo contro l\'altimetro di bordo.'],
 ]
 s += [table(['', 'Proposta', 'Perché'], PROP, [10 * mm, 44 * mm, 120 * mm])]
 
@@ -882,6 +901,8 @@ s += estratto('www/index.html', r'^PH\.level=function', 16, 'LIVELLA: la matrice
               'Dalla gravità media si ricavano «giù», «avanti» (−z dello schermo proiettato) e «destra» (prodotto vettoriale); il beccheggio a terra ruota avanti e giù. Il filtro riparte già allineato.')
 s += estratto('www/index.html', r'^PhVario\.prototype\.predict', 13, 'Vario: filtro complementare del 3° ordine',
               '`predict` integra l\'accelerazione verticale solo con un fix recente; `correct` corregge quota, velocità e bias, scarta i salti isolati e riparte dopo un buco.')
+s += estratto('www/index.html', r'^PH\.baroIn=function', 10, 'Barometro del telefono: fusione con il GPS',
+              'Ogni lettura diventa quota-pressione standard; con lo scarto agganciato corregge il filtro del vario 5 volte al secondo. Lo scarto lo tiene giusto il GPS in `PH.applyFix`.')
 s += estratto('www/index.html', r'^PH\.alert=function', 7, 'Punto unico degli avvisi',
               'Silenziamento per chiave, bandierina o avviso centrale, poi voce e vibrazione al più una volta per intervallo (`every`, di serie 60 s).')
 s += estratto('www/index.html', r'^PH\.checkTerrain=function', 13, 'TAWS',
