@@ -170,6 +170,28 @@ class HorizonApp extends Application.AppBase {
         WatchUi.requestUpdate();
     }
 
+    var vista = null;
+    var fermoN = 0;            // quante volte lo schermo fermo è stato rimesso su in questa apertura
+    // Schermo fermo: l'app gira (tasti, invii) ma non disegna più, e l'orologio non l'ha coperta con una sua schermata.
+    // Visto dall'autore: resta «IQ!» a schermo e bisognava spegnere l'orologio. Dopo 6 secondi si rimette su la schermata;
+    // se dopo altri 15 non disegna ancora, l'app si chiude da sola (si riapre dal menu, senza spegnere l'orologio).
+    function schermoFermo(now) {
+        if (vista == null || vista.coperta || vista.disT == 0) { return; }
+        var fermo = now - vista.disT;
+        if (fermo > 21000) {
+            salvaTraccia("schermo fermo da " + (fermo / 1000) + " s: chiusa da sola");
+            System.exit();
+        } else if (fermo > 6000 && fermoN < 3 && (fermo % 6000) < 1100) {
+            fermoN++;
+            segnaSubito("schermo fermo: rimessa la schermata " + fermoN);
+            try {
+                var v = new HorizonView(self);
+                v.disT = vista.disT;
+                vista = v;
+                WatchUi.switchToView(v, new HorizonDelegate(self, v), WatchUi.SLIDE_IMMEDIATE);
+            } catch (e) { }
+        }
+    }
     var vibT = -100000;        // ultima vibrazione: due avvisi di fila non fanno ripartire vibrazione e luce una sopra l'altra
     function vibra(lvl) {
         var ora = System.getTimer();
@@ -210,6 +232,7 @@ class HorizonApp extends Application.AppBase {
         if (!tel) { queue = []; linkOk = false; }
         if (linkOk && now - linkT > 8000) { linkOk = false; }
         nTick++;
+        schermoFermo(now);
         if (nTick % 5 == 0) { salvaTraccia(null); traccia = []; }   // gli ultimi passi: se l'app si chiude da sola, restano qui
         segna("secondo");
         if (nTick % 10 == 0) {
@@ -312,8 +335,8 @@ class HorizonApp extends Application.AppBase {
     }
 
     function getInitialView() {
-        var v = new HorizonView(self);
-        return [v, new HorizonDelegate(self, v)];
+        vista = new HorizonView(self);
+        return [vista, new HorizonDelegate(self, vista)];
     }
 }
 

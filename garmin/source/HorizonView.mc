@@ -34,8 +34,10 @@ class HorizonView extends WatchUi.View {
     }
 
     // nella scatola nera: quando l'orologio copre l'app con una sua schermata (notifica, menu) e quando la ridà
-    function onShow() { app.segnaSubito("visibile"); }
-    function onHide() { app.segnaSubito("coperta"); }
+    var coperta = false;
+    var disT = 0;              // ultimo disegno riuscito a partire (per accorgersi di uno schermo fermo)
+    function onShow() { coperta = false; disT = System.getTimer(); app.segnaSubito("visibile"); }
+    function onHide() { coperta = true; app.segnaSubito("coperta"); }
 
     function pagina(d) {
         pg = (pg + d + 3) % 3;
@@ -74,6 +76,7 @@ class HorizonView extends WatchUi.View {
 
     // un errore nel disegno non deve chiudere l'app: si scrive e si va avanti
     function onUpdate(dc) {
+        disT = System.getTimer();
         try {
             app.segna("disegno");
             disegna(dc);
