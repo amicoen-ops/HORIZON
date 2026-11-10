@@ -144,7 +144,18 @@ class HorizonApp extends Application.AppBase {
             alertT = System.getTimer();
             vibra(alertLvl);
         } else if (t != null && t.equals("s")) {
-            phone = d;
+            // messaggio completo ogni 10 secondi; in mezzo quelli corti (f = 1) con i soli dati che cambiano in fretta:
+            // si aggiungono a quello completo, e un dato veloce che manca (GPS perso, nessuna destinazione) si toglie
+            if (d.get("f") != null && phone != null) {
+                var veloci = ["gs", "al", "vs", "tk", "br", "dk", "et", "xt", "xs"];
+                for (var i = 0; i < veloci.size(); i++) {
+                    var v = d.get(veloci[i]);
+                    if (v != null) { phone.put(veloci[i], v); } else { phone.remove(veloci[i]); }
+                }
+                if (d.get("ph") != null) { phone.put("ph", d.get("ph")); }
+            } else {
+                phone = d;
+            }
             phoneT = System.getTimer();
         }
         WatchUi.requestUpdate();
