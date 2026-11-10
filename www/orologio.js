@@ -93,9 +93,14 @@ PH.fenixMsg=function(){
     if(A&&A.end&&A.end.id!=null) m.rw=String(A.end.id).slice(0,4); }
   if(vivo) try{ const z=terrain(...xy(enu(S.lat,S.lon))); if(z===z) m.ag=Math.round(S.alt-z/FT2M); }catch(e){}
   return m; };
-setInterval(()=>{ if(!PH.fenix.stato.collegato) return;
+// Ogni 2 secondi parte un messaggio corto (f:1) con i soli dati che cambiano in fretta; quello completo ogni 10 secondi.
+// Messaggi grandi a raffica passano male da Garmin Connect e caricano l'orologio (che può chiudere l'app con «IQ!»).
+const VELOCI=['gs','al','vs','tk','br','dk','et','xt','xs','ph'];
+PH.fenixCorto=m=>{ const c={t:'s',f:1}; for(const k of VELOCI) if(m[k]!=null) c[k]=m[k]; return c; };
+let nMsg=0;
+setInterval(()=>{ if(!PH.fenix.stato.collegato){ nMsg=0; return; }
   let m; try{ m=PH.fenixMsg(); }catch(e){ PH.logErr&&PH.logErr('orologio, dati: '+e); return; }
-  G.invia({msg:m}).catch(()=>{}); },2000);
+  G.invia({msg:(nMsg++%5===0)?m:PH.fenixCorto(m)}).catch(()=>{}); },2000);
 // avvisi: quando lo strumento parla, l'orologio vibra e lo scrive
 { const prev=PH.alert; PH.alert=function(key,level,text){ const b=PH.alerts[key]; const r=prev.apply(this,arguments);
     if(PH.alerts[key]!==b && PH.fenixCfg.avvisi && PH.fenix.stato.collegato) G.invia({msg:{t:'a',l:level==='W'?'W':'C',x:String(text).slice(0,80)}}).catch(()=>{});

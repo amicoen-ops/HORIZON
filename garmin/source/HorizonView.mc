@@ -455,26 +455,22 @@ class HorizonDelegate extends WatchUi.BehaviorDelegate {
         else if (p.equals("esci")) { System.exit(); }
     }
 
-    function onSelect() {
-        app.key("ok");
-        return true;
-    }
-
-    function onPreviousPage() {
-        app.key("l");
-        return true;
-    }
-
-    function onNextPage() {
-        if (System.getTimer() - comboT < 800) { return true; }
-        rimanda("r");
-        return true;
-    }
-
-    function onBack() {
-        if (System.getTimer() - comboT < 800) { return true; }
-        rimanda("esci");
-        return true;
+    // I TASTI arrivano qui. Le funzioni «di comportamento» (onSelect, onNextPage, onPreviousPage, onBack) NON ci sono
+    // apposta: sul fenix le chiama anche lo schermo (tocco = selezione, scorrimento = pagina, verso destra = indietro) e
+    // vengono prima di onTap e onSwipe; con quelle il tocco muoveva lo strumento e le pagine dell'orologio non cambiavano mai.
+    function onKey(evt) {
+        var k = evt.getKey();
+        if (k == WatchUi.KEY_ENTER) { app.key("ok"); return true; }
+        if (k == WatchUi.KEY_UP) { app.key("l"); return true; }
+        if (k == WatchUi.KEY_DOWN) {
+            if (System.getTimer() - comboT >= 800) { rimanda("r"); }
+            return true;
+        }
+        if (k == WatchUi.KEY_ESC) {
+            if (System.getTimer() - comboT >= 800) { rimanda("esci"); }
+            return true;
+        }
+        return false;
     }
 
     function onMenu() {
