@@ -58,6 +58,12 @@ class HorizonApp extends Application.AppBase {
         traccia.add(p);
         if (traccia.size() > 12) { traccia = traccia.slice(traccia.size() - 12, null); }
     }
+    // passo «a rischio» (vibrazione, storico, avviso, tasto): scritto subito, con il secondo di vita dell'app, così se l'app
+    // si chiude proprio lì la riga «ultima chiusura» lo dice (il salvataggio normale è ogni 5 secondi e può restare indietro)
+    function segnaSubito(p) {
+        segna(p + " @" + nTick);
+        salvaTraccia(null);
+    }
     function salvaTraccia(fine) {
         var t = "";
         for (var i = 0; i < traccia.size(); i++) { t += (i > 0 ? " > " : "") + traccia[i]; }
@@ -143,7 +149,9 @@ class HorizonApp extends Application.AppBase {
             alertTxt = d.get("x");
             alertLvl = d.get("l") != null ? d.get("l") : "C";
             alertT = System.getTimer();
+            segnaSubito("avviso " + (alertTxt != null ? alertTxt.toString().length() : 0) + " car.");
             vibra(alertLvl);
+            segnaSubito("vibrato");
         } else if (t != null && t.equals("s")) {
             // messaggio completo ogni 10 secondi; in mezzo quelli corti (f = 1) con i soli dati che cambiano in fretta:
             // si aggiungono a quello completo, e un dato veloce che manca (GPS perso, nessuna destinazione) si toglie
@@ -162,8 +170,34 @@ class HorizonApp extends Application.AppBase {
         WatchUi.requestUpdate();
     }
 
+    var vista = null;
+    var fermoN = 0;            // quante volte lo schermo fermo è stato rimesso su in questa apertura
+    // Schermo fermo: l'app gira (tasti, invii) ma non disegna più, e l'orologio non l'ha coperta con una sua schermata.
+    // Visto dall'autore: resta «IQ!» a schermo e bisognava spegnere l'orologio. Dopo 6 secondi si rimette su la schermata;
+    // se dopo altri 15 non disegna ancora, l'app si chiude da sola (si riapre dal menu, senza spegnere l'orologio).
+    function schermoFermo(now) {
+        if (vista == null || vista.coperta || vista.disT == 0) { return; }
+        var fermo = now - vista.disT;
+        if (fermo > 21000) {
+            salvaTraccia("schermo fermo da " + (fermo / 1000) + " s: chiusa da sola");
+            System.exit();
+        } else if (fermo > 6000 && fermoN < 3 && (fermo % 6000) < 1100) {
+            fermoN++;
+            segnaSubito("schermo fermo: rimessa la schermata " + fermoN);
+            try {
+                var v = new HorizonView(self);
+                v.disT = vista.disT;
+                vista = v;
+                WatchUi.switchToView(v, new HorizonDelegate(self, v), WatchUi.SLIDE_IMMEDIATE);
+            } catch (e) { }
+        }
+    }
+    var vibT = -100000;        // ultima vibrazione: due avvisi di fila non fanno ripartire vibrazione e luce una sopra l'altra
     function vibra(lvl) {
-        segna("vibrazione");
+        var ora = System.getTimer();
+        if (ora - vibT < 3000) { return; }
+        vibT = ora;
+        segnaSubito("vibrazione");
         if (!(Attention has :vibrate)) { return; }
         var p;
         if (lvl.equals("W")) {
@@ -179,7 +213,7 @@ class HorizonApp extends Application.AppBase {
 
     // un tasto: va in coda e parte subito
     function key(k) {
-        segna("tasto " + k);
+        segnaSubito("tasto " + k);
         var ds = System.getDeviceSettings();
         if (ds != null && (ds has :phoneConnected) && !ds.phoneConnected) { return; }     // senza telefono il tasto non parte (e non resta in coda)
         queue.add({"t" => "k", "k" => k});
@@ -198,13 +232,14 @@ class HorizonApp extends Application.AppBase {
         if (!tel) { queue = []; linkOk = false; }
         if (linkOk && now - linkT > 8000) { linkOk = false; }
         nTick++;
+        schermoFermo(now);
         if (nTick % 5 == 0) { salvaTraccia(null); traccia = []; }   // gli ultimi passi: se l'app si chiude da sola, restano qui
         segna("secondo");
         if (nTick % 10 == 0) {
             var ms = System.getSystemStats();
             try { Application.Storage.setValue("mem", ms.usedMemory.toString() + "/" + ms.totalMemory.toString()); } catch (e) { }
         }
-        if (nTick % 60 == 5) { segna("storico SpO2"); storicoOx(); }
+        if (nTick % 60 == 5) { segnaSubito("storico SpO2"); storicoOx(); segnaSubito("storico fatto"); }
         if (queue.size() > 4) { queue = queue.slice(queue.size() - 4, null); }   // coda corta: i dati vecchi non servono
         if (tel && queue.size() == 0 && !busy) { queue.add(dati()); }
         if (tel) { send(); }
@@ -300,8 +335,8 @@ class HorizonApp extends Application.AppBase {
     }
 
     function getInitialView() {
-        var v = new HorizonView(self);
-        return [v, new HorizonDelegate(self, v)];
+        vista = new HorizonView(self);
+        return [vista, new HorizonDelegate(self, vista)];
     }
 }
 

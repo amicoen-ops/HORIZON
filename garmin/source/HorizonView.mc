@@ -33,6 +33,12 @@ class HorizonView extends WatchUi.View {
         app = a;
     }
 
+    // nella scatola nera: quando l'orologio copre l'app con una sua schermata (notifica, menu) e quando la ridà
+    var coperta = false;
+    var disT = 0;              // ultimo disegno riuscito a partire (per accorgersi di uno schermo fermo)
+    function onShow() { coperta = false; disT = System.getTimer(); app.segnaSubito("visibile"); }
+    function onHide() { coperta = true; app.segnaSubito("coperta"); }
+
     function pagina(d) {
         pg = (pg + d + 3) % 3;
         man = true;
@@ -70,6 +76,7 @@ class HorizonView extends WatchUi.View {
 
     // un errore nel disegno non deve chiudere l'app: si scrive e si va avanti
     function onUpdate(dc) {
+        disT = System.getTimer();
         try {
             app.segna("disegno");
             disegna(dc);
@@ -84,7 +91,9 @@ class HorizonView extends WatchUi.View {
         var w = dc.getWidth(), h = dc.getHeight();
         var now = System.getTimer();
         if (app.alertTxt != null && now - app.alertT < 8000) {
+            app.segna("disegno avviso");
             avviso(dc, w, h);
+            app.segna("avviso disegnato");
             return;
         }
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
@@ -410,7 +419,19 @@ class HorizonDelegate extends WatchUi.BehaviorDelegate {
         pendT = new Timer.Timer();
     }
 
+    // un avviso a schermo si toglie con un tocco o uno scorrimento (sullo strumento resta: lì si toglie dal telefono)
+    function toglieAvviso() {
+        if (app.alertTxt != null && System.getTimer() - app.alertT < 8000) {
+            app.alertT = System.getTimer() - 60000;
+            app.segna("avviso tolto");
+            WatchUi.requestUpdate();
+            return true;
+        }
+        return false;
+    }
+
     function onSwipe(evt) {
+        if (toglieAvviso()) { return true; }
         var d = evt.getDirection();
         if (d == WatchUi.SWIPE_LEFT || d == WatchUi.SWIPE_UP) { view.pagina(1); }
         else { view.pagina(-1); }
@@ -418,6 +439,7 @@ class HorizonDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onTap(evt) {
+        if (toglieAvviso()) { return true; }
         view.pagina(1);
         return true;
     }
