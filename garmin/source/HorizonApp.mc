@@ -170,7 +170,11 @@ class HorizonApp extends Application.AppBase {
         WatchUi.requestUpdate();
     }
 
+    var vibT = -100000;        // ultima vibrazione: due avvisi di fila non fanno ripartire vibrazione e luce una sopra l'altra
     function vibra(lvl) {
+        var ora = System.getTimer();
+        if (ora - vibT < 3000) { return; }
+        vibT = ora;
         segnaSubito("vibrazione");
         if (!(Attention has :vibrate)) { return; }
         var p;

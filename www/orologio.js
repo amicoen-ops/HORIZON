@@ -103,7 +103,10 @@ setInterval(()=>{ if(!PH.fenix.stato.collegato){ nMsg=0; return; }
   G.invia({msg:(nMsg++%5===0)?m:PH.fenixCorto(m)}).catch(()=>{}); },2000);
 // avvisi: quando lo strumento parla, l'orologio vibra e lo scrive
 { const prev=PH.alert; PH.alert=function(key,level,text){ const b=PH.alerts[key]; const r=prev.apply(this,arguments);
-    if(PH.alerts[key]!==b && PH.fenixCfg.avvisi && PH.fenix.stato.collegato) G.invia({msg:{t:'a',l:level==='W'?'W':'C',x:String(text).slice(0,80)}}).catch(()=>{});
+    // all'orologio al massimo un avviso ogni 3 secondi (uno urgente passa sempre): più avvisi nello stesso secondo
+    // (terreno, quota, manovra) arrivavano uno sull'altro, e l'app dell'orologio si è chiusa proprio dopo un secondo avviso
+    const nowW=Date.now(), urg=level==='W';
+    if(PH.alerts[key]!==b && PH.fenixCfg.avvisi && PH.fenix.stato.collegato && (nowW-(PH.fenix.avvT||0)>=3000 || (urg&&!PH.fenix.avvUrg)) && ((PH.fenix.avvT=nowW),(PH.fenix.avvUrg=urg),true)) G.invia({msg:{t:'a',l:level==='W'?'W':'C',x:String(text).slice(0,80)}}).catch(()=>{});
     return r; }; }
 // Impostazioni › Stato (e dati tecnici delle segnalazioni): i sensori dell'orologio accanto a quelli del telefono
 { const prev=PH.status; if(prev) PH.status=function(){ const r=prev.apply(this,arguments); try{
