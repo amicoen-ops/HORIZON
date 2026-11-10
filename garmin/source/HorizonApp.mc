@@ -36,6 +36,7 @@ class HorizonApp extends Application.AppBase {
     var errors = 0;
     var busy = false;
     var busyT = 0;
+    var attesa = 15000;        // quanto si aspetta la risposta a un invio prima di riprovare: raddoppia a ogni invio perso (fino a 2 minuti)
     var queue = [];            // tasti premuti, partono prima dei dati
     var timer = null;
     var oxH = null;            // ultima saturazione dallo storico (se il sensore non la dà in diretta)
@@ -179,6 +180,8 @@ class HorizonApp extends Application.AppBase {
     // un tasto: va in coda e parte subito
     function key(k) {
         segna("tasto " + k);
+        var ds = System.getDeviceSettings();
+        if (ds != null && (ds has :phoneConnected) && !ds.phoneConnected) { return; }     // senza telefono il tasto non parte (e non resta in coda)
         queue.add({"t" => "k", "k" => k});
         send();
     }
@@ -187,7 +190,12 @@ class HorizonApp extends Application.AppBase {
         var now = System.getTimer();
         // l'invio passa da Garmin Connect e può metterci parecchi secondi: mai un secondo invio finché il primo non risponde
         // (troppi invii in attesa fanno chiudere l'app); dopo 15 s senza risposta si riprova
-        if (busy && now - busyT > 15000) { busy = false; }
+        if (busy && now - busyT > attesa) { busy = false; errors++; if (attesa < 120000) { attesa = attesa * 2; } }
+        // telefono non collegato (Bluetooth caduto, lontano): niente invii. Ogni invio resterebbe in attesa dentro l'orologio,
+        // e gli invii in attesa che si accumulano fanno chiudere l'app («IQ!»: la scatola nera finiva sempre su «invio al telefono»)
+        var ds = System.getDeviceSettings();
+        var tel = (ds != null && (ds has :phoneConnected)) ? ds.phoneConnected : true;
+        if (!tel) { queue = []; linkOk = false; }
         if (linkOk && now - linkT > 8000) { linkOk = false; }
         nTick++;
         if (nTick % 5 == 0) { salvaTraccia(null); traccia = []; }   // gli ultimi passi: se l'app si chiude da sola, restano qui
@@ -198,8 +206,8 @@ class HorizonApp extends Application.AppBase {
         }
         if (nTick % 60 == 5) { segna("storico SpO2"); storicoOx(); }
         if (queue.size() > 4) { queue = queue.slice(queue.size() - 4, null); }   // coda corta: i dati vecchi non servono
-        if (queue.size() == 0 && !busy) { queue.add(dati()); }
-        send();
+        if (tel && queue.size() == 0 && !busy) { queue.add(dati()); }
+        if (tel) { send(); }
         WatchUi.requestUpdate();
     }
 
@@ -221,7 +229,7 @@ class HorizonApp extends Application.AppBase {
     function sent(ok) {
         segna(ok ? "invio riuscito" : "invio non riuscito");
         busy = false;
-        if (ok) { sentOk++; linkOk = true; linkT = System.getTimer(); } else { errors++; }
+        if (ok) { sentOk++; linkOk = true; linkT = System.getTimer(); attesa = 15000; } else { errors++; }
         if (queue.size() > 0) { send(); }
     }
 
