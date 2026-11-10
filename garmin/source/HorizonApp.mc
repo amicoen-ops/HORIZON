@@ -58,6 +58,12 @@ class HorizonApp extends Application.AppBase {
         traccia.add(p);
         if (traccia.size() > 12) { traccia = traccia.slice(traccia.size() - 12, null); }
     }
+    // passo «a rischio» (vibrazione, storico, avviso, tasto): scritto subito, con il secondo di vita dell'app, così se l'app
+    // si chiude proprio lì la riga «ultima chiusura» lo dice (il salvataggio normale è ogni 5 secondi e può restare indietro)
+    function segnaSubito(p) {
+        segna(p + " @" + nTick);
+        salvaTraccia(null);
+    }
     function salvaTraccia(fine) {
         var t = "";
         for (var i = 0; i < traccia.size(); i++) { t += (i > 0 ? " > " : "") + traccia[i]; }
@@ -143,7 +149,9 @@ class HorizonApp extends Application.AppBase {
             alertTxt = d.get("x");
             alertLvl = d.get("l") != null ? d.get("l") : "C";
             alertT = System.getTimer();
+            segnaSubito("avviso " + (alertTxt != null ? alertTxt.toString().length() : 0) + " car.");
             vibra(alertLvl);
+            segnaSubito("vibrato");
         } else if (t != null && t.equals("s")) {
             // messaggio completo ogni 10 secondi; in mezzo quelli corti (f = 1) con i soli dati che cambiano in fretta:
             // si aggiungono a quello completo, e un dato veloce che manca (GPS perso, nessuna destinazione) si toglie
@@ -163,7 +171,7 @@ class HorizonApp extends Application.AppBase {
     }
 
     function vibra(lvl) {
-        segna("vibrazione");
+        segnaSubito("vibrazione");
         if (!(Attention has :vibrate)) { return; }
         var p;
         if (lvl.equals("W")) {
@@ -179,7 +187,7 @@ class HorizonApp extends Application.AppBase {
 
     // un tasto: va in coda e parte subito
     function key(k) {
-        segna("tasto " + k);
+        segnaSubito("tasto " + k);
         var ds = System.getDeviceSettings();
         if (ds != null && (ds has :phoneConnected) && !ds.phoneConnected) { return; }     // senza telefono il tasto non parte (e non resta in coda)
         queue.add({"t" => "k", "k" => k});
@@ -204,7 +212,7 @@ class HorizonApp extends Application.AppBase {
             var ms = System.getSystemStats();
             try { Application.Storage.setValue("mem", ms.usedMemory.toString() + "/" + ms.totalMemory.toString()); } catch (e) { }
         }
-        if (nTick % 60 == 5) { segna("storico SpO2"); storicoOx(); }
+        if (nTick % 60 == 5) { segnaSubito("storico SpO2"); storicoOx(); segnaSubito("storico fatto"); }
         if (queue.size() > 4) { queue = queue.slice(queue.size() - 4, null); }   // coda corta: i dati vecchi non servono
         if (tel && queue.size() == 0 && !busy) { queue.add(dati()); }
         if (tel) { send(); }

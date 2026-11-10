@@ -84,7 +84,9 @@ class HorizonView extends WatchUi.View {
         var w = dc.getWidth(), h = dc.getHeight();
         var now = System.getTimer();
         if (app.alertTxt != null && now - app.alertT < 8000) {
+            app.segna("disegno avviso");
             avviso(dc, w, h);
+            app.segna("avviso disegnato");
             return;
         }
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_BLACK);
@@ -410,7 +412,19 @@ class HorizonDelegate extends WatchUi.BehaviorDelegate {
         pendT = new Timer.Timer();
     }
 
+    // un avviso a schermo si toglie con un tocco o uno scorrimento (sullo strumento resta: lì si toglie dal telefono)
+    function toglieAvviso() {
+        if (app.alertTxt != null && System.getTimer() - app.alertT < 8000) {
+            app.alertT = System.getTimer() - 60000;
+            app.segna("avviso tolto");
+            WatchUi.requestUpdate();
+            return true;
+        }
+        return false;
+    }
+
     function onSwipe(evt) {
+        if (toglieAvviso()) { return true; }
         var d = evt.getDirection();
         if (d == WatchUi.SWIPE_LEFT || d == WatchUi.SWIPE_UP) { view.pagina(1); }
         else { view.pagina(-1); }
@@ -418,6 +432,7 @@ class HorizonDelegate extends WatchUi.BehaviorDelegate {
     }
 
     function onTap(evt) {
+        if (toglieAvviso()) { return true; }
         view.pagina(1);
         return true;
     }
