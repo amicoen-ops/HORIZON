@@ -60,8 +60,18 @@ class HorizonApp extends Application.AppBase {
     }
     // passo «a rischio» (vibrazione, storico, avviso, tasto): scritto subito, con il secondo di vita dell'app, così se l'app
     // si chiude proprio lì la riga «ultima chiusura» lo dice (il salvataggio normale è ogni 5 secondi e può restare indietro)
+    // Questi passi restano anche in una lista a parte (gli ultimi 8), che i salvataggi normali non cancellano: nelle prime
+    // righe mandate dall'autore il passo dell'avviso era già stato sovrascritto dai secondi successivi.
+    var rischi = [];
+    var prevRischi = null;
     function segnaSubito(p) {
-        segna(p + " @" + nTick);
+        var r = p + " @" + nTick;
+        segna(r);
+        rischi.add(r);
+        if (rischi.size() > 8) { rischi = rischi.slice(rischi.size() - 8, null); }
+        var t = "";
+        for (var i = 0; i < rischi.size(); i++) { t += (i > 0 ? " > " : "") + rischi[i]; }
+        try { Application.Storage.setValue("rischi", t); } catch (e) { }
         salvaTraccia(null);
     }
     function salvaTraccia(fine) {
@@ -74,6 +84,7 @@ class HorizonApp extends Application.AppBase {
         try {
             prevPasso = Application.Storage.getValue("passo");
             prevMem = Application.Storage.getValue("mem");
+            prevRischi = Application.Storage.getValue("rischi");
         } catch (e) { }
         segna("avvio");
         salvaTraccia("avvio");
@@ -138,7 +149,16 @@ class HorizonApp extends Application.AppBase {
     }
 
     // messaggi dal telefono: {t:"s"} dati da mostrare, {t:"a"} avviso
+    // un errore mentre si legge un messaggio non deve fermare l'app né la ricezione dei messaggi dopo
     function onPhone(msg) {
+        try {
+            leggi(msg);
+        } catch (e) {
+            segnaSubito("ERRORE nel messaggio");
+        }
+    }
+
+    function leggi(msg) {
         segna("messaggio dal telefono");
         var d = msg.data;
         if (d == null || !(d instanceof Dictionary)) { return; }
@@ -176,7 +196,16 @@ class HorizonApp extends Application.AppBase {
     // Visto dall'autore: resta «IQ!» a schermo e bisognava spegnere l'orologio. Dopo 6 secondi si rimette su la schermata;
     // se dopo altri 15 non disegna ancora, l'app si chiude da sola (si riapre dal menu, senza spegnere l'orologio).
     function schermoFermo(now) {
-        if (vista == null || vista.coperta || vista.disT == 0) { return; }
+        if (vista == null || vista.disT == 0) { return; }
+        // coperta da un'altra schermata (anche quella dell'errore «IQ!») da più di 30 secondi: l'app si chiude da sola, così
+        // si riapre dal menu senza spegnere l'orologio. Una notifica o un menu dell'orologio durano molto meno.
+        if (vista.coperta) {
+            if (vista.copT > 0 && now - vista.copT > 30000) {
+                salvaTraccia("coperta da " + ((now - vista.copT) / 1000) + " s: chiusa da sola");
+                System.exit();
+            }
+            return;
+        }
         var fermo = now - vista.disT;
         if (fermo > 21000) {
             salvaTraccia("schermo fermo da " + (fermo / 1000) + " s: chiusa da sola");
@@ -330,7 +359,7 @@ class HorizonApp extends Application.AppBase {
         var st = System.getSystemStats();
         if (st != null && st.battery != null) { d.put("bt", st.battery.toNumber()); }
         if (st != null) { d.put("mu", st.usedMemory); d.put("mt", st.totalMemory); }
-        if (nTick < 60 && prevPasso != null) { d.put("pv", prevPasso); if (prevMem != null) { d.put("pm", prevMem); } }
+        if (nTick < 60 && prevPasso != null) { d.put("pv", prevPasso); if (prevMem != null) { d.put("pm", prevMem); } if (prevRischi != null) { d.put("pr", prevRischi); } }
         return d;
     }
 
