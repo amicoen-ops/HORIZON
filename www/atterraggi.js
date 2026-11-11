@@ -141,9 +141,14 @@ async function scarica(k){
   finally{ clearTimeout(tm); RETE.busy=false; RETE.last=Date.now(); }
   return ok; }
 // riquadri che servono a terra: i 9 attorno alla posizione, poi quelli lungo la rotta attiva (una fascia di circa 5 km per lato)
+// EXTRA: punti in più chiesti da fuori (anticipo.js: una rotta appena salvata, anche se non è attiva e anche senza GPS, a casa)
+let EXTRA=[];
+PH.pratiZona=function(pts){ EXTRA=Array.isArray(pts)?pts.filter(p=>p&&isFinite(+p.lat+ +p.lon)).slice(0,80).map(p=>({lat:+p.lat,lon:+p.lon})):[]; };
 function voluti(){
   const out=[], add=(la,lo)=>{ const k=chiave(la,lo); if(out.length<60&&!out.includes(k)) out.push(k); };
-  add(S.lat,S.lon); for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++) add(S.lat+a*CFG.cella,S.lon+b*CFG.cella);
+  if(gpsOk()){ add(S.lat,S.lon); for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++) add(S.lat+a*CFG.cella,S.lon+b*CFG.cella); }
+  try{ for(const p of EXTRA){ add(p.lat,p.lon); add(p.lat+0.05,p.lon+0.05); add(p.lat-0.05,p.lon-0.05); add(p.lat+0.05,p.lon-0.05); add(p.lat-0.05,p.lon+0.05); } }catch(e){}
+  if(!gpsOk()) return out;
   try{ const P=[{lat:S.lat,lon:S.lon}];
     if(NAV.route&&NAV.route.r&&Array.isArray(NAV.route.r.wps)) for(let i=Math.max(0,NAV.route.idx|0);i<NAV.route.r.wps.length;i++) P.push({lat:+NAV.route.r.wps[i].lat,lon:+NAV.route.r.wps[i].lon});
     else if(NAV.dest) P.push({lat:NAV.dest.lat,lon:NAV.dest.lon});
@@ -158,11 +163,12 @@ function rete(){
   const now=Date.now(), forza=now-RETE.forza<600000;
   if(now<RETE.poi&&!forza) return;
   if(!forza&&PH.lyr&&PH.lyr.prati===false) return;                // livello spento: niente scarichi da soli
-  if((PH.demo&&!PH.sim)||!gpsOk()) return;                        // volo dimostrativo o posizione non nota: niente rete
+  if((PH.demo&&!PH.sim)||(!gpsOk()&&!EXTRA.length)) return;       // volo dimostrativo o posizione non nota (e nessuna rotta da preparare): niente rete
   const volo=PH_air()||(PH.inVolo&&PH.inVolo())||(+S.gs||0)>=15;
-  if(volo){ const k=chiave(S.lat,S.lon);                          // in volo: solo il riquadro sotto l'aereo, solo se manca del tutto
+  if(volo){ if(!gpsOk()) return; const k=chiave(S.lat,S.lon);                          // in volo: solo il riquadro sotto l'aereo, solo se manca del tutto
     if(IDX[k]||now-RETE.last<CFG.pausaVolo||now-(RETE.male.get(k)||0)<600000) return; scarica(k); return; }
   if(now-RETE.last<CFG.pausa) return;
+  if(!forza&&PH.autoDl&&!PH.autoDl.permesso('zona')) return;       // Impostazioni › Scarico automatico: «mai», o «solo Wi-Fi» senza Wi-Fi
   const vecchio=now-CFG.giorni*864e5;
   for(const k of voluti()){ if(IDX[k]>vecchio||now-(RETE.male.get(k)||0)<600000) continue; scarica(k); return; }
   RETE.forza=0; }
