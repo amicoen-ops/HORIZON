@@ -23,6 +23,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(StatoTelefonoPlugin.class);      // batteria e segnale 4G/5G per la riga di stato
         registerPlugin(CartaPlugin.class);              // carta VFR open flightmaps scaricata sul telefono (MBTiles)
         registerPlugin(Gdl90Plugin.class);              // traffico GDL90 su UDP 4000: SafeSky, SkyEcho, PilotAware
+        registerPlugin(OgnPlugin.class);                // Open Glider Network: posizione trasmessa (se il pilota lo accende) e traffico vicino
         // orologio Garmin: il modulo c'è solo in HORIZON 2 (compilata con -Ph2); nelle altre versioni non si trova e basta
         try { registerPlugin(Class.forName("it.amicoen.horizon.GarminPlugin").asSubclass(com.getcapacitor.Plugin.class)); } catch (Throwable ignored) { }
         super.onCreate(savedInstanceState);

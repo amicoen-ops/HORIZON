@@ -1304,6 +1304,7 @@ function rasterMap(ac){
   Object.assign(MR,{cE:ac.E,cN:ac.N,half,alt:acAlt,zi,inh:inhField()});
 }
 function drawMap(g){
+  MR.seen=performance.now();                                  // la mappa è a schermo: anticipo.js può preparare il rilievo successivo
   const acA=enu(S.lat,S.lon), pan=PH&&PH.pan, ac=pan?{E:acA.E+pan.E,N:acA.N+pan.N}:acA, t=pan?0:((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000;
   if(MR.hjob){ try{ hazStep(3); }catch(e){ MR.hjob=null; MR.hzOk=false; MR.hzG=null; } }   // pericolo sopra la carta: un pezzo per fotogramma
   if(MR.job || MR.zi!==zi || (PH&&Math.abs(mapCov()-(MR.f||1.8))>0.15) || Math.hypot(ac.E-MR.cE,ac.N-MR.cN)>MR.half*0.22 || Math.abs(S.alt*FT2M-MR.alt)>25 || MR.inh!==inhField()) rasterMap(ac);
@@ -1975,17 +1976,19 @@ function terrainRaw(E,N){
 // Con raw=true restituisce il valore vero, che serve a riconoscere il mare (sotto −5 m)
 // Si ricorda l'ultimo riquadro usato (e l'ultimo mancante): i punti di una griglia cadono quasi sempre nello stesso,
 // così non si compone una chiave di testo e non si cerca nella tabella a ogni campione (orizzonte e mappa ne chiedono migliaia).
-let DEM_T=null, DEM_TZ=-1, DEM_TX=0, DEM_TY=0, DEM_MZ=-1, DEM_MX=0, DEM_MY=0, DEM_MV=-1, DEM_MT=0;
+// Il mancante si ricorda per ogni livello: dove il riquadro fine non c'è ancora si scende di due livelli, e con un posto solo
+// ogni campione rifaceva tre chiavi di testo e tre ricerche (zona nuova = fotogrammi lunghi).
+let DEM_T=null, DEM_TZ=-1, DEM_TX=0, DEM_TY=0; const DEM_MX=new Int32Array(20).fill(-1), DEM_MY=new Int32Array(20).fill(-1), DEM_MV=new Int32Array(20).fill(-1), DEM_MT=new Float64Array(20);
 function phDemAt(lat,lon,z,raw){
   z=z||11;
   for(let zz=z, zmin=Math.min(8,Math.max(5,z-2)); zz>=zmin; zz--){
     const n=2**zz, fx=(lon+180)/360*n, lr=lat*D2R, fy=(1-Math.log(Math.tan(lr)+1/Math.cos(lr))/Math.PI)/2*n;
     const tx=Math.floor(fx), ty=Math.floor(fy); let t;
     if(zz===DEM_TZ && tx===DEM_TX && ty===DEM_TY) t=DEM_T;
-    else if(zz===DEM_MZ && tx===DEM_MX && ty===DEM_MY && DEM_MV===PH.demVer && Date.now()-DEM_MT<250) continue;   // mancava un attimo fa e non è arrivato niente: lo scarico è già stato chiesto
+    else if(tx===DEM_MX[zz] && ty===DEM_MY[zz] && DEM_MV[zz]===PH.demVer && Date.now()-DEM_MT[zz]<250) continue;   // mancava un attimo fa e non è arrivato niente: lo scarico è già stato chiesto
     else { t=PH.dem.get(zz+'/'+tx+'/'+ty);
       if(t){ DEM_T=t; DEM_TZ=zz; DEM_TX=tx; DEM_TY=ty; }
-      else { if(zz===z) phDemFetch(zz,tx,ty); DEM_MZ=zz; DEM_MX=tx; DEM_MY=ty; DEM_MV=PH.demVer; DEM_MT=Date.now(); continue; } }
+      else { if(zz===z) phDemFetch(zz,tx,ty); DEM_MX[zz]=tx; DEM_MY[zz]=ty; DEM_MV[zz]=PH.demVer; DEM_MT[zz]=Date.now(); continue; } }
     let px=(fx-tx)*256-0.5, py=(fy-ty)*256-0.5;
     px=px<0?0:(px>254.999?254.999:px); py=py<0?0:(py>254.999?254.999:py);
     const i=px|0, j=py|0, u=px-i, v=py-j, o=j*256+i;
@@ -2008,10 +2011,31 @@ function phFieldDem(f){ for(const z of [12,11]){ const v=[]; const cl=Math.cos(f
     if(v.length>=7){ v.sort((a,b)=>a-b); return v[v.length>>1]; } }
   return NaN; };
 function phDemUrl(z,x,y){ return `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`; }
-async function phDemFetch(z,x,y){
+// Sei richieste alla volta, come prima. Chi arriva a posti pieni aspetta in coda e, quando un posto si libera, parte il riquadro
+// più vicino lungo la traccia (PH.demRank di anticipo.js: più basso = più urgente), non il primo che capita. Un riquadro che
+// nessuno chiede più da 8 s esce dalla coda. Senza anticipo.js la coda va in ordine di arrivo.
+function phDemFetch(z,x,y){
   const key=z+'/'+x+'/'+y;
-  if(PH.dem.has(key)||PH.demPend.has(key)||PH.demPend.size>=6) return;
+  if(PH.dem.has(key)||PH.demPend.has(key)) return;
   const f=PH.demFail.get(key); if(f && Date.now()-f<60000) return;
+  if(PH.demPend.size<6 && !PH.demQ.size){ phDemGet(z,x,y,key); return; }
+  const q=PH.demQ.get(key); if(q) q.t=Date.now(); else if(PH.demQ.size<80) PH.demQ.set(key,{z,x,y,t:Date.now()});
+  if(PH.demPend.size<6) phDemNext();
+}
+function phDemNext(){
+  const now=Date.now(); let best=null, bk=null, br=Infinity;
+  for(const [k,q] of PH.demQ){ if(now-q.t>8000){ PH.demQ.delete(k); continue; }
+    let r=0; try{ if(PH.demRank) r=PH.demRank(q.z,q.x,q.y); }catch(e){} if(!(r>=0)) r=0; if(r<br){ br=r; best=q; bk=k; } }
+  if(best){ PH.demQ.delete(bk); phDemGet(best.z,best.x,best.y,bk); }
+}
+// memoria piena: via il riquadro che serve meno (alle spalle, lontano da traccia e rotta: PH.demDrop di anticipo.js), mai quello
+// sotto l'aereo o davanti. Se anticipo.js non c'è o non sa scegliere (a terra, posizione non nota) si butta il più vecchio, come prima.
+function phDemTrim(){
+  let k=null; try{ if(PH.demDrop) k=PH.demDrop(); }catch(e){}
+  if(k==null || !PH.dem.has(k)) k=PH.dem.keys().next().value;
+  PH.dem.delete(k); PH.demT.delete(k);
+}
+async function phDemGet(z,x,y,key){
   PH.demPend.add(key);
   try{
     const r=await fetch(phDemUrl(z,x,y),{mode:'cors'}); if(!r.ok) throw new Error('http '+r.status);
@@ -2020,10 +2044,10 @@ async function phDemFetch(z,x,y){
     const cx=c.getContext('2d',{willReadFrequently:true}); cx.clearRect(0,0,256,256); cx.drawImage(bmp,0,0);
     const d=cx.getImageData(0,0,256,256).data, a=new Int16Array(65536);
     for(let i=0;i<65536;i++){ const q=i*4; a[i]=Math.round(d[q]*256+d[q+1]+d[q+2]/256-32768); }
-    PH.dem.set(key,a); PH.demVer++;
-    if(PH.dem.size>220){ const first=PH.dem.keys().next().value; PH.dem.delete(first); }   // al massimo ~28 MB in memoria
+    PH.dem.set(key,a); PH.demT.set(key,Date.now()); PH.demVer++;
+    if(PH.dem.size>220) phDemTrim();                          // al massimo ~28 MB in memoria
   }catch(e){ PH.demFail.set(key,Date.now()); }
-  finally{ PH.demPend.delete(key); }
+  finally{ PH.demPend.delete(key); try{ if(PH.demQ.size) phDemNext(); }catch(e){} }
 }
 
 // a terra niente colori di avviso del terreno (giallo e rosso): solo in volo o nel volo dimostrativo
@@ -2068,7 +2092,7 @@ const TERR_FAR=70*Math.pow(1.205,29);                         // distanza massim
 const TERR_MARG=32*Math.PI/180, TERR_STEP=20;                 // azimut calcolato in più per parte (per le virate); spostamento in metri che fa ricalcolare
 const TERR_SHN=10, TERR_HZN=16, TERR_NB=31, TERR_BAND=100;    // livelli di ombra e di foschia, fasce di quota (ogni 100 m fino a 3000)
 const TERR_ARCS=[1000,2000,5000,10000];                       // archi sottili sul terreno a queste distanze (m): danno la misura a colpo d'occhio
-const TG={lvl:-1,bad:false};
+const TG={lvl:-1,bad:false,seen:0};
 function terrSetup(lvl){
   const FN=TERR_Q[lvl][0], LN=TERR_Q[lvl][1], M=Math.round(Math.PI*(LN-1)/TERR_HALF), dth=2*Math.PI/M;
   const HC=Math.ceil(TERR_HALF/dth)+1, NC=2*(HC+Math.ceil(TERR_MARG/dth))+1, NQ=NC-1, ratio=Math.pow(TERR_FAR/70,1/(FN-1));
@@ -2114,13 +2138,17 @@ function terrFast(ac,acAlt,hdgRad,sinP,cosP){
   const lvl=PH?Math.min(TERR_Q.length-1,PH.terrQ==='auto'?PH.terrLvl:(+PH.terrQ||0)):0;
   if(TG.lvl!==lvl) terrSetup(lvl);
   const T=TG, FN=T.FN, NC=T.NC, NQ=T.NQ, mid=(NC-1)>>1, hm=hdgRad/T.dth, ver=PH?PH.demVer:0;
+  T.seen=performance.now(); T.acE=ac.E; T.acN=ac.N; T.hd=hdgRad;   // per terrAhead: dove e come si sta disegnando
   let A=T.front, dm=0, cA=0, cB=0;
   const cols=()=>{ dm=hm-(A.m0+mid); dm-=T.M*Math.round(dm/T.M); cA=Math.floor(mid+dm-T.HC); cB=Math.ceil(mid+dm+T.HC); };   // colonne dentro la vista (la prua può passare per il nord)
   cols();
   const dist=Math.hypot(ac.E-A.cE,ac.N-A.cN);
   if(!A.ok || cA<0 || cB>NC-1 || !(dist<400)){ terrBegin(A,ac,hdgRad); terrRows(A,FN); T.back.busy=false; cols(); }   // prima volta, salto di posizione o giro brusco: tutto subito
-  else { const B=T.back;
-    if(!B.busy && (dist>TERR_STEP || Math.abs(dm)*T.dth>TERR_MARG*0.6 || A.ver!==ver || performance.now()-A.t>3000)) terrBegin(B,ac,hdgRad);   // anche ogni 3 s: campi spianati e rilievo più fine arrivano dopo
+  else {
+    if(T.back.pre){ const P=T.back; P.pre=false; let d2=hm-(P.m0+mid); d2-=T.M*Math.round(d2/T.M);   // griglia preparata nel tempo libero (terrAhead): si scambia solo se copre ancora la vista
+      if(P.ok && Math.hypot(ac.E-P.cE,ac.N-P.cN)<400 && Math.floor(mid+d2-T.HC)>=0 && Math.ceil(mid+d2+T.HC)<=NC-1){ T.front=P; T.back=A; A=P; cols(); } }
+    const B=T.back;
+    if(!B.busy && (Math.hypot(ac.E-A.cE,ac.N-A.cN)>TERR_STEP || Math.abs(dm)*T.dth>TERR_MARG*0.6 || A.ver!==ver || performance.now()-A.t>3000)) terrBegin(B,ac,hdgRad);   // anche ogni 3 s: campi spianati e rilievo più fine arrivano dopo
     if(B.busy){ terrRows(B,T.rows); if(B.ok){ T.front=B; T.back=A; A=B; cols(); } } }
   if(cA<0) cA=0; if(cB>NC-1) cB=NC-1;
   const sinH=Math.sin(hdgRad), cosH=Math.cos(hdgRad), oE=A.cE-ac.E, oN=A.cN-ac.N, Z=A.Z, MI=A.MI, PX=T.PX, PY=T.PY, POK=T.POK, Fp=F;
@@ -2154,6 +2182,19 @@ function terrFast(ac,acAlt,hdgRad,sinP,cosP){
         ctx.stroke(); }
     }
   } finally{ ctx.restore(); }
+}
+// Tempo libero tra un fotogramma e l'altro (anticipo.js): la griglia di riserva si calcola qui, centrata dove l'aereo sarà tra un
+// attimo (dE, dN metri; dH radianti di virata), così il fotogramma trova il lavoro fatto e deve solo scambiarla. left() = ms rimasti.
+// Se il tempo libero non c'è, o la previsione sbaglia, terrFast fa come prima. Rende true se resta lavoro.
+function terrAhead(left,dE,dN,dH){
+  const T=TG; if(T.lvl<0 || T.bad || !(performance.now()-T.seen<400)) return false;
+  const A=T.front, B=T.back; if(!A.ok || B.pre) return false;
+  if(!B.busy){ let dm=T.hd/T.dth-(A.m0+((T.NC-1)>>1)); dm-=T.M*Math.round(dm/T.M);
+    if(!(Math.hypot(T.acE-A.cE,T.acN-A.cN)>TERR_STEP || Math.abs(dm)*T.dth>TERR_MARG*0.6 || A.ver!==PH.demVer || performance.now()-A.t>3000)) return false;
+    terrBegin(B,{E:T.acE+dE,N:T.acN+dN},T.hd+dH); }
+  while(B.busy && left()>0.5) terrRows(B,1);
+  if(B.ok && !B.busy) B.pre=true;
+  return B.busy;
 }
 function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
   // punto di vista: stessa superficie che si disegna (terrain), mai sotto. A terra fermo a 8 m sul terreno, senza seguire la quota GPS
@@ -2243,6 +2284,25 @@ function rasterMap(ac){
   MR.hzOk=false;
   if(base){ try{ rasterHaz(n,haz); MR.hzOk=true; }catch(e){ if(!MR.hzErr){ MR.hzErr=true; try{ PH.logErr&&PH.logErr('mappa: pericolo sopra la carta non disegnato · '+String(e&&e.message||e)); }catch(e2){} } } }
   Object.assign(MR,{alt:acAlt,zi:J===true?-1:zi,inh:inhField()});
+}
+// Tempo libero tra i fotogrammi (anticipo.js): il rilievo successivo si comincia prima che serva, centrato un po' avanti lungo lo
+// spostamento previsto (uE, uN = direzione), e le sue quote si calcolano qui; rasterMap lo trova avviato (MR.job) e lo finisce.
+// Parte quando l'aereo ha superato il centro del rilievo a schermo: stessa cadenza di prima, ma il lavoro è già fatto all'arrivo.
+// Con la mappa spostata col dito, o se riquadro e zoom non sono quelli del rilievo a schermo, non fa niente.
+function rastAhead(left,uE,uN){
+  if(!PH || PH.pan || !(performance.now()-(MR.seen||0)<400)) return false;
+  let J=MR.job;
+  if(!J){ if(!(MR.zi===zi && MR.z && MR.half>0)) return false;
+    const ac=enu(S.lat,S.lon), cov=mapCov(), n=Math.min(400,Math.round(MR.n*cov/1.8)), half=ZOOMS[zi]*1000*cov, nn=n*n;
+    if(MR.zn!==n || MR.half!==half) return false;
+    const d=Math.hypot(ac.E-MR.cE,ac.N-MR.cN), al=(ac.E-MR.cE)*uE+(ac.N-MR.cN)*uN; if(!(al>half*0.06 && d<=half*0.2)) return false;
+    const cE=ac.E+uE*half*0.16, cN=ac.N+uN*half*0.16, sp=MR.spare&&MR.spare.z.length===nn?MR.spare:{z:new Float32Array(nn),rgb:new Uint8ClampedArray(nn*3)}; MR.spare=null;
+    J=MR.job={z:sp.z,rgb:sp.rgb,zn:n,half,cE,cN,f:cov,zi,row:0,col:false,L:terrNear(cE-half,cE+half,cN-half,cN+half)}; }
+  if(J.zi!==zi || J.row>=J.zn) return false;
+  const n=J.zn, half=J.half, st=2*half/n, z=J.z, km=ZOOMS[zi]; PH.demZ=km>=250?7:(km>=90?8:(km>=30?9:(km>=15?10:(km<=3?12:11))));
+  try{ while(J.row<n && left()>0.8){ const j=J.row, N=J.cN+half-(j+0.5)*st; for(let i=0;i<n;i++) z[j*n+i]=terrain(J.cE-half+(i+0.5)*st,N,J.L); J.row++; } }
+  finally{ PH.demZ=11; }
+  return J.row<n;
 }
 // Pericolo del terreno SOPRA la carta (mappa di base accesa). Prima era una macchia quasi piena (rosso all'82%, giallo al 59%) che
 // in montagna copriva nomi, quote e simboli. Adesso: velatura leggera, tratteggio in diagonale e contorno netto con il bordo scuro
@@ -2368,7 +2428,7 @@ function phSun(date,lat,lon){
 
 // ---------------- tutto il resto della versione telefono ----------------
 PH={
-  demo:false, dem:new Map(), demPend:new Set(), demFail:new Map(), demVer:0, demZ:11, demCv:null,
+  demo:false, dem:new Map(), demPend:new Set(), demFail:new Map(), demQ:new Map(), demT:new Map(), demVer:0, demZ:11, demCv:null,
   base:lsGet('ia517p_basemap','topo'), tiles:new Map(), esriKey:lsGet('ia517p_esrikey',''), customMap:lsGet('ia517p_custommap',null), wmsLayers:lsGet('ia517p_wmslayers',null),
   acc:null, lastFix:null, fixT:0, motionHz:0, mCount:0, mT0:performance.now(),
   M:lsGet('ia517p_mount',null)||[[0,0,-1],[1,0,0],[0,-1,0]], mountCal:!!lsGet('ia517p_mount',null),
@@ -3248,6 +3308,33 @@ PH.wmsDiscover=async function(key){
     if(names.length){ PH.wmsLayers=PH.wmsLayers||{}; PH.wmsLayers[key]=names.slice(names.length>1?1:0).join(','); lsSet('ia517p_wmslayers',PH.wmsLayers); PH.tiles.clear(); }
   }catch(e){}
 };
+function phTileKey(z,x,y){ return PH.base+(PH.base==='custom'?JSON.stringify(PH.customMap):'')+z+'/'+x+'/'+y; }
+// una tessera nuova. Si dà per pronta solo dopo la decodifica (fuori dal disegno): prima la decodificava il primo fotogramma che la
+// usava, e una zona nuova con tante tessere insieme faceva un fotogramma lungo. Memoria piena: via quella che serve meno
+// (PH.tileDrop di anticipo.js: altra mappa, altro zoom, alle spalle), mai una a schermo o davanti; se no la più vecchia, come prima.
+function phTile(key,z,x,y,bd){
+  const T={img:new Image(),ok:false,t:Date.now(),z,x,y,b:PH.base}; PH.tilesLoading=(PH.tilesLoading||0)+1;
+  const fin=()=>{ T.ok=true; };
+  T.img.onload=()=>{ PH.tilesLoading--; try{ T.img.decode().then(fin,fin); }catch(e){ fin(); } };
+  T.img.onerror=()=>{ PH.tilesLoading--; setTimeout(()=>{ if(PH.tiles.get(key)===T) PH.tiles.delete(key); },30000); };
+  if(bd.local){ PH.cartaTile(z,x,y).then(d=>{ if(d) T.img.src='data:image/png;base64,'+d; else T.img.onerror(); }).catch(()=>T.img.onerror()); }   // carta scaricata sul telefono
+  else T.img.src=PH.tileUrl(z,x,y,bd);
+  PH.tiles.set(key,T);
+  if(PH.tiles.size>400){ let k0=null; try{ if(PH.tileDrop) k0=PH.tileDrop(); }catch(e){} if(k0==null || !PH.tiles.has(k0)) k0=PH.tiles.keys().next().value; PH.tiles.delete(k0); }
+  return T;
+}
+// Tessere che serviranno tra poco (anticipo.js): stesso livello della vista, riquadro a schermo spostato dove sarà l'aereo
+// (dLat, dLon in gradi). Al massimo «max» per volta e mai più di 6 in arrivo: quelle a schermo passano sempre prima.
+function phTilesAhead(dLat,dLon,max){
+  const V=PH.baseV; if(!V || PH.base!==V.b || PH.base==='dem' || PH.pan || performance.now()-V.t>1500) return 0;
+  const bd=PH.baseDef(); if((bd.key && !PH.esriKey) || (PH.wmsBlocked && bd.wms) || (bd.local && !PH.cartaOk)) return 0;
+  const n=2**V.z, dx=dLon/360*n, ly=la=>{ const r=la*D2R; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n; }, dy=ly(S.lat+dLat)-ly(S.lat);
+  const x0=Math.floor(V.fx0+dx), x1=Math.floor(V.fx1+dx), y0=Math.floor(V.fy0+dy), y1=Math.floor(V.fy1+dy); let q=0;
+  if((x1-x0+1)*(y1-y0+1)>160) return 0;
+  for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++){ if(q>=max || (PH.tilesLoading||0)>=6) return q;
+    const key=phTileKey(V.z,x,y); if(!PH.tiles.has(key)){ phTile(key,V.z,x,y,bd); q++; } }
+  return q;
+}
 function phoneBase(ac,sc,ax,ay,t){
   if(!PH || PH.base==='dem') return;
   const cosl=Math.cos(S.lat*D2R);
@@ -3270,16 +3357,12 @@ function phoneBase(ac,sc,ax,ay,t){
   const x0=Math.floor((lo0+180)/360*n), x1=Math.floor((lo1+180)/360*n);
   const y0=Math.floor(lat2y(la1)), y1=Math.floor(lat2y(la0));
   if((x1-x0+1)*(y1-y0+1)>160) return;
+  PH.baseV={b:PH.base,z,fx0:(lo0+180)/360*n,fx1:(lo1+180)/360*n,fy0:lat2y(la1),fy1:lat2y(la0),t:performance.now()};   // riquadro a schermo, per le tessere chieste in anticipo
   const tLat=y=>Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*R2D, tLon=x=>x/n*360-180;
   ctx.save(); ctx.translate(ax,ay); ctx.rotate(-t); ctx.imageSmoothingEnabled=true; let miss=0;
   for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++){
-    const key=PH.base+(PH.base==='custom'?JSON.stringify(PH.customMap):'')+z+'/'+x+'/'+y; let T=PH.tiles.get(key);
-    if(!T){ if(PH.tilesLoading>12){ miss++; continue; }
-      T={img:new Image(),ok:false,t:Date.now()}; PH.tilesLoading=(PH.tilesLoading||0)+1;
-      T.img.onload=()=>{ T.ok=true; PH.tilesLoading--; }; T.img.onerror=()=>{ PH.tilesLoading--; setTimeout(()=>PH.tiles.delete(key),30000); };
-      if(bd.local){ PH.cartaTile(z,x,y).then(d=>{ if(d) T.img.src='data:image/png;base64,'+d; else T.img.onerror(); }).catch(()=>T.img.onerror()); }   // carta scaricata sul telefono
-      else T.img.src=PH.tileUrl(z,x,y,bd); PH.tiles.set(key,T);
-      if(PH.tiles.size>400){ const k0=PH.tiles.keys().next().value; PH.tiles.delete(k0); } }
+    const key=phTileKey(z,x,y); let T=PH.tiles.get(key);
+    if(!T){ if(PH.tilesLoading>12){ miss++; continue; } T=phTile(key,z,x,y,bd); }
     if(!T.ok){ miss++; continue; }
     const a=enu(tLat(y),tLon(x)), b=enu(tLat(y+1),tLon(x+1));
     ctx.drawImage(T.img,(a.E-ac.E)*sc,(ac.N-a.N)*sc,(b.E-a.E)*sc+0.6,(a.N-b.N)*sc+0.6);
@@ -3296,21 +3379,41 @@ PH.mapCaption=function(){
 };
 
 // ---- scarico per il volo senza internet ----
-PH.prefetch=async function(kind,onProg){
-  const c0=S.gpsReal?{lat:S.lat,lon:S.lon}:{lat:ORIGIN.lat,lon:ORIGIN.lon}, cosl=Math.cos(c0.lat*D2R), jobs=[];
-  const add=(z,rKm,urlF)=>{ const n=2**z, lat2y=la=>{ const r=la*D2R; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n; };
-    const x0=Math.floor((c0.lon-rKm*1000/(111320*cosl)+180)/360*n), x1=Math.floor((c0.lon+rKm*1000/(111320*cosl)+180)/360*n);
-    const y0=Math.floor(lat2y(c0.lat+rKm*1000/110540)), y1=Math.floor(lat2y(c0.lat-rKm*1000/110540));
-    for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++) jobs.push(urlF(z,x,y)); };
-  if(kind==='dem'){ add(7,450,phDemUrl); add(8,250,phDemUrl); add(9,150,phDemUrl); add(10,100,phDemUrl); add(11,60,phDemUrl); }
-  else { const bd=PH.baseDef(); if(PH.base==='dem'||bd.local) return {done:0,ok:0};      // la carta VFR è già tutta sul telefono
-    for(const z of [8,9,10,11,12,13]) if(z>=(bd.min||6) && z<=(bd.max||17)) add(z,z<=9?60:(z<=11?30:(z===12?12:6)),(z,x,y)=>PH.tileUrl(z,x,y,bd)); }
-  let done=0, ok=0;
-  const worker=async()=>{ while(jobs.length){ const u=jobs.pop();
-    try{ const r=await fetch(u,kind==='dem'?{mode:'cors'}:{mode:'no-cors'}); if(r.ok||r.type==='opaque') ok++; }catch(e){}
-    done++; onProg&&onProg(done,done+jobs.length,ok); } };
-  await Promise.all([worker(),worker(),worker(),worker()]);
-  return {done,ok};
+// Con i tasti di Impostazioni: la zona attorno a dove sei, come sempre. Lo scarico automatico (anticipo.js) usa la stessa funzione
+// con «opt»: centri = più punti (lungo una rotta), raggio(z,c,kind) = km per livello e per punto (0 = niente), pausa = ms tra due
+// richieste alla rete, par = richieste insieme, tettoKB = peso massimo, stop() = smetti subito (decollo), conta = solo contare,
+// cache = salta ciò che è già sul telefono (e, se il service worker non è ancora attivo, mette da parte al suo posto).
+PH.prefetch=async function(kind,onProg,opt){
+  opt=opt||{};
+  const c0=S.gpsReal?{lat:S.lat,lon:S.lon}:{lat:ORIGIN.lat,lon:ORIGIN.lon}, jobs=[], visti=new Set(), cen=opt.centri||[c0];
+  const add=(z,rKm,urlF,c)=>{ if(!(rKm>0)) return; const n=2**z, cosl=Math.cos(c.lat*D2R), lat2y=la=>{ const r=la*D2R; return (1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n; };
+    const x0=Math.floor((c.lon-rKm*1000/(111320*cosl)+180)/360*n), x1=Math.floor((c.lon+rKm*1000/(111320*cosl)+180)/360*n);
+    const y0=Math.floor(lat2y(c.lat+rKm*1000/110540)), y1=Math.floor(lat2y(c.lat-rKm*1000/110540));
+    for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++){ const u=urlF(z,x,y); if(!visti.has(u)){ visti.add(u); jobs.push(u); } } };
+  const rD={7:450,8:250,9:150,10:100,11:60}, rM=z=>z<=9?60:(z<=11?30:(z===12?12:6)), rg=(z,c,d)=>opt.raggio?opt.raggio(z,c,kind):d;
+  if(kind==='dem'){ for(const z of [7,8,9,10,11]) for(const c of cen) add(z,rg(z,c,rD[z]),phDemUrl,c); }
+  else { const bd=PH.baseDef(); if(PH.base==='dem'||bd.local) return {done:0,ok:0,n:0,kb:0};      // la carta VFR è già tutta sul telefono
+    for(const z of [8,9,10,11,12,13]) if(z>=(bd.min||6) && z<=(bd.max||17)) for(const c of cen) add(z,rg(z,c,rM(z)),(z,x,y)=>PH.tileUrl(z,x,y,bd),c); }
+  let done=0, ok=0, kb=0, rete=0, stop=false, cache=null;
+  const kbDef=opt.kb||(kind==='dem'?90:35), sw=!!(navigator.serviceWorker&&navigator.serviceWorker.controller);
+  if(opt.cache){ try{ cache=await caches.open(kind==='dem'?'ia517-dem':'ia517-map'); }catch(e){} }
+  if(opt.conta){ let n=jobs.length; if(cache){ n=0; for(const u of jobs){ try{ if(!(await cache.match(u))) n++; }catch(e){ n++; } } } return {n,tot:jobs.length}; }   // quanti mancano davvero
+  if(opt.centri) jobs.reverse();                              // con un tetto al peso: prima i livelli larghi, il dettaglio per ultimo
+  const worker=async()=>{ while(jobs.length && !stop){
+    if(opt.stop && opt.stop()){ stop=true; break; }
+    const u=jobs.pop(); let net=false;
+    try{ if(cache && await cache.match(u)) ok++;                // già sul telefono: niente rete, niente pausa
+      else { net=true; rete++; let r;
+        if(kind==='dem') r=await fetch(u,{mode:'cors',signal:opt.signal});
+        else if(cache && !sw){ try{ r=await fetch(u,{mode:'cors',credentials:'omit',signal:opt.signal}); }catch(e){ if(opt.stop&&opt.stop()) throw e; r=await fetch(u,{mode:'no-cors',signal:opt.signal}); } }
+        else r=await fetch(u,{mode:'no-cors',signal:opt.signal});
+        if(r.ok||r.type==='opaque'){ ok++; const cl=r.ok?+r.headers.get('content-length'):0; kb+=cl>0?cl/1024:kbDef;
+          if(cache && !sw && r.ok){ try{ await cache.put(u,r.clone()); }catch(e){} } } } }catch(e){}
+    done++; onProg&&onProg(done,done+jobs.length,ok,kb);
+    if(opt.tettoKB && kb>=opt.tettoKB) stop=true;
+    if(net && opt.pausa) await new Promise(r=>setTimeout(r,opt.pausa)); } };
+  await Promise.all(Array.from({length:opt.par||4},worker));
+  return {done,ok,kb,rete,rest:jobs.length,stop};
 };
 
 // ---- dati locali al posto del servizio: le stesse richieste che l'app faceva al Raspberry ----
@@ -3585,6 +3688,14 @@ PH.renderImp=function(){
     <p class="ph-sub">Scarica prima, con il WiFi: il terreno per la vista sintetica e gli avvisi (circa 10 MB attorno a dove sei, o alla Carolina) e la mappa di base della zona. Pagine, campi, rotte e meteo già scaricato restano sul telefono.</p>
     <div class="ph-btns"><button class="ph-btn pri" id="phDlDem">Scarica terreno</button><button class="ph-btn" id="phDlMap">Scarica mappa della zona</button></div>
     <p class="ph-sub" id="phDlMsg"></p>
+  </section>
+  <section><h3>Scarico automatico</h3>
+    <p class="ph-sub">A terra, senza chiedere niente, l'app prepara quello che serve per volare senza rete: quando salvi una rotta o fai un DIRECT TO scarica terreno, mappa di base e prati lungo la rotta (10 km per lato) e attorno a partenza e arrivo; all'avvio la zona attorno a dove sei e, se è uscito un ciclo AIRAC nuovo, la carta VFR. Una riga in basso dice cosa scarica e quanti MB. Mai in volo: se decolli si ferma subito. Al massimo 60 MB per rotta o zona.</p>
+    <div class="ph-row"><span>Rotta e zona (terreno, mappa, prati)</span></div>
+    <div class="ph-seg" id="phAdZ">${[['sempre','Sempre'],['wifi','Solo Wi-Fi'],['mai','Mai']].map(([v,l])=>`<button data-v="${v}" aria-pressed="${((PH.autoDl&&PH.autoDl.cfg.zona)||'sempre')===v}">${l}</button>`).join('')}</div>
+    <div class="ph-row"><span>Carta VFR intera (circa 105 MB)</span></div>
+    <div class="ph-seg" id="phAdC">${[['sempre','Sempre'],['wifi','Solo Wi-Fi'],['mai','Mai']].map(([v,l])=>`<button data-v="${v}" aria-pressed="${((PH.autoDl&&PH.autoDl.cfg.carta)||'wifi')===v}">${l}</button>`).join('')}</div>
+    <p class="ph-sub" id="phAdMsg"></p>
   </section>
   <section><h3>Mappa di base</h3>
     <div class="ph-seg ph-seg2" id="phBase">${Object.entries(PH.BASES).map(([k2,b])=>`<button data-b="${k2}" aria-pressed="${PH.base===k2}">${b.name}</button>`).join('')}</div>
@@ -4349,6 +4460,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.168","Trasmetti la tua posizione su OGN (solo app Android, in prova, spenta di serie): chi non ha FLARM né trasponder può farsi vedere sulla Open Glider Network dagli altri piloti HORIZON e da chi guarda OGN. Si accende a terra da Impostazioni › Trasmetti la posizione (OGN), dopo aver letto cosa esce dal telefono; trasmette solo in volo, ogni 5 secondi, anonimo o con le marche. In volo la riga di stato dice OGN ↑ (visibile) o NO OGN, e la pagina Traffico «VISIBILE / NON VISIBILE SU OGN». Non è un anticollisione. L'app guarda avanti: in volo stima dove sarai tra 20–60 secondi (traccia, velocità, virata, rotta attiva) e prepara prima terreno e mappa di quella zona, così entrando in una zona nuova non ci sono attese né scatti; in memoria tiene quello che hai sotto e davanti e butta per primo quello che hai alle spalle. Nuovo «Scarico automatico» (Impostazioni): a terra, senza chiedere niente, quando salvi una rotta o fai un DIRECT TO scarica terreno, mappa di base e prati lungo la rotta (10 km per lato) e attorno a partenza e arrivo; all'avvio la zona attorno a dove sei e la carta VFR se è uscito un ciclo AIRAC nuovo. Due scelte, «Sempre / Solo Wi-Fi / Mai»: rotta e zona (di serie Sempre, al massimo 60 MB per volta) e carta VFR intera (di serie Solo Wi-Fi). Una riga dice cosa scarica e quanti MB. Mai in volo: se decolli si ferma subito."],
   ["1.0.167","Zona di planata: dentro la zona verde compaiono i prati adatti a un atterraggio fuori campo, presi dalle mappe (prati e coltivi sì; paesi, boschi, acqua e linee elettriche no), con la striscia più lunga, il verso col vento e i metri; in EMERGENZA la sezione «Prati raggiungibili», sempre dopo i campi veri. Sono un'indicazione, da verificare a vista. Si scaricano a terra con la rete (Impostazioni › Volare senza internet › «Scarica i prati della zona»). Piano molto più pronto: non ricalcola tutto a ogni tasto e in volo non ruba tempo allo strumento. Mappa in montagna: con una carta sotto (carta VFR, OpenTopoMap, IGM, ortofoto, satellite) il giallo e il rosso del terreno non la coprono più. La carta resta davanti e si legge; il pericolo è disegnato sopra con una velatura leggera, un tratteggio e un contorno netto, giallo sotto i 180 m e rosso (più spesso) sotto i 60 m dal terreno: le soglie sono quelle di sempre. Con «Solo rilievo» la mappa resta com'era. Se le tessere della carta non sono ancora arrivate, o manca la rete, sotto si vede il rilievo e non il fondo scuro. Orizzonte con il terreno molto più leggero: il rilievo davanti si calcola una volta e si riusa mentre l'aereo avanza, quindi il movimento è più fluido e in automatico il dettaglio sale più spesso. I versanti hanno anche un'ombra che viene da nord-ovest, e quattro archi sottili sul terreno segnano 1, 2, 5 e 10 km. Mappa senza scatti quando si sposta e quando si sale o si scende: il rilievo si rifà un po' per volta e, se cambia solo la quota, si ricolora soltanto il pericolo."],
   ["1.0.163","Controllo generale dell'app. Avvisi di terreno e di spazio aereo anche se il diario non ha visto il decollo: bastano 5 secondi a più di 25 km/h e a più di 60 m sul terreno (un velivolo lento in salita controvento restava senza avvisi). Se davanti manca il rilievo (zona non scaricata, senza rete) compare la bandierina «TERRENO NON DISPONIBILE» e l'etichetta TERRENO diventa gialla. In volo: una riattaccata o un tocca-e-riparti non viene più presa per atterraggio; «TERRENO! CABRA» non viene più coperto da un altro avviso; la quota obiettivo alzata per il terreno torna giù a terreno passato; con il GPS perso niente pericoli di traffico, planata o riporti calcolati da una posizione ferma, e l'orizzonte non resta inclinato dall'ultima accelerazione. Carburante impostato a terra: vale anche dopo il decollo, e dopo l'atterraggio resta il residuo. Emergenza: distanze e prue vere anche lontano dal Nord (in Sicilia erano corte del 13%). La pista scelta a mano non resta per il campo dopo. NOTAM sulla mappa anche con gli spazi aerei spenti. Mappa più fluida con lo zoom largo. Piano: NOTAM con la riga Q scritta a larghezza fissa, quote «ASFC», METAR senza vento, rotta non data per libera se manca il terreno. HORIZON 2: l'orologio ha tre pagine (VOLO con rosa della bussola e deviazione dalla rotta, ARRIVO con frequenza, vento e tramonto, PILOTA con ora UTC, tempo di volo e autonomia). La pagina segue il volo da sola: a terra PILOTA, in rotta VOLO, negli ultimi 10 minuti e all'ingresso in circuito ARRIVO, in base e in finale di nuovo VOLO; un tocco sullo schermo mostra un'altra pagina per 20 secondi. I tasti restano tutti per lo strumento. Avvisi scritti su più righe."],
   ["1.0.161","Filigrana in basso su tutte le pagine (HORIZON © E. D'Amico, codice del telefono, impronta): resta in ogni schermata. Impronta dell'autore in Info e nelle segnalazioni. Avvertenze aggiornate con il barometro."],
@@ -5417,6 +5529,7 @@ requestAnimationFrame(frame);
 <script src="impostazioni.js"></script>
 <script src="emergenza.js"></script>
 <script src="atterraggi.js"></script>
+<script src="anticipo.js"></script>
 <script src="livelli.js"></script>
 <script src="note.js"></script>
 <script src="schermo.js"></script>
@@ -5425,6 +5538,7 @@ requestAnimationFrame(frame);
 <script src="schede.js"></script>
 <script src="voce.js"></script>
 <script src="orologio.js"></script>
+<script src="ogn.js"></script>
 <script src="riservato.js"></script>
 <!-- filigrana: «HORIZON © E. D'Amico» con il codice del telefono, su tutte le pagine e quindi in ogni schermata;
      trasparente ai tocchi. Con il codice si sa da quale telefono viene una schermata girata in giro. -->
