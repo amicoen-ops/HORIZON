@@ -5386,8 +5386,6 @@ PH.trfPage=function(){
   c.strokeStyle='rgba(255,176,32,.6)'; c.setLineDash([4,4]); c.beginPath(); c.arc(cx,cy,Math.max(3,PH.TRF_LIM*sc),0,Math.PI*2); c.stroke(); c.setLineDash([]);
   // nord
   c.save(); c.translate(cx,cy); c.rotate(-up); c.fillStyle='#ff6b6b'; c.font='700 13px "Oxanium",system-ui'; c.textAlign='center'; c.textBaseline='middle'; c.fillText('N',0,-rr+10); c.restore();
-  // il mio aereo
-  c.fillStyle='#ffd23d'; c.beginPath(); c.moveTo(cx,cy-10); c.lineTo(cx+7,cy+7); c.lineTo(cx,cy+3); c.lineTo(cx-7,cy+7); c.closePath(); c.fill();
   const shown=ev.filter(e=>!e.me && e.d<=T.rng*1000*1.05 && !(e.dz===e.dz && Math.abs(e.dz)>6000*FT2M));
   T.hits=[];
   for(const e of shown.slice().reverse()){
@@ -5398,10 +5396,16 @@ PH.trfPage=function(){
     const col=e.lvl>=2?'#ff3b3b':(e.lvl===1?'#ffb020':(PH.sqOf&&PH.sqOf(e.t)?'#6dff8f':(e.age>30||e.t.ground||e.t.kmh<25?'#6b7684':(near?'#ffe08a':'#4fd2ff'))));
     c.save(); c.translate(px,py); c.rotate(e.t.trk*D2R-up); c.fillStyle=col; c.strokeStyle='#000'; c.lineWidth=1.5;
     c.beginPath(); c.moveTo(0,-9); c.lineTo(6,7); c.lineTo(0,3); c.lineTo(-6,7); c.closePath(); c.fill(); c.stroke(); c.restore();
-    c.fillStyle=col; c.font='700 11px "Oxanium",system-ui'; c.textAlign='left'; c.textBaseline='middle';
-    const v=e.t.vz>1?' ↑':(e.t.vz<-1?' ↓':'');
-    c.fillText(PH.trfName(e.t).slice(0,9),px+10,py-6); c.fillText(PH.trfDz(e)+v,px+10,py+7);
+    // la scritta sta dalla parte opposta al centro, con il bordo scuro: un traffico vicino non copre più il mio aereo
+    const sx=px<cx?-1:1; c.fillStyle=col; c.font='700 11px "Oxanium",system-ui'; c.textAlign=sx<0?'right':'left'; c.textBaseline='middle';
+    const v=e.t.vz>1?' ↑':(e.t.vz<-1?' ↓':''), n1=PH.trfName(e.t).slice(0,9), n2=PH.trfDz(e)+v;
+    c.lineWidth=3; c.strokeStyle='rgba(11,22,34,.9)'; c.strokeText(n1,px+10*sx,py-6); c.strokeText(n2,px+10*sx,py+7);
+    c.fillText(n1,px+10*sx,py-6); c.fillText(n2,px+10*sx,py+7);
   }
+  // il mio aereo, per ultimo: resta sempre sopra a simboli e scritte
+  c.fillStyle='#ffd23d'; c.strokeStyle='#000'; c.lineWidth=1.5; c.beginPath(); c.moveTo(cx,cy-10); c.lineTo(cx+7,cy+7); c.lineTo(cx,cy+3); c.lineTo(cx-7,cy+7); c.closePath(); c.fill(); c.stroke();
+  // traffico finto del volo dimostrativo: va detto sul radar, non solo nell'elenco
+  if(shown.some(e=>e.t.src==='DEMO')){ c.fillStyle='#ffc531'; c.font='700 12px "Oxanium",system-ui'; c.textAlign='left'; c.textBaseline='top'; c.fillText('TRAFFICO FINTO · VOLO DIMOSTRATIVO',8,6); }
   // elenco e fonti
   const ago=t=>t?Math.round((Date.now()-t)/1000)+' s fa':'mai';
   const sl=(k,name)=>{ const s=T.src[k]; return s.err&&(!s.t||s.te>s.t)?`<span class="b">${name}: non risponde (${s.err.replace(/</g,'')})</span>`:`<span class="${s.t&&Date.now()-s.t<30000?'o':'w'}">${name}: ${s.n} · ${ago(s.t)}</span>`; };
