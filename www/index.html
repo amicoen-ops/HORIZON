@@ -788,10 +788,11 @@ function elevRGB(z,sh){
   }
   const s=clamp(sh,.5,1.3); return [c[0]*s,c[1]*s,c[2]*s];
 }
+// colori di pericolo: [rosso, verde, blu, peso sull'orizzonte, peso sulla mappa]; 1 = giallo (sotto TAWS_YEL), 2 = rosso (sotto TAWS_RED)
+const TAWS_MIX=[null,[236,202,44,.66,.38],[228,38,38,.78,.55]];
 function tawsRGB(z,sh,clr,soft){
   let [r,g,b]=elevRGB(z,sh);
-  if(clr<TAWS_RED){ const a=soft?.55:.78; r=r*(1-a)+228*a; g=g*(1-a)+38*a; b=b*(1-a)+38*a; }
-  else if(clr<TAWS_YEL){ const a=soft?.38:.66; r=r*(1-a)+236*a; g=g*(1-a)+202*a; b=b*(1-a)+44*a; }
+  if(clr<TAWS_YEL){ const m=TAWS_MIX[clr<TAWS_RED?2:1], a=m[soft?4:3]; r=r*(1-a)+m[0]*a; g=g*(1-a)+m[1]*a; b=b*(1-a)+m[2]*a; }
   return [r,g,b];
 }
 // TAWS inibito vicino al campo di destinazione durante il circuito (come sugli strumenti certificati)
@@ -1304,15 +1305,20 @@ function rasterMap(ac){
 }
 function drawMap(g){
   const acA=enu(S.lat,S.lon), pan=PH&&PH.pan, ac=pan?{E:acA.E+pan.E,N:acA.N+pan.N}:acA, t=pan?0:((S.trk!=null)?S.trk:S.hdg)*D2R, rng=ZOOMS[zi]*1000;
-  if(MR.zi!==zi || (PH&&Math.abs(mapCov()-(MR.f||1.8))>0.15) || Math.hypot(ac.E-MR.cE,ac.N-MR.cN)>MR.half*0.22 || Math.abs(S.alt*FT2M-MR.alt)>25 || MR.inh!==inhField()) rasterMap(ac);
+  if(MR.hjob){ try{ hazStep(3); }catch(e){ MR.hjob=null; MR.hzOk=false; MR.hzG=null; } }   // pericolo sopra la carta: un pezzo per fotogramma
+  if(MR.job || MR.zi!==zi || (PH&&Math.abs(mapCov()-(MR.f||1.8))>0.15) || Math.hypot(ac.E-MR.cE,ac.N-MR.cN)>MR.half*0.22 || Math.abs(S.alt*FT2M-MR.alt)>25 || MR.inh!==inhField()) rasterMap(ac);
   const sc=1.3*R/rng, ax=CX, ay=CY+(pan?0:0.3*R), ct=Math.cos(t), stt=Math.sin(t); if(PH) PH.mapSc=sc;
   const toS=(E,N)=>{ const dE=E-ac.E, dN=N-ac.N; return {x:ax+(dE*ct-dN*stt)*sc, y:ay-(dE*stt+dN*ct)*sc}; };
   const onS=p=>p.x>-R*0.05&&p.x<W+R*0.05&&p.y>-R*0.05&&p.y<H+R*0.05;
   ctx.save(); mapClip();
-  ctx.fillStyle='#1d2a1a'; ctx.fillRect(0,0,W,H); if(PH) PH.baseHint=''; phoneBase(ac,sc,ax,ay,t);
-  ctx.save(); ctx.translate(ax,ay); ctx.rotate(-t); ctx.imageSmoothingEnabled=true;
-  ctx.drawImage(MR.cv,(MR.cE-MR.half-ac.E)*sc,(ac.N-(MR.cN+MR.half))*sc,2*MR.half*sc,2*MR.half*sc);
-  ctx.restore();
+  // Con una mappa di base la carta sta davanti e sopra ci va solo il pericolo (velatura, tratteggio e contorno: vedi rasterHaz).
+  // Il rilievo pieno si disegna con «Solo rilievo» (come sempre) e, sotto la carta, finché manca qualche tessera: senza rete non resta il fondo scuro.
+  const base=!!(PH&&PH.base!=='dem'), rast=(im,G,al)=>{ ctx.save(); ctx.translate(ax,ay); ctx.rotate(-t); ctx.imageSmoothingEnabled=true; if(al) ctx.globalAlpha=al;
+    ctx.drawImage(im,(G.cE-G.half-ac.E)*sc,(ac.N-(G.cN+G.half))*sc,2*G.half*sc,2*G.half*sc); ctx.restore(); };
+  ctx.fillStyle='#1d2a1a'; ctx.fillRect(0,0,W,H); if(PH) PH.baseHint='';
+  if(!base || PH.baseMiss!==false) rast(MR.cv,MR);
+  if(base){ phoneBase(ac,sc,ax,ay,t);
+    if(MR.hzOk && MR.hzG){ if(MR.hzN) rast(MR.hz,MR.hzG); } else if(PH.baseMiss===false) rast(MR.cv,MR,.5); }   // se il disegno leggero non è riuscito: rilievo e pericolo in trasparenza
   ctx.fillStyle='rgba(0,0,0,.12)'; ctx.fillRect(0,0,W,H);
   if(PH&&PH.baseHint){ ctx.save(); ctx.font=font(R*0.05,'700'); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.lineWidth=4*k; ctx.strokeStyle='rgba(0,0,0,.85)'; ctx.fillStyle='#ffd23f';
     ctx.strokeText(PH.baseHint,W/2,H-R*0.12); ctx.fillText(PH.baseHint,W/2,H-R*0.12); ctx.restore(); }
@@ -1369,7 +1375,9 @@ function drawMap(g){
   if(PH){ try{ PH.mapUnder&&PH.mapUnder(toS,sc,ac); }catch(e){} PH.drawTrack(toS); PH.glideRing(toS,acA,sc); }   // livelli sotto i campi (spazi aerei)
   // campi volo
   ctx.textBaseline='middle';
+  const vr=Math.hypot(W,H)/sc+300;                         // più lontano di così dal centro della vista un campo non può stare sullo schermo
   for(const f of FIELDS){
+    const dE=f.E-ac.E, dN=f.N-ac.N; if(dE>vr||dE<-vr||dN>vr||dN<-vr) continue;    // i campi sono quasi 2000: conto fatto solo per quelli in zona
     if(PH && PH.lyr && PH.lyr.campi===false && NAV.dest!==f) continue;            // livello Campi spento (la destinazione resta)
     const p=toS(f.E,f.N); if(!onS(p)) continue;
     if(ZOOMS[zi]>60 && NAV.dest!==f){ const ic=f.kind==='aero'; ctx.fillStyle=KIND_COL[f.kind]||'#e8f6ee'; ctx.beginPath(); ctx.arc(p.x,p.y,R*(ic?0.011:0.007),0,7); ctx.fill();
@@ -1491,7 +1499,7 @@ function frame(now){
     try{ if(ctx.reset) ctx.reset(); ctx.setTransform(1,0,0,1,0,0);
       ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H); failBox(CX,CY,R*0.7,R*0.2,'ERRORE DI VISUALIZZAZIONE','riprovo · '+FRAME_LAST_ERR.slice(0,40)); }catch(e2){} }
 }
-let FRAME_OK=0;
+let FRAME_OK=0, MENU_POS_T=0;
 function frameBody(now){
   if(LIVE.any && S.auto){ S.auto=false; el('auto').checked=false; }      // con dati veri la simulazione non riparte mai
   const dt=Math.min(0.05,(now-last)/1000); last=now;
@@ -1500,7 +1508,7 @@ function frameBody(now){
   while(rem>1e-6){ const h=Math.min(0.05,rem); simStep(h); rem-=h; }
   const g=guidance();
   if(S.auto) syncInputs();
-  if(!menuEl.hidden && (Math.round(now/500)%2===0)) renderMenuPos();
+  if(!menuEl.hidden && !(now-MENU_POS_T<500)){ MENU_POS_T=now; renderMenuPos(); }   // due volte al secondo (prima: a ogni fotogramma per mezzo secondo sì e mezzo no)
   ctx.clearRect(0,0,W,H);
   let drawErr=null; try{ if(PAGE==='pfd') drawPFD(g); else drawMap(g); }catch(e){ drawErr=e; }
   if(PH) PH.afterFrame(g,dt);
@@ -1619,8 +1627,11 @@ unitEl.addEventListener('keydown',e=>{
 const fmt={pitch:v=>v.toFixed(0)+'°',roll:v=>v.toFixed(0)+'°',hdg:v=>String(Math.round(v)).padStart(3,'0')+'°',
   ias:v=>Math.round(v)+' km/h',alt:v=>Math.round(v)+' ft',vs:v=>v.toFixed(1)+' m/s',slip:v=>v.toFixed(2)};
 const lid={pitch:'vPitch',roll:'vRoll',hdg:'vHdg',ias:'vIas',alt:'vAlt',vs:'vVs',slip:'vSlip'};
-function syncInputs(){ for(const kk of Object.keys(lid)){ el(kk).value=S[kk]; el(lid[kk]).textContent=fmt[kk](S[kk]); } }
-for(const kk of Object.keys(lid)) el(kk).addEventListener('input',e=>{ S[kk]=parseFloat(e.target.value); el(lid[kk]).textContent=fmt[kk](S[kk]); });
+// in simulazione gira a ogni fotogramma: si scrive nel pannello solo il valore che è cambiato a vista (prima 14 scritture ogni volta)
+const SYNC_T={}, SYNC_E={};
+function syncInputs(){ for(const kk in lid){ const t=fmt[kk](S[kk]); if(SYNC_T[kk]===t) continue; SYNC_T[kk]=t;
+    const e=SYNC_E[kk]||(SYNC_E[kk]=[el(kk),el(lid[kk])]); e[0].value=S[kk]; e[1].textContent=t; } }
+for(const kk of Object.keys(lid)) el(kk).addEventListener('input',e=>{ S[kk]=parseFloat(e.target.value); el(lid[kk]).textContent=fmt[kk](S[kk]); SYNC_T[kk]=null; });
 el('auto').addEventListener('change',e=>{ S.auto=e.target.checked; });
 el('fd').addEventListener('change',e=>S.fd=e.target.checked);
 el('terr').addEventListener('change',e=>S.terr=e.target.checked);
@@ -1962,12 +1973,19 @@ function terrainRaw(E,N){
 }
 // il terreno scaricato ha anche il fondo del mare (quote negative): per quote, TAWS e rotte vale il livello del mare (0 m).
 // Con raw=true restituisce il valore vero, che serve a riconoscere il mare (sotto −5 m)
+// Si ricorda l'ultimo riquadro usato (e l'ultimo mancante): i punti di una griglia cadono quasi sempre nello stesso,
+// così non si compone una chiave di testo e non si cerca nella tabella a ogni campione (orizzonte e mappa ne chiedono migliaia).
+let DEM_T=null, DEM_TZ=-1, DEM_TX=0, DEM_TY=0, DEM_MZ=-1, DEM_MX=0, DEM_MY=0, DEM_MV=-1, DEM_MT=0;
 function phDemAt(lat,lon,z,raw){
   z=z||11;
   for(let zz=z, zmin=Math.min(8,Math.max(5,z-2)); zz>=zmin; zz--){
     const n=2**zz, fx=(lon+180)/360*n, lr=lat*D2R, fy=(1-Math.log(Math.tan(lr)+1/Math.cos(lr))/Math.PI)/2*n;
-    const tx=Math.floor(fx), ty=Math.floor(fy), t=PH.dem.get(zz+'/'+tx+'/'+ty);
-    if(!t){ if(zz===z) phDemFetch(zz,tx,ty); continue; }
+    const tx=Math.floor(fx), ty=Math.floor(fy); let t;
+    if(zz===DEM_TZ && tx===DEM_TX && ty===DEM_TY) t=DEM_T;
+    else if(zz===DEM_MZ && tx===DEM_MX && ty===DEM_MY && DEM_MV===PH.demVer && Date.now()-DEM_MT<250) continue;   // mancava un attimo fa e non è arrivato niente: lo scarico è già stato chiesto
+    else { t=PH.dem.get(zz+'/'+tx+'/'+ty);
+      if(t){ DEM_T=t; DEM_TZ=zz; DEM_TX=tx; DEM_TY=ty; }
+      else { if(zz===z) phDemFetch(zz,tx,ty); DEM_MZ=zz; DEM_MX=tx; DEM_MY=ty; DEM_MV=PH.demVer; DEM_MT=Date.now(); continue; } }
     let px=(fx-tx)*256-0.5, py=(fy-ty)*256-0.5;
     px=px<0?0:(px>254.999?254.999:px); py=py<0?0:(py>254.999?254.999:py);
     const i=px|0, j=py|0, u=px-i, v=py-j, o=j*256+i;
@@ -2010,9 +2028,14 @@ async function phDemFetch(z,x,y){
 
 // a terra niente colori di avviso del terreno (giallo e rosso): solo in volo o nel volo dimostrativo
 function PH_air(){ return !PH || PH.demo || S.auto || !!PH.flight || (S.gpsReal && S.gs>45); }
-function terrain(E,N){
+// campi che possono spianare il terreno dentro un rettangolo: chi calcola una griglia intera li cerca una volta sola
+// e li passa a terrain(), invece di scorrere tutti i campi vicini a ogni punto
+function terrNear(E0,E1,N0,N1){ const L=(PH&&PH.nearF)||FIELDS, out=[];
+  for(let i=0;i<L.length;i++){ const f=L[i], lim=f.flat*2.2; if(f.E>=E0-lim && f.E<=E1+lim && f.N>=N0-lim && f.N<=N1+lim) out.push(f); }
+  return out; }
+function terrain(E,N,Lf){
   let z=terrainRaw(E,N);
-  const L=(PH&&PH.nearF)||FIELDS;
+  const L=Lf||(PH&&PH.nearF)||FIELDS;
   for(let i=0;i<L.length;i++){ const f=L[i], dx=E-f.E, dy=N-f.N, lim=f.flat*2.2;
     if(dx>lim||dx<-lim||dy>lim||dy<-lim) continue;
     // il campo si spiana alla quota del RILIEVO misurata intorno al campo (mediana di 9 punti sul riquadro fine), mai alla quota
@@ -2030,15 +2053,108 @@ function terrain(E,N){
 PH_nearFields=function(){ if(!PH) return; const ac=enu(S.lat,S.lon), r=Math.min(45000,Math.max(30000,ZOOMS[zi]*1500)), r2=r*r;
   PH.nearF=FIELDS.filter(f=>{ const dx=f.E-ac.E, dy=f.N-ac.N; return dx*dx+dy*dy<r2; }); };
 // vista sintetica: come quella dello strumento, ma dove il terreno non è noto non disegna niente.
-// Griglia più fitta (fino a 47×95 riquadri, lati di ~120 m vicino all'aereo) ma disegnata in modo più leggero:
-// ogni vertice si calcola una volta sola, la foschia è mescolata nel colore, e i riquadri dello stesso colore di una fila
-// si riempiono insieme (niente righe tra un riquadro e l'altro). Il livello si abbassa da solo se il telefono rallenta.
-// file in profondità × colonne. Le colonne sono a ventaglio (angolo costante dall'aereo): ogni riquadro occupa
-// più o meno lo stesso spazio sullo schermo e nessuna colonna finisce fuori vista, come succedeva con la larghezza fissa.
-const TERR_Q=[[30,48],[40,72],[48,96],[60,128],[72,160]];   // misurati: 4 · 7 · 12 · 17 · 27 ms (browser del server, schermo da telefono)
+// La griglia è un ventaglio di anelli attorno a un centro FERMO sul terreno e di raggi ad azimut fissi rispetto al nord:
+// le quote, l'ombra e la fascia di colore di ogni riquadro si calcolano una volta e si riusano finché l'aereo non si è
+// spostato di TERR_STEP metri o non ha girato fuori dal margine; a ogni fotogramma si rifà solo la proiezione (poche
+// moltiplicazioni per vertice). Il ricalcolo va su una seconda griglia, un pezzo per fotogramma, e poi si scambia: niente
+// scatti. Prima ogni fotogramma chiedeva al rilievo migliaia di quote e creava centinaia di percorsi e di chiavi di testo.
+// I riquadri vicini dello stesso colore di un anello diventano una striscia sola, quelli fuori dallo schermo si saltano.
+// Colori di pericolo: stesse soglie e stessa regola di prima (quota media del riquadro contro TAWS_RED e TAWS_YEL).
+// file in profondità × colonne dentro la vista (46° per parte).
+const TERR_Q=[[30,48],[40,72],[48,96],[60,128],[72,160]];   // fotogramma intero, mediana (browser del server, schermo da telefono): «fine» 1,6 ms e «massimo» 2,6 ms; con il disegno di prima 7,7 e 16,5
 const TERR_NAMES=['normale','alto','fine','molto fine','massimo','ultra'].slice(0,TERR_Q.length);
 const TERR_HALF=46*Math.PI/180;                               // mezza apertura: copre lo schermo anche con l'aereo inclinato
 const TERR_FAR=70*Math.pow(1.205,29);                         // distanza massima come prima (~15 km)
+const TERR_MARG=32*Math.PI/180, TERR_STEP=20;                 // azimut calcolato in più per parte (per le virate); spostamento in metri che fa ricalcolare
+const TERR_SHN=10, TERR_HZN=16, TERR_NB=31, TERR_BAND=100;    // livelli di ombra e di foschia, fasce di quota (ogni 100 m fino a 3000)
+const TERR_ARCS=[1000,2000,5000,10000];                       // archi sottili sul terreno a queste distanze (m): danno la misura a colpo d'occhio
+const TG={lvl:-1,bad:false};
+function terrSetup(lvl){
+  const FN=TERR_Q[lvl][0], LN=TERR_Q[lvl][1], M=Math.round(Math.PI*(LN-1)/TERR_HALF), dth=2*Math.PI/M;
+  const HC=Math.ceil(TERR_HALF/dth)+1, NC=2*(HC+Math.ceil(TERR_MARG/dth))+1, NQ=NC-1, ratio=Math.pow(TERR_FAR/70,1/(FN-1));
+  const RR=new Float64Array(FN), RM=new Float64Array(FN), ARC=new Uint8Array(FN), HZL=new Int32Array(FN), SIN=new Float64Array(M), COS=new Float64Array(M);
+  for(let i=0;i<FN;i++) RR[i]=70*Math.pow(ratio,i);
+  for(const d of TERR_ARCS){ let bi=1; for(let i=1;i<FN-1;i++) if(Math.abs(RR[i]-d)<Math.abs(RR[bi]-d)) bi=i; RR[bi]=d; ARC[bi]=1; }   // l'anello più vicino va alla distanza esatta
+  for(let i=0;i<FN-1;i++){ RM[i]=(RR[i]+RR[i+1])/2; HZL[i]=Math.round(clamp((RR[i]-2500)/15000,0,.62)/.62*(TERR_HZN-1)); }
+  for(let m=0;m<M;m++){ SIN[m]=Math.sin(m*dth); COS[m]=Math.cos(m*dth); }
+  const buf=()=>({Z:new Float32Array(FN*NC),QC:new Uint16Array((FN-1)*NQ),QZ:new Float32Array((FN-1)*NQ),MI:new Int32Array(NC),cE:0,cN:0,m0:0,ver:-1,t:0,done:0,busy:false,ok:false,L:null});
+  const NBS=TERR_NB*TERR_SHN, NP=3*TERR_HZN*NBS;
+  Object.assign(TG,{lvl,FN,LN,M,dth,HC,NC,NQ,RR,RM,ARC,HZL,SIN,COS,NBS,front:buf(),back:buf(),rows:Math.ceil(FN/6),
+    PX:new Float32Array(FN*NC),PY:new Float32Array(FN*NC),POK:new Uint8Array(FN*NC),
+    RC0:new Int32Array(NC),RC1:new Int32Array(NC),RNX:new Int32Array(NC),USED:new Int32Array(NC),HEAD:new Int32Array(NP),CSS:TG.CSS||new Array(NP)});
+}
+// colore di una voce della tavolozza: pericolo (0 niente, 1 giallo, 2 rosso) × foschia × fascia di quota × ombra; il testo si compone una volta sola
+function terrCss(id){
+  const bi=id%TG.NBS, rest=(id-bi)/TG.NBS, hl=rest%TERR_HZN, hz=(rest-hl)/TERR_HZN, s=bi%TERR_SHN, band=(bi-s)/TERR_SHN;
+  let [r,g,b]=tawsRGB(band*TERR_BAND,.5+s*.8/(TERR_SHN-1),hz===2?TAWS_RED-1:(hz===1?TAWS_YEL-1:1e9));
+  const h=hl/(TERR_HZN-1)*.62; r+=(134-r)*h; g+=(171-g)*h; b+=(210-b)*h;
+  return TG.CSS[id]='rgb('+(r|0)+','+(g|0)+','+(b|0)+')';
+}
+function terrBegin(B,ac,hdgRad){
+  const T=TG, r=T.RR[T.FN-1]; B.cE=ac.E; B.cN=ac.N; B.m0=Math.round(hdgRad/T.dth)-((T.NC-1)>>1); B.ver=PH?PH.demVer:0; B.done=0; B.busy=true; B.ok=false;
+  for(let c=0;c<T.NC;c++) B.MI[c]=((B.m0+c)%T.M+T.M)%T.M;
+  B.L=terrNear(ac.E-r,ac.E+r,ac.N-r,ac.N+r);
+}
+// calcola altri «rows» anelli: quote dei vertici, poi per ogni riquadro quota media, fascia e ombra.
+// Ombra: pendio verso chi guarda più scuro (come prima) più una luce fissa da nord-ovest che stacca i versanti di lato.
+function terrRows(B,rows){
+  const T=TG, NC=T.NC, NQ=T.NQ, FN=T.FN, Z=B.Z, MI=B.MI, end=Math.min(FN,B.done+rows);
+  for(let i=B.done;i<end;i++){ const r=T.RR[i], o=i*NC;
+    for(let c=0;c<NC;c++){ const m=MI[c]; Z[o+c]=terrain(B.cE+r*T.SIN[m],B.cN+r*T.COS[m],B.L); }
+    if(!i) continue;
+    const o0=o-NC, qo=(i-1)*NQ, dr=r-T.RR[i-1], arc=T.RM[i-1]*T.dth;
+    for(let c=0;c<NQ;c++){ const a=Z[o0+c], b=Z[o+c], c2=Z[o+c+1], d=Z[o0+c+1], sum=a+b+c2+d;
+      if(sum!==sum){ B.QC[qo+c]=65535; continue; }
+      const zc=sum/4, sr=((b+c2)-(a+d))/2/dr, st=((d+c2)-(a+b))/2/arc, m=MI[c], m1=MI[c+1], sA=(T.SIN[m]+T.SIN[m1])/2, cA=(T.COS[m]+T.COS[m1])/2;
+      const gE=sr*sA+st*cA, gN=sr*cA-st*sA, sh=clamp(1-sr*2.0+(gE-gN)*0.55,.5,1.3);
+      B.QC[qo+c]=clamp(Math.round(zc/TERR_BAND),0,TERR_NB-1)*TERR_SHN+Math.round((sh-.5)/.8*(TERR_SHN-1)); B.QZ[qo+c]=zc; } }
+  B.done=end; if(end>=FN){ B.ok=true; B.busy=false; B.t=performance.now(); }
+}
+function terrFast(ac,acAlt,hdgRad,sinP,cosP){
+  const lvl=PH?Math.min(TERR_Q.length-1,PH.terrQ==='auto'?PH.terrLvl:(+PH.terrQ||0)):0;
+  if(TG.lvl!==lvl) terrSetup(lvl);
+  const T=TG, FN=T.FN, NC=T.NC, NQ=T.NQ, mid=(NC-1)>>1, hm=hdgRad/T.dth, ver=PH?PH.demVer:0;
+  let A=T.front, dm=0, cA=0, cB=0;
+  const cols=()=>{ dm=hm-(A.m0+mid); dm-=T.M*Math.round(dm/T.M); cA=Math.floor(mid+dm-T.HC); cB=Math.ceil(mid+dm+T.HC); };   // colonne dentro la vista (la prua può passare per il nord)
+  cols();
+  const dist=Math.hypot(ac.E-A.cE,ac.N-A.cN);
+  if(!A.ok || cA<0 || cB>NC-1 || !(dist<400)){ terrBegin(A,ac,hdgRad); terrRows(A,FN); T.back.busy=false; cols(); }   // prima volta, salto di posizione o giro brusco: tutto subito
+  else { const B=T.back;
+    if(!B.busy && (dist>TERR_STEP || Math.abs(dm)*T.dth>TERR_MARG*0.6 || A.ver!==ver || performance.now()-A.t>3000)) terrBegin(B,ac,hdgRad);   // anche ogni 3 s: campi spianati e rilievo più fine arrivano dopo
+    if(B.busy){ terrRows(B,T.rows); if(B.ok){ T.front=B; T.back=A; A=B; cols(); } } }
+  if(cA<0) cA=0; if(cB>NC-1) cB=NC-1;
+  const sinH=Math.sin(hdgRad), cosH=Math.cos(hdgRad), oE=A.cE-ac.E, oN=A.cN-ac.N, Z=A.Z, MI=A.MI, PX=T.PX, PY=T.PY, POK=T.POK, Fp=F;
+  for(let i=0;i<FN;i++){ const r=T.RR[i], o=i*NC;
+    for(let c=cA;c<=cB;c++){ const z=Z[o+c]; if(z!==z){ POK[o+c]=0; continue; }
+      const m=MI[c], dE=oE+r*T.SIN[m], dN=oN+r*T.COS[m], f=dE*sinH+dN*cosH, up=z-acAlt, f1=f*cosP+up*sinP;
+      if(f1<30){ POK[o+c]=0; continue; }
+      PX[o+c]=Fp*(dE*cosH-dN*sinH)/f1; PY[o+c]=-Fp*(up*cosP-f*sinP)/f1; POK[o+c]=1; } }
+  const air=PH_air(), inh=air&&!!inhField(), QC=A.QC, QZ=A.QZ, HEAD=T.HEAD, USED=T.USED, RC0=T.RC0, RC1=T.RC1, RNX=T.RNX, CSS=T.CSS, HNBS=TERR_HZN*T.NBS;
+  const rad=Math.hypot(W,H)/2+4;                              // oltre questo raggio dal centro niente arriva sullo schermo, a qualsiasi inclinazione
+  ctx.save();
+  try{
+    ctx.lineWidth=2*k; ctx.strokeStyle='rgba(255,255,255,.30)'; ctx.lineJoin='round';
+    for(let i=FN-2;i>=0;i--){ const o0=i*NC, o1=o0+NC, qo=i*NQ, hb=T.HZL[i]*T.NBS; let nr=0, nu=0, prev=-1;
+      for(let c=cA;c<cB;c++){ const bi=QC[qo+c]; let id=-1;
+        if(bi!==65535 && (POK[o0+c]&POK[o1+c]&POK[o1+c+1]&POK[o0+c+1])){
+          const x0=PX[o0+c], x1=PX[o1+c], x2=PX[o1+c+1], x3=PX[o0+c+1], y0=PY[o0+c], y1=PY[o1+c], y2=PY[o1+c+1], y3=PY[o0+c+1];
+          if(!((x0<-rad&&x1<-rad&&x2<-rad&&x3<-rad)||(x0>rad&&x1>rad&&x2>rad&&x3>rad)||(y0<-rad&&y1<-rad&&y2<-rad&&y3<-rad)||(y0>rad&&y1>rad&&y2>rad&&y3>rad))){
+            let hz=0; if(air){ const clr=acAlt-QZ[qo+c]; if(clr<TAWS_YEL){ hz=clr<TAWS_RED?2:1;
+                if(inh){ const m=MI[c], m1=MI[c+1], rm=T.RM[i]; if(tawsInhibit(A.cE+rm*(T.SIN[m]+T.SIN[m1])/2,A.cN+rm*(T.COS[m]+T.COS[m1])/2)) hz=0; } } }
+            id=hz*HNBS+hb+bi; } }
+        if(id>=0){ if(id===prev) RC1[nr-1]=c; else { RC0[nr]=c; RC1[nr]=c; const h=HEAD[id]; if(!h) USED[nu++]=id; RNX[nr]=h; HEAD[id]=++nr; } }
+        prev=id; }
+      for(let u=0;u<nu;u++){ const id=USED[u]; ctx.fillStyle=CSS[id]||terrCss(id); ctx.beginPath();
+        for(let q=HEAD[id]; q; q=RNX[q-1]){ const a=RC0[q-1], b=RC1[q-1]+1;
+          ctx.moveTo(PX[o1+a],PY[o1+a]); for(let c=a+1;c<=b;c++) ctx.lineTo(PX[o1+c],PY[o1+c]);
+          for(let c=b;c>=a;c--) ctx.lineTo(PX[o0+c],PY[o0+c]); ctx.closePath(); }
+        ctx.fill(); HEAD[id]=0; }
+      if(T.ARC[i]){ let pen=false; ctx.beginPath();           // arco di distanza: dopo i riquadri più lontani, così quelli più vicini lo coprono dove serve
+        for(let c=cA;c<=cB;c++){ if(!POK[o0+c] || QC[qo+Math.min(c,NQ-1)]===65535){ pen=false; continue; } if(pen) ctx.lineTo(PX[o0+c],PY[o0+c]); else { ctx.moveTo(PX[o0+c],PY[o0+c]); pen=true; } }
+        ctx.stroke(); }
+    }
+  } finally{ ctx.restore(); }
+}
 function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
   // punto di vista: stessa superficie che si disegna (terrain), mai sotto. A terra fermo a 8 m sul terreno, senza seguire la quota GPS
   // (che oscilla di metri): da 2 m ogni ondulazione del rilievo, girando il telefono, alzava e abbassava l'orizzonte del terreno.
@@ -2047,6 +2163,12 @@ function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
     if(gz===gz && PH && !PH_air()) acAlt=gz+8;
     else { if(PH){ if(!(PH.eyeF===PH.eyeF) || Math.abs(acAlt-PH.eyeF)>150) PH.eyeF=acAlt; else PH.eyeF+=(acAlt-PH.eyeF)*Math.min(1,dtE/0.5); acAlt=PH.eyeF; }
       if(gz===gz && acAlt<gz+2) acAlt=gz+2; } }
+  // se il disegno veloce sbaglia anche una volta sola si torna a quello di prima, più lento ma collaudato: mai un errore a ogni fotogramma
+  if(!TG.bad){ try{ terrFast(ac,acAlt,hdgRad,sinP,cosP); return; }catch(e){ TG.bad=true; try{ PH&&PH.logErr&&PH.logErr('terreno 3D: disegno veloce spento · '+String(e&&e.message||e)); }catch(e2){} } }
+  terrSlow(ac,acAlt,hdgRad,sinP,cosP);
+}
+// disegno di prima (griglia rifatta a ogni fotogramma): resta come ripiego
+function terrSlow(ac,acAlt,hdgRad,sinP,cosP){
   const lvl=PH?Math.min(TERR_Q.length-1,PH.terrQ==='auto'?PH.terrLvl:(+PH.terrQ||0)):0, FN=TERR_Q[lvl][0], LN=TERR_Q[lvl][1];
   const ratio=Math.pow(TERR_FAR/70,1/(FN-1)), sinH=Math.sin(hdgRad), cosH=Math.cos(hdgRad);
   const n=FN*LN, Z=new Float32Array(n), X=new Float32Array(n), Y=new Float32Array(n), OK=new Uint8Array(n);
@@ -2072,32 +2194,102 @@ function drawTerrain(ac,acAlt,hdgRad,sinP,cosP){
     for(const [key,P] of paths){ ctx.fillStyle='rgb('+key+')'; ctx.fill(P); }
   }
 }
-// mappa: rilievo dal DEM; con la mappa di base accesa restano solo le zone TAWS gialle e rosse
+// mappa: rilievo dal DEM; con la mappa di base accesa sopra la carta resta solo il pericolo TAWS (giallo e rosso), disegnato leggero
 // quanta mappa serve attorno all'aereo, in multipli della scala: fino all'angolo più lontano del riquadro
 // (mappe alte e strette sul tablet in verticale, con l'aereo in basso); almeno 1,8 come per il riquadro quadrato
 function mapCov(){ const ay=CY+0.3*R; return Math.max(1.8,Math.hypot(Math.max(CX,W-CX),Math.max(ay,H-ay))*1.05/(1.3*R)); }
 function rasterMap(ac){
-  if(PH){ const now=performance.now();
-    if(MR.zi===zi && MR.half>0 && now-(PH.rastT||0)<1500) return;
-    PH.rastT=now; }
-  MR.f=PH?mapCov():1.8; const n=Math.min(400,Math.round(MR.n*MR.f/1.8)), half=ZOOMS[zi]*1000*MR.f, acAlt=S.alt*FT2M, base=PH&&PH.base!=='dem';   // 1,8: copre anche gli angoli della mappa quadrata
-  if(PH){ const km=ZOOMS[zi]; PH.demZ=km>=250?7:(km>=90?8:(km>=30?9:(km>=15?10:(km<=3?12:11)))); }
-  MR.cv.width=n; MR.cv.height=n; const c2=MR.cv.getContext('2d'), img=c2.createImageData(n,n);
-  const z=new Float32Array(n*n), st=2*half/n, air=PH_air();
-  for(let j=0;j<n;j++) for(let i=0;i<n;i++) z[j*n+i]=terrain(ac.E-half+(i+0.5)*st, ac.N+half-(j+0.5)*st);
-  for(let j=0;j<n;j++) for(let i=0;i<n;i++){
-    const zz=z[j*n+i], o=(j*n+i)*4;
-    if(zz!==zz){ img.data[o+3]=0; continue; }
-    let zl=z[j*n+Math.max(0,i-1)], zu=z[Math.max(0,j-1)*n+i]; if(zl!==zl) zl=zz; if(zu!==zu) zu=zz;
-    const sh=1+clamp(((zl-zz)+(zu-zz))/st*2.2,-0.45,0.35);
-    const E=ac.E-half+(i+0.5)*st, N=ac.N+half-(j+0.5)*st, inh=!air||tawsInhibit(E,N), clr=inh?1e9:acAlt-zz;
-    const [r,g,b]=tawsRGB(zz,sh,clr,true);
-    img.data[o]=r; img.data[o+1]=g; img.data[o+2]=b;
-    img.data[o+3]=base?(clr<TAWS_RED?210:(clr<TAWS_YEL?150:0)):255;
+  const t0=performance.now(); let J=MR.job;
+  if(PH && !J){ if(MR.zi===zi && MR.half>0 && t0-(PH.rastT||0)<1500) return; PH.rastT=t0; }
+  const cov=PH?mapCov():1.8, n=Math.min(400,Math.round(MR.n*cov/1.8)), nn=n*n, half=ZOOMS[zi]*1000*cov, st=2*half/n, acAlt=S.alt*FT2M, base=!!(PH&&PH.base!=='dem'), air=PH_air();   // 1,8: copre anche gli angoli della mappa quadrata
+  // Le quote e i colori di quota si rifanno solo se cambia la zona (spostamento, zoom, riquadro, rilievo nuovo: MR.zi=-1).
+  // Se è cambiata solo la quota dell'aereo (ogni 25 m di salita o discesa) o il circuito, basta ricolorare il pericolo: niente migliaia di quote richieste al rilievo.
+  // Quando vanno rifatte si lavora su una copia, pochi millisecondi per fotogramma (MR.job): intanto resta a schermo la mappa di prima, senza lo scatto di una volta.
+  const same=o=>o.zn===n && o.half===half && Math.hypot(ac.E-o.cE,ac.N-o.cN)<=half*0.22, lim=PH&&MR.half>0?4:1e9;
+  if(J && !(J.zi===zi && same(J))) J=MR.job=null;                    // zona o zoom cambiati a metà lavoro: si riparte
+  if(!J && !(MR.zi===zi && MR.z && same(MR))){
+    const sp=MR.spare&&MR.spare.z.length===nn?MR.spare:{z:new Float32Array(nn),rgb:new Uint8ClampedArray(nn*3)}; MR.spare=null;
+    J=MR.job={z:sp.z,rgb:sp.rgb,zn:n,half,cE:ac.E,cN:ac.N,f:cov,zi,row:0,col:false,L:terrNear(ac.E-half,ac.E+half,ac.N-half,ac.N+half)};
+    MR.zi=zi; }                                                      // chi chiede un raster nuovo durante il lavoro rimette MR.zi a -1: lo si vede alla fine
+  if(J){ const z=J.z, rgb=J.rgb;
+    if(J.row<n){ if(PH){ const km=ZOOMS[zi]; PH.demZ=km>=250?7:(km>=90?8:(km>=30?9:(km>=15?10:(km<=3?12:11)))); }
+      try{ for(;J.row<n;J.row++){ const j=J.row, N=J.cN+half-(j+0.5)*st; if((j&7)===7 && performance.now()-t0>lim) break;
+          for(let i=0;i<n;i++) z[j*n+i]=terrain(J.cE-half+(i+0.5)*st,N,J.L); } }
+      finally{ if(PH) PH.demZ=11; }
+      if(J.row<n || performance.now()-t0>lim) return; }
+    if(!J.col){
+      if(!MR.lut){ MR.lut=new Float32Array(903); for(let q=0;q<=300;q++){ const c=elevRGB(q*10,1); MR.lut[q*3]=c[0]; MR.lut[q*3+1]=c[1]; MR.lut[q*3+2]=c[2]; } }   // colore di quota ogni 10 m, calcolato una volta
+      const lut=MR.lut;
+      for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const p=j*n+i, zz=z[p]; if(zz!==zz) continue;
+        let zl=z[j*n+Math.max(0,i-1)], zu=z[Math.max(0,j-1)*n+i]; if(zl!==zl) zl=zz; if(zu!==zu) zu=zz;
+        const sh=Math.min(1.3,1+clamp(((zl-zz)+(zu-zz))/st*2.2,-0.45,0.35)), q=clamp(Math.round(zz/10),0,300)*3, o=p*3;
+        rgb[o]=lut[q]*sh; rgb[o+1]=lut[q+1]*sh; rgb[o+2]=lut[q+2]*sh; }
+      J.col=true; if(performance.now()-t0>lim) return; }
+    const forced=MR.zi!==zi; if(MR.z) MR.spare={z:MR.z,rgb:MR.rgb};
+    Object.assign(MR,{z:J.z,rgb:J.rgb,cE:J.cE,cN:J.cN,half,zn:n,f:cov,job:null}); MR.zi=-1; J=forced;   // se qualcosa va storto qui sotto si riprova da capo
+    if(!MR.clr || MR.clr.length!==nn){ MR.clr=new Float32Array(nn); MR.img=null; }
   }
-  if(PH) PH.demZ=11;
+  const z=MR.z, rgb=MR.rgb, cl=MR.clr, inh=air&&!!inhField(); let haz=0;
+  if(MR.cv.width!==n || MR.cv.height!==n){ MR.cv.width=n; MR.cv.height=n; MR.img=null; }
+  const c2=MR.cv.getContext('2d'), img=MR.img||(MR.img=c2.createImageData(n,n)), d=img.data;
+  for(let j=0;j<n;j++){ const N=MR.cN+half-(j+0.5)*st;
+    for(let i=0;i<n;i++){ const p=j*n+i, zz=z[p], o=p*4;
+      if(zz!==zz){ d[o+3]=0; cl[p]=NaN; continue; }
+      let clr=air?acAlt-zz:1e9; if(inh && clr<TAWS_YEL && tawsInhibit(MR.cE-half+(i+0.5)*st,N)) clr=1e9;
+      let r=rgb[p*3], g=rgb[p*3+1], b=rgb[p*3+2]; cl[p]=clr;
+      if(clr<TAWS_YEL){ const m=TAWS_MIX[clr<TAWS_RED?2:1], a=m[4]; r=r*(1-a)+m[0]*a; g=g*(1-a)+m[1]*a; b=b*(1-a)+m[2]*a; haz++; }
+      d[o]=r; d[o+1]=g; d[o+2]=b; d[o+3]=255; } }
   c2.putImageData(img,0,0);
-  Object.assign(MR,{cE:ac.E,cN:ac.N,half,alt:acAlt,zi,inh:inhField()});
+  MR.hzOk=false;
+  if(base){ try{ rasterHaz(n,haz); MR.hzOk=true; }catch(e){ if(!MR.hzErr){ MR.hzErr=true; try{ PH.logErr&&PH.logErr('mappa: pericolo sopra la carta non disegnato · '+String(e&&e.message||e)); }catch(e2){} } } }
+  Object.assign(MR,{alt:acAlt,zi:J===true?-1:zi,inh:inhField()});
+}
+// Pericolo del terreno SOPRA la carta (mappa di base accesa). Prima era una macchia quasi piena (rosso all'82%, giallo al 59%) che
+// in montagna copriva nomi, quote e simboli. Adesso: velatura leggera, tratteggio in diagonale e contorno netto con il bordo scuro
+// (rosso più spesso del giallo). Stesse soglie di sempre; la carta sotto si legge. Si calcola una volta per raster, non a ogni
+// fotogramma, e punto per punto in un'immagine più fitta del raster (K volte): il margine sul terreno si interpola tra i quattro
+// punti vicini, quindi bordi e contorni seguono la soglia senza scalini. Niente percorsi né maschere del canvas (su 4000 tratti
+// costavano 20 ms a ogni ricolorazione): si lavora solo nelle celle con pericolo o con un contorno vicino, pochi millisecondi
+// per fotogramma (hazStep), e intanto resta a schermo il disegno di prima, al suo posto.
+function rasterHaz(n,haz){
+  const K=Math.max(2,Math.min(4,Math.floor(800/n))), N2=n*K, hz=MR.hz||(MR.hz=document.createElement('canvas')); let sync=!MR.hzG;
+  if(hz.width!==N2 || hz.height!==N2){ hz.width=N2; hz.height=N2; MR.himg=null; sync=true; }   // tela nuova (zoom o riquadro cambiati): si fa tutto subito
+  const c=hz.getContext('2d'), G={cE:MR.cE,cN:MR.cN,half:MR.half};
+  if(!haz){ c.clearRect(0,0,N2,N2); MR.hjob=null; MR.hzN=0; MR.hzG=G; return; }
+  const im=MR.himg||(MR.himg=c.createImageData(N2,N2)), cl=MR.clr, nc=n-1, fl=MR.hfl&&MR.hfl.length===n*n?MR.hfl:(MR.hfl=new Uint8Array(n*n));
+  im.data.fill(0);
+  // celle (tra quattro punti del raster): 1 = c'è pericolo, 2 = ci passa una soglia, 4 = manca il rilievo
+  for(let j=0;j<nc;j++) for(let i=0;i<nc;i++){ const p=j*n+i, a=cl[p], b=cl[p+1], e=cl[p+n+1], g=cl[p+n]; let f=4;
+    if(a===a && b===b && e===e && g===g){ const mn=Math.min(a,b,e,g), mx=Math.max(a,b,e,g); f=0; if(mn<TAWS_YEL){ f=1; if(mx>=TAWS_YEL || (mn<TAWS_RED && mx>=TAWS_RED)) f=3; } }
+    fl[p]=f; }
+  const pxs=N2/(2*MR.f*1.3*R), P=Math.max(6,Math.round(16*pxs));   // punti dell'immagine per punto di schermo; passo del tratteggio (16 punti di schermo)
+  MR.hjob={n,K,N2,haz,G,j:0,P,sw:Math.max(2,Math.round(P*0.16)),HW:[Math.max(.7,1.1*k*pxs),Math.max(.9,1.5*k*pxs)],EX:Math.max(.9,1.1*k*pxs)};
+  if(sync) hazStep(1e9);
+}
+function hazStep(lim){
+  const J=MR.hjob, t0=performance.now(), n=J.n, K=J.K, N2=J.N2, nc=n-1, P=J.P, sw=J.sw, HW=J.HW, EX=J.EX, d=MR.himg.data, cl=MR.clr, fl=MR.hfl;
+  const A0=61, A1=215, TH=[TAWS_YEL,TAWS_RED], LC=[[255,210,30],[255,42,42]], cap=TAWS_YEL*3, reach=Math.max(HW[0],HW[1])+EX+.5;   // velatura 24%, righe 84%; colori dei contorni
+  for(;J.j<nc;J.j++){ const j=J.j; if((j&3)===3 && performance.now()-t0>lim) return;
+    for(let i=0;i<nc;i++){ const p=j*n+i, f=fl[p]; if(f&4) continue;
+      let near=f&2; if(!near){ const iA=i?i-1:0, iB=i<nc-1?i+1:i, jA=j?j-1:0, jB=j<nc-1?j+1:j; for(let jj=jA;jj<=jB&&!near;jj++) for(let ii=iA;ii<=iB;ii++) if(fl[jj*n+ii]&2){ near=1; break; } }
+      if(!f && !near) continue;
+      const xs=Math.floor((i+.5)*K), ys=Math.floor((j+.5)*K);
+      if(!near){ const m=TAWS_MIX[cl[p]<TAWS_RED?2:1], m0=m[0], m1=m[1], m2=m[2];   // cella tutta dentro una zona e lontana dai contorni
+        for(let y=ys;y<ys+K;y++) for(let x=xs,o=(y*N2+xs)*4;x<xs+K;x++,o+=4){ d[o]=m0; d[o+1]=m1; d[o+2]=m2; d[o+3]=(x+y)%P<sw?A1:A0; }
+        continue; }
+      // vicino a una soglia: zona e contorno punto per punto (distanza dalla soglia = scarto del margine / pendenza)
+      const a=Math.min(cl[p],cap), b=Math.min(cl[p+1],cap), e=Math.min(cl[p+n+1],cap), g=Math.min(cl[p+n],cap);
+      const far=reach*(Math.max(Math.abs(b-a),Math.abs(e-g))+Math.max(Math.abs(g-a),Math.abs(e-b)))/K;   // oltre questo scarto dalla soglia il contorno non arriva di sicuro
+      for(let y=ys;y<ys+K;y++){ const fy=(y+.5-(j+.5)*K)/K, vl=a+(g-a)*fy, vr=b+(e-b)*fy, gx=(vr-vl)/K;
+        for(let x=xs,o=(y*N2+xs)*4;x<xs+K;x++,o+=4){ const fx=(x+.5-(i+.5)*K)/K, v=vl+(vr-vl)*fx; let cr=0, cg=0, cb=0, ca=0;
+          if(v<TAWS_YEL){ const m=TAWS_MIX[v<TAWS_RED?2:1]; cr=m[0]; cg=m[1]; cb=m[2]; ca=((x+y)%P<sw?A1:A0)/255; }
+          for(let t=0;t<2;t++){ const dv=Math.abs(v-TH[t]); if(dv>far) continue;
+            const gy=((g-a)*(1-fx)+(e-b)*fx)/K, gr=Math.sqrt(gx*gx+gy*gy); if(!(gr>1e-9)) continue;
+            const w=HW[t]+.5-dv/gr; if(w+EX<=0) continue;
+            let al=Math.min(1,w+EX)*.72, q=ca*(1-al), oa=al+q; cr=cr*q/oa; cg=cg*q/oa; cb=cb*q/oa; ca=oa;          // bordo scuro
+            if(w>0){ al=Math.min(1,w); q=ca*(1-al); oa=al+q; cr=(LC[t][0]*al+cr*q)/oa; cg=(LC[t][1]*al+cg*q)/oa; cb=(LC[t][2]*al+cb*q)/oa; ca=oa; } }
+          if(ca>0){ d[o]=cr; d[o+1]=cg; d[o+2]=cb; d[o+3]=ca*255; } } } } }
+  MR.hz.getContext('2d').putImageData(MR.himg,0,0); MR.hzN=J.haz; MR.hzG=J.G; MR.hjob=null;
 }
 function fmtWind(){ return WIND.valid?`${String(Math.round(WIND.dir/10)*10).padStart(3,'0')}°/${Math.round(WIND.kmh)}`:'---'; }   // previsto o stimato: è comunque una stima, la fonte è nella casella VENTO
 function renderMenuPos(){
@@ -2712,9 +2904,12 @@ PH.trkPrune=function(book){ book.slice(PH.TRK_KEEP).forEach(f=>{ if(f.trk){ PH.t
 // traccia sulla mappa
 PH.trackShow=null;
 PH.drawTrack=function(toS){ const T=PH.trackShow; if(!T||!T.pts||T.pts.length<2) return;
-  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
-  for(const [w,c] of [[6,'rgba(0,0,0,.55)'],[3,'#ffd23f']]){ ctx.strokeStyle=c; ctx.lineWidth=w*k; ctx.beginPath();
-    T.pts.forEach((p,i)=>{ const q=enu(p[0],p[1]), s2=toS(q.E,q.N); if(i) ctx.lineTo(s2.x,s2.y); else ctx.moveTo(s2.x,s2.y); }); ctx.stroke(); }
+  // i punti si portano in metri una volta sola (prima: ogni punto due volte a fotogramma) e il percorso si traccia una volta per i due colori
+  let en=T.en; if(!en || T.enP!==T.pts || en.length!==T.pts.length*2){ en=T.en=new Float64Array(T.pts.length*2); T.enP=T.pts;
+    for(let i=0;i<T.pts.length;i++){ const q=enu(T.pts[i][0],T.pts[i][1]); en[i*2]=q.E; en[i*2+1]=q.N; } }
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round'; ctx.beginPath();
+  for(let i=0;i<en.length;i+=2){ const s2=toS(en[i],en[i+1]); if(i) ctx.lineTo(s2.x,s2.y); else ctx.moveTo(s2.x,s2.y); }
+  for(const [w,c] of [[6,'rgba(0,0,0,.55)'],[3,'#ffd23f']]){ ctx.strokeStyle=c; ctx.lineWidth=w*k; ctx.stroke(); }
   ctx.restore(); };
 PH.gpx=function(F_){
   const esc=s=>String(s).replace(/[<&>]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;'}[c]));
@@ -3056,6 +3251,7 @@ PH.wmsDiscover=async function(key){
 function phoneBase(ac,sc,ax,ay,t){
   if(!PH || PH.base==='dem') return;
   const cosl=Math.cos(S.lat*D2R);
+  PH.baseMiss=true;                                       // finché non sono disegnate tutte le tessere che servono, drawMap tiene sotto il rilievo
   const bd=PH.baseDef(); if(bd.key && !PH.esriKey) return;
   let z=Math.floor(Math.log2(40075016.686*cosl*sc/(256*1.15)));
   // carte di dettaglio (IGM, ortofoto) a una scala troppo larga: niente tessere (sarebbero centinaia), lo si dice sulla mappa
@@ -3075,20 +3271,20 @@ function phoneBase(ac,sc,ax,ay,t){
   const y0=Math.floor(lat2y(la1)), y1=Math.floor(lat2y(la0));
   if((x1-x0+1)*(y1-y0+1)>160) return;
   const tLat=y=>Math.atan(Math.sinh(Math.PI*(1-2*y/n)))*R2D, tLon=x=>x/n*360-180;
-  ctx.save(); ctx.translate(ax,ay); ctx.rotate(-t); ctx.imageSmoothingEnabled=true;
+  ctx.save(); ctx.translate(ax,ay); ctx.rotate(-t); ctx.imageSmoothingEnabled=true; let miss=0;
   for(let x=x0;x<=x1;x++) for(let y=y0;y<=y1;y++){
     const key=PH.base+(PH.base==='custom'?JSON.stringify(PH.customMap):'')+z+'/'+x+'/'+y; let T=PH.tiles.get(key);
-    if(!T){ if(PH.tilesLoading>12) continue;
+    if(!T){ if(PH.tilesLoading>12){ miss++; continue; }
       T={img:new Image(),ok:false,t:Date.now()}; PH.tilesLoading=(PH.tilesLoading||0)+1;
       T.img.onload=()=>{ T.ok=true; PH.tilesLoading--; }; T.img.onerror=()=>{ PH.tilesLoading--; setTimeout(()=>PH.tiles.delete(key),30000); };
       if(bd.local){ PH.cartaTile(z,x,y).then(d=>{ if(d) T.img.src='data:image/png;base64,'+d; else T.img.onerror(); }).catch(()=>T.img.onerror()); }   // carta scaricata sul telefono
       else T.img.src=PH.tileUrl(z,x,y,bd); PH.tiles.set(key,T);
       if(PH.tiles.size>400){ const k0=PH.tiles.keys().next().value; PH.tiles.delete(k0); } }
-    if(!T.ok) continue;
+    if(!T.ok){ miss++; continue; }
     const a=enu(tLat(y),tLon(x)), b=enu(tLat(y+1),tLon(x+1));
     ctx.drawImage(T.img,(a.E-ac.E)*sc,(ac.N-a.N)*sc,(b.E-a.E)*sc+0.6,(a.N-b.N)*sc+0.6);
   }
-  ctx.restore();
+  ctx.restore(); PH.baseMiss=miss>0;
   ctx.fillStyle=PH.base==='ofm'?'rgba(4,8,12,.10)':'rgba(4,8,12,.30)'; ctx.fillRect(0,0,W,H);   // la carta VFR va letta: velo leggero
 }
 PH.mapCaption=function(){
@@ -3238,10 +3434,11 @@ PH.drawSplit=function(g){
   finally{ ctx=sv.ctx; W=sv.W; H=sv.H; CX=sv.CX; CY=sv.CY; R=sv.R; F=sv.F; k=sv.k; }
 };
 PH.info=function(g){
-  const card=(id,v,s)=>{ const e=el(id); if(e){ e.querySelector('b').textContent=v; e.querySelector('small').textContent=s||''; } };
+  const put=(n,t)=>{ if(n && n.textContent!==t) n.textContent=t; };          // si scrive solo se il testo è cambiato: niente ricalcolo della pagina per valori uguali
+  const card=(id,v,s)=>{ const e=el(id); if(e){ put(e.querySelector('b'),String(v)); put(e.querySelector('small'),s||''); } };
   card('phGs',S.gpsReal||PH.demo?Math.round(S.gs!=null?S.gs:S.ias):'---',PH.tas&&PH.flight?`TAS stim. ${Math.round(PH.tas*3.6)}`:'km/h suolo');
   card('phTrk',S.trk!=null?String(Math.round(S.trk)).padStart(3,'0')+'°':String(Math.round(wrap360(S.hdg))).padStart(3,'0')+'°',S.trk!=null?'traccia':(PH.magInUse()?'prua bussola':'prua'));
-  { const h=el('phTrk'); if(h) h.querySelector('span').textContent=S.trk!=null?'TRK':'PRUA'; }
+  { const h=el('phTrk'); if(h) put(h.querySelector('span'),S.trk!=null?'TRK':'PRUA'); }
   card('phAlt',Math.round(S.alt)+' ft',PH.acc!=null&&!PH.demo?(PH.src==='glo'?`GLO 2 · ${S.sats??'?'} sat`:`GPS ±${Math.round(PH.acc)} m`)+(PH.altOfsBy[PH.src]?' · tarata':''):'');
   card('phVs',(S.vs>=0?'+':'')+S.vs.toFixed(1),'m/s');
   card('phWind',WIND.valid?fmtWind():'---',WIND.valid?('da '+['N','NE','E','SE','S','SO','O','NO'][Math.round(((WIND.dir%360)+360)%360/45)%8]+' · '+(WIND.src==='prev'?'previsto':'stimato in volo')):'vira per stimarlo');
@@ -3253,14 +3450,17 @@ PH.info=function(g){
     card('phSun',hh,m>0?`tra ${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`:'già tramontato'); el('phSun').classList.toggle('warn',m<45); }
   const st=el('phStat'); if(st){
     const gpsOk=S.gpsReal&&!lost('gps'), attOk=!lost('att');
-    st.innerHTML=PH.sim?`<i class="w">SIMULAZIONE</i> ${String(PH.sim.name).replace(/</g,'')} · ×${PH.sim.warp} · tocca per fermare`:PH.demo?'<i class="w">DEMO</i> volo dimostrativo':
+    const sh=PH.sim?`<i class="w">SIMULAZIONE</i> ${String(PH.sim.name).replace(/</g,'')} · ×${PH.sim.warp} · tocca per fermare`:PH.demo?'<i class="w">DEMO</i> volo dimostrativo':
       `${(()=>{ const g=PH.gpsQ?PH.gpsQ():{c:gpsOk?'o':'b',n:null}; return `<i class="${g.c}">${PH.src==='glo'?'GLO 2':'GPS'}${g.n!=null?' '+g.n:''}</i>`; })()}<i class="${attOk?'o':'b'}">ASSETTO</i><i class="${PH.dem.size&&!PH.tawsNd?'o':'w'}">TERRENO</i>${PH.statoHtml?PH.statoHtml():`<i class="${navigator.onLine?'o':'w'}">NET</i>`}`;
+    if(PH.statH!==sh || !st.firstChild){ PH.statH=sh; st.innerHTML=sh; }
   }
   if(S.gpsReal && !lost('att')) PH.seenAll=true;             // dopo il primo fix le perdite le segnalano le bandierine rosse
   const wait=el('phWait'); if(wait) wait.hidden=PH.demo || PH.seenAll || PH.waitClosed || !menuEl.hidden || PH.sim;
 };
 PH.afterFrame=function(g,dt){
-  PH.drawSplit(g);
+  // un errore nel secondo riquadro (tablet) non deve saltare i controlli qui sotto: terreno, spazi aerei, tramonto
+  try{ PH.drawSplit(g); }catch(e){ PH.splitErr=(PH.splitErr||0)+1; if(PH.splitErr%600===1){ try{ PH.logErr&&PH.logErr('secondo riquadro: '+String(e&&e.message||e)); }catch(e2){} }
+    try{ const c=PH.view2&&PH.view2.ctx; if(c){ if(c.reset) c.reset(); else c.setTransform(1,0,0,1,0,0); } }catch(e2){} }
   const now=performance.now();
   if(now-PH.lastHalf>500){ PH.lastHalf=now; try{ PH.info(g); }catch(e){} try{ PH.zoomBtns&&PH.zoomBtns(); }catch(e){} if(zi!==PH.ziSaved){ PH.ziSaved=zi; lsSet('ia517p_zoom',zi); } }
   if(now-PH.lastSec>1000){ PH.lastSec=now;
@@ -4149,6 +4349,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.167","Zona di planata: dentro la zona verde compaiono i prati adatti a un atterraggio fuori campo, presi dalle mappe (prati e coltivi sì; paesi, boschi, acqua e linee elettriche no), con la striscia più lunga, il verso col vento e i metri; in EMERGENZA la sezione «Prati raggiungibili», sempre dopo i campi veri. Sono un'indicazione, da verificare a vista. Si scaricano a terra con la rete (Impostazioni › Volare senza internet › «Scarica i prati della zona»). Piano molto più pronto: non ricalcola tutto a ogni tasto e in volo non ruba tempo allo strumento. Mappa in montagna: con una carta sotto (carta VFR, OpenTopoMap, IGM, ortofoto, satellite) il giallo e il rosso del terreno non la coprono più. La carta resta davanti e si legge; il pericolo è disegnato sopra con una velatura leggera, un tratteggio e un contorno netto, giallo sotto i 180 m e rosso (più spesso) sotto i 60 m dal terreno: le soglie sono quelle di sempre. Con «Solo rilievo» la mappa resta com'era. Se le tessere della carta non sono ancora arrivate, o manca la rete, sotto si vede il rilievo e non il fondo scuro. Orizzonte con il terreno molto più leggero: il rilievo davanti si calcola una volta e si riusa mentre l'aereo avanza, quindi il movimento è più fluido e in automatico il dettaglio sale più spesso. I versanti hanno anche un'ombra che viene da nord-ovest, e quattro archi sottili sul terreno segnano 1, 2, 5 e 10 km. Mappa senza scatti quando si sposta e quando si sale o si scende: il rilievo si rifà un po' per volta e, se cambia solo la quota, si ricolora soltanto il pericolo."],
   ["1.0.163","Controllo generale dell'app. Avvisi di terreno e di spazio aereo anche se il diario non ha visto il decollo: bastano 5 secondi a più di 25 km/h e a più di 60 m sul terreno (un velivolo lento in salita controvento restava senza avvisi). Se davanti manca il rilievo (zona non scaricata, senza rete) compare la bandierina «TERRENO NON DISPONIBILE» e l'etichetta TERRENO diventa gialla. In volo: una riattaccata o un tocca-e-riparti non viene più presa per atterraggio; «TERRENO! CABRA» non viene più coperto da un altro avviso; la quota obiettivo alzata per il terreno torna giù a terreno passato; con il GPS perso niente pericoli di traffico, planata o riporti calcolati da una posizione ferma, e l'orizzonte non resta inclinato dall'ultima accelerazione. Carburante impostato a terra: vale anche dopo il decollo, e dopo l'atterraggio resta il residuo. Emergenza: distanze e prue vere anche lontano dal Nord (in Sicilia erano corte del 13%). La pista scelta a mano non resta per il campo dopo. NOTAM sulla mappa anche con gli spazi aerei spenti. Mappa più fluida con lo zoom largo. Piano: NOTAM con la riga Q scritta a larghezza fissa, quote «ASFC», METAR senza vento, rotta non data per libera se manca il terreno. HORIZON 2: l'orologio ha tre pagine (VOLO con rosa della bussola e deviazione dalla rotta, ARRIVO con frequenza, vento e tramonto, PILOTA con ora UTC, tempo di volo e autonomia). La pagina segue il volo da sola: a terra PILOTA, in rotta VOLO, negli ultimi 10 minuti e all'ingresso in circuito ARRIVO, in base e in finale di nuovo VOLO; un tocco sullo schermo mostra un'altra pagina per 20 secondi. I tasti restano tutti per lo strumento. Avvisi scritti su più righe."],
   ["1.0.161","Filigrana in basso su tutte le pagine (HORIZON © E. D'Amico, codice del telefono, impronta): resta in ogni schermata. Impronta dell'autore in Info e nelle segnalazioni. Avvertenze aggiornate con il barometro."],
   ["1.0.158","HORIZON 2: il barometro dell'orologio Garmin si corregge da solo sul barometro del telefono (i sensori da polso leggono anche 4–5 hPa di troppo o di meno, cioè 35–40 m); lo scarto resta salvato e si vede in Stato › Orologio: barometro."],
@@ -5215,6 +5416,7 @@ requestAnimationFrame(frame);
 <script src="stimati.js"></script>
 <script src="impostazioni.js"></script>
 <script src="emergenza.js"></script>
+<script src="atterraggi.js"></script>
 <script src="livelli.js"></script>
 <script src="note.js"></script>
 <script src="schermo.js"></script>
