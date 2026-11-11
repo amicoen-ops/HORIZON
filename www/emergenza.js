@@ -10,6 +10,7 @@
 // · EMERGENZA (tasto SOS accanto a LIVELLA o ALTRO › EMERGENZA, da TENERE PREMUTO: in turbolenza un tocco per sbaglio
 //   non la attiva): DIRECT TO sul campo migliore, voce, barra rossa sullo strumento con margine e distanza aggiornati,
 //   pagina con gli altri campi raggiungibili, MAYDAY già compilato, 7700 e 121.500, check list d'emergenza.
+// · Prati raggiungibili (atterraggi.js, dati OpenStreetMap): sotto i campi, mai prima di un campo vero raggiungibile.
 // La planata è una stima: vale sempre il giudizio del pilota e il manuale del velivolo.
 (function(){
 'use strict';
@@ -29,7 +30,8 @@ function gsAlong(th,tas){
   const ux=Math.sin(th), uy=Math.cos(th), wp=WIND.E*ux+WIND.N*uy, wx=WIND.E*uy-WIND.N*ux;
   return Math.max(3,Math.sqrt(Math.max(1,tas*tas-wx*wx))+wp);
 }
-const ter=(E,N)=>{ const z=terrain(E,N); return z===z?Math.max(0,z):NaN; };
+// terreno grezzo: terrain() in più spiana i campi per la vista e per farlo scorre i campi vicini a ogni punto (era lo scatto della zona)
+const ter=(E,N)=>{ const z=terrainRaw(E,N); return z===z?Math.max(0,z):NaN; };
 // fin dove arriva la planata in direzione th, partendo da ac (ENU) a quota alt (m)
 const kx=()=>Math.cos(S.lat*D2R)/Math.cos(ORIGIN.lat*D2R);      // metri veri per metro E di enu(): la scala est-ovest di enu() è quella dell'origine
 function raggio(ac,alt,th,P){
@@ -49,27 +51,52 @@ function arrivo(ac,alt,f,P){
 function stato(){
   if(!(S.gpsReal||PH.sim||PH.demo)) return null;
   if(!PH.sim && !PH.demo && lost('gps')) return null;               // GPS perso: niente planata calcolata da posizione e quota ferme
-  const ac=enu(S.lat,S.lon), alt=S.alt*FT2M, z0=ter(ac.E,ac.N), P=par();
+  const ac=enu(S.lat,S.lon), alt=S.alt*FT2M, zt=terrain(ac.E,ac.N), z0=zt===zt?Math.max(0,zt):NaN, P=par();   // un punto solo: qui resta il terreno di sempre
   return {ac,alt,agl:z0===z0?alt-z0:null,P};
 }
-// zona raggiungibile (poligono in ENU), ricalcolata al massimo ogni 1,5 s o se ci si sposta di 300 m
-let Z=null;
-PH.glideZone=function(){
-  const s=stato(); if(!s||s.agl==null||s.agl<60) return null;
+// zona raggiungibile (poligono in ENU), ricalcolata al massimo ogni 1,5 s o se ci si sposta di 300 m.
+// Il calcolo è spezzato: pochi raggi per chiamata (circa 3 ms), così nessun fotogramma si allunga; intanto vale la zona di prima.
+// subito=true: tutta in una volta (per chi non è chiamato a ogni fotogramma).
+let Z=null, J=null;
+const vale=(s,now,ms,m)=>Z && now-Z.t<ms && Math.hypot(Z.ac.E-s.ac.E,Z.ac.N-s.ac.N)<m && Math.abs(Z.alt-s.alt)<m/10;
+PH.glideZone=function(subito){
+  const s=stato(); if(!s||s.agl==null||s.agl<60){ J=null; return null; }
   const now=performance.now();
-  if(Z && now-Z.t<1500 && Math.hypot(Z.ac.E-s.ac.E,Z.ac.N-s.ac.N)<300 && Math.abs(Z.alt-s.alt)<30) return Z;
-  const pts=[]; for(let i=0;i<36;i++){ const th=i*10*Math.PI/180, r=raggio(s.ac,s.alt,th,s.P); pts.push({E:s.ac.E+Math.sin(th)*r/kx(),N:s.ac.N+Math.cos(th)*r,r}); }
-  Z={t:now,ac:s.ac,alt:s.alt,pts,P:s.P,max:Math.max(...pts.map(p=>p.r))}; return Z;
+  if(vale(s,now,1500,300)) return Z;
+  if(!J) J={t:now,s,q:kx(),pts:[]};
+  const p=J.pts, a=J.s;
+  while(p.length<36){ const th=p.length*10*Math.PI/180, r=raggio(a.ac,a.alt,th,a.P); p.push({E:a.ac.E+Math.sin(th)*r/J.q,N:a.ac.N+Math.cos(th)*r,r});
+    if(!subito && !(p.length&1) && performance.now()-now>3) break; }
+  if(p.length<36) return vale(s,now,8000,1500)?Z:null;            // zona vecchia solo se ancora vicina al vero
+  let max=0; for(const q of p) if(q.r>max) max=q.r;
+  Z={t:J.t,ac:a.ac,alt:a.alt,pts:p,P:a.P,max}; J=null; return Z;
 };
+// arrivo su un punto qualsiasi {E,N,elev} con le stesse regole dei campi (lo usa atterraggi.js per i prati)
+PH.glideArr=function(p){ const s=stato(); return s?arrivo(s.ac,s.alt,p,s.P):null; };
 // campi in ordine di convenienza: prima i raggiungibili (più margine, piste conosciute), poi i più vicini
+// L'elenco vale 1 s: barra, pagina e avvio dell'emergenza chiedono la stessa cosa nello stesso momento.
+let GF=null, A1=null;
 PH.glideFields=function(n){
   const s=stato(); if(!s) return [];
-  const lim=Math.min(MAXD,(s.agl||0)*s.P.g*1.6+3000), out=[];
-  for(const f of FIELDS){ if(f.kind==='wp'||f.kind==='glac') continue; const d0=Math.hypot(f.E-s.ac.E,f.N-s.ac.N); if(d0>lim) continue;
-    const a=arrivo(s.ac,s.alt,f,s.P), rw=f.rw&&f.rw.length?Math.max(...f.rw.map(r=>r.L||0)):0;
-    a.f=f; a.rw=rw; a.score=(a.ok?100000:0)+a.marg+(rw>=250?300:0)+(f.kind==='aero'?150:0)-(f.kind==='alti'?400:0)-a.d/50; out.push(a); }
-  out.sort((x,y)=>y.score-x.score); return out.slice(0,n||12);
+  const now=performance.now();
+  if(!(GF && now-GF.t<1000)){
+    const lim=Math.min(MAXD,(s.agl||0)*s.P.g*1.6+3000), out=[];
+    for(const f of FIELDS){ if(f.kind==='wp'||f.kind==='glac') continue; const d0=Math.hypot(f.E-s.ac.E,f.N-s.ac.N); if(d0>lim) continue;
+      const a=arrivo(s.ac,s.alt,f,s.P), rw=f.rw&&f.rw.length?Math.max(...f.rw.map(r=>r.L||0)):0;
+      a.f=f; a.rw=rw; a.score=(a.ok?100000:0)+a.marg+(rw>=250?300:0)+(f.kind==='aero'?150:0)-(f.kind==='alti'?400:0)-a.d/50; out.push(a); }
+    out.sort((x,y)=>y.score-x.score); GF={t:now,list:out}; }
+  return GF.list.slice(0,n||12);
 };
+// arrivo sul campo scelto: dall'elenco appena calcolato se c'è, altrimenti un conto solo al secondo
+function arrivoDi(f){
+  const s=stato(); if(!s) return null; const now=performance.now();
+  if(GF && now-GF.t<1000){ const a=GF.list.find(x=>x.f===f); if(a) return a; }
+  if(A1 && A1.f===f && now-A1.t<1000) return A1.a;
+  const a=arrivo(s.ac,s.alt,f,s.P); A1={f,t:now,a}; return a;
+}
+// prati raggiungibili (atterraggi.js); niente dati o niente modulo: elenco vuoto
+function prati(n){ try{ return PH.pratiList?PH.pratiList(n)||[]:[]; }catch(e){ return []; } }
+const pratoTx=p=>`${String(Math.round(p.brg)).padStart(3,'0')}° · ${(p.d/1000).toFixed(1).replace('.',',')} km · striscia ${Math.round(p.L/10)*10} m`;
 
 // ---- zona di planata sulla mappa (al posto del cerchio fisso) ----
 PH.glideRing=function(toS){
@@ -127,6 +154,8 @@ PH.emergOpen=function(){
   const draw=()=>{ const e=PH.emerg; if(!e){ d.remove(); return; }
     e.list=PH.glideFields(12); const cur=e.f&&e.list.find(x=>x.f===e.f)||e.a;
     const fq=e.f&&PH.freqOf?PH.freqOf(e.f):[], fi=fis(), chk=(PH.acChkPh?PH.acChkPh(PH.ac):[]).findIndex(x=>/emergen|piantata|avaria|motore in volo/i.test(x.t));
+    const pr=prati(5), cOk=e.list.some(a=>a.ok);
+    const rigaP=p=>`<div class="hz-emp"><b>Prato ${String(Math.round(p.brg)).padStart(3,'0')}° · ${(p.d/1000).toFixed(1).replace('.',',')} km</b><span>striscia ${Math.round(p.L/10)*10} m per ${String(Math.round(p.dir/10)*10%360||360).padStart(3,'0')}° · arrivi con +${Math.round(p.marg/10)*10} ft${p.note?' · '+esc(p.note):''}</span></div>`;
     const riga=a=>`<button type="button" class="hz-emf${a.f===e.f?' sel':''}${a.ok?'':' no'}" data-id="${esc(a.f.id)}"><b>${esc(a.f.name)}</b><span>${String(Math.round(a.brg)).padStart(3,'0')}° · ${(a.d/1000).toFixed(1).replace('.',',')} km · ${a.ok?'arrivi con +'+Math.round(a.marg/10)*10+' ft':'NON raggiungibile'}${a.rw?' · pista '+a.rw+' m':''}</span></button>`;
     d.innerHTML=`<div class="ph-sheet-h hz-emh"><button type="button" id="hzEmB">◀ Strumento</button><b>⚠ EMERGENZA</b></div>
     <div class="ph-imp">
@@ -136,6 +165,8 @@ PH.emergOpen=function(){
       <section><h3>MAYDAY (da leggere)</h3><p class="hz-may">«${esc(mayday(e))}»</p>
         <p class="ph-sub">Sulla frequenza in uso, oppure <b>121.500</b>${fi?' o '+esc(fi[1]||'FIS')+' <b>'+esc(Number(fi[2]).toFixed(3))+'</b>':''}. Transponder <b>7700</b>.</p></section>
       <section><h3>Altri campi</h3>${e.list.slice(0,8).map(riga).join('')||'<p class="ph-sub">Nessun campo nei dati entro la planata.</p>'}</section>
+      ${pr.length?`<section><h3>Prati raggiungibili · da verificare a vista</h3>${cOk?'<p class="ph-sub">Un campo vero è raggiungibile: viene prima.</p>':''}${pr.map(rigaP).join('')}
+        <p class="ph-sub">Indicazione dalle mappe (© OpenStreetMap), <b>non una pista</b>: coltura, fossi, fili, recinti e pendenza vera si vedono solo dall'alto. Striscia e prua di atterraggio sono stimate, controvento se il vento è noto.</p></section>`:''}
       <div class="hz-emb">${chk>=0?'<button type="button" class="ph-btn" id="hzEmChk">Check list di emergenza</button>':''}<button type="button" class="ph-btn" id="hzEmEnd">Fine emergenza</button></div>
       <p class="ph-sub">Stima con l'efficienza del velivolo, il vento e il terreno, con il 25% di margine e 500 ft per il circuito: vale sempre il tuo giudizio.</p>
     </div>`;
@@ -153,9 +184,11 @@ function barra(){
     const nav=document.querySelector('.ph-side .ph-nav'); if(nav) nav.parentNode.insertBefore(b,nav); else document.body.appendChild(b); }
   const e=PH.emerg; if(!e){ b.hidden=true; return; }
   let t=(!PH.sim&&!PH.demo&&S.gpsReal&&lost('gps'))?'⚠ EMERGENZA · GPS PERSO: distanze non calcolabili':'⚠ EMERGENZA · nessun campo: prato controvento';
-  if(e.f){ const s=stato(); const a=s?arrivo(s.ac,s.alt,e.f,s.P):null;
+  let aOk=false;
+  if(e.f){ const a=arrivoDi(e.f); aOk=!!a&&a.ok;
     if(a) t=`⚠ ${e.f.name.toUpperCase()} · ${String(Math.round(a.brg)).padStart(3,'0')}° · ${(a.d/1000).toFixed(1).replace('.',',')} km · ${a.ok?'+'+Math.round(a.marg/10)*10+' ft':'AL LIMITE'}`;
     b.classList.toggle('lim',!!a&&!a.ok); }
+  if(!aOk){ const p=prati(1)[0]; if(p) t+=` · PRATO ${pratoTx(p)}, da verificare`; }   // solo se nessun campo vero è raggiungibile
   b.textContent=t+' · tocca'; b.hidden=false;
 }
 setInterval(()=>{ try{ if(PH.emerg) barra(); }catch(e){} },1500);
@@ -182,6 +215,8 @@ function tieni(btn,ms,fn){
   .hz-emf{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:64px;padding:8px 12px;margin-bottom:8px;border-radius:12px;border:2px solid #3a4a5a;background:#1b2530;color:#eef3f8;text-align:left}
   .hz-emf b{font:800 18px "Oxanium",system-ui,sans-serif} .hz-emf span{font:600 14px system-ui,sans-serif;color:#9aa4b0}
   .hz-emf.sel{border-color:#ff4d4d} .hz-emf.no b{color:#9aa4b0}
+  .hz-emp{display:flex;flex-direction:column;gap:2px;padding:8px 12px;margin-bottom:8px;border-radius:12px;border:2px dashed #3d6a4c;background:#16221b;color:#eef3f8}
+  .hz-emp b{font:800 17px "Oxanium",system-ui,sans-serif;color:#bfe8cc} .hz-emp span{font:600 14px system-ui,sans-serif;color:#9aa4b0}
   .hz-emb{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 10px} .hz-emb .ph-btn{min-height:60px;font-size:16px;font-weight:700}`;
   document.head.appendChild(s); }
 // tasto SOS accanto a LIVELLA

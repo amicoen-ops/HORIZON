@@ -2,23 +2,30 @@
 // Copia, modifica e distribuzione solo con permesso scritto dell'autore (vedi il file LICENSE).
 //
 // LIVELLI DELLA MAPPA. Tasto ◧ accanto allo zoom: pannello a tasti grandi per accendere e spegnere spazi aerei, traffico,
-// campi, zona di planata, punti di riporto VFR, scia del traffico, NOTAM (cerchi arancio dal Briefing) e meteo dei campi
+// campi, zona di planata, prati per l'atterraggio fuori campo (atterraggi.js), punti di riporto VFR, scia del traffico, NOTAM (cerchi arancio dal Briefing) e meteo dei campi
 // (anelli colorati dai METAR, disegnati da vento.js), e per cambiare la mappa di base.
 // Spazi aerei sulla mappa dello strumento: contorni colorati per classe sotto campi e rotta. «Solo vicini alla mia quota»:
 // quelli che toccano la tua quota (±1000 ft) in pieno, gli altri appena accennati (come lo Smart Airspace dei Garmin).
 // Spegnere un livello toglie solo il disegno: gli avvisi (spazi, traffico, terreno) restano sempre.
+// Disegno leggero: il contorno di ogni spazio si calcola una volta sola (Path2D in metri attorno al suo centro) e a ogni
+// fotogramma si disegna con una trasformazione; gli spazi fuori dal riquadro si saltano subito; il giudizio delle regole vale 3 s.
 (function(){
 'use strict';
 const KEY='ia517p_lyr';
-PH.lyr=Object.assign({asp:true,aspSmart:true,trf:true,campi:true,vrp:true,scia:true,notam:true,meteo:true},lsGet(KEY,{}));
+PH.lyr=Object.assign({asp:true,aspSmart:true,trf:true,campi:true,vrp:true,scia:true,notam:true,meteo:true,prati:true},lsGet(KEY,{}));
 const salva=()=>lsSet(KEY,PH.lyr);
 const COL=c=>{ c=String(c||'').toUpperCase(); if(/^(P|R)$/.test(c)) return [255,77,77]; if(/^(CTR|A|B|C|D)$/.test(c)) return [79,155,255];
   if(/^(E|RMZ|TMZ)$/.test(c)) return [181,140,255]; if(/^(Q|DANGER)$/.test(c)) return [255,197,49]; if(c==='OFR') return [255,140,60]; return [150,160,172]; };
 
 // ---- spazi aerei sulla mappa ----
 let cache={t:0,key:'',list:[]};
-const enuC=new WeakMap();                                         // contorni in metri, calcolati una volta per spazio
-function pts(a){ let v=enuC.get(a); if(v&&v.o===ORIGIN.lat+','+ORIGIN.lon) return v.p; const p=a.pts.map(q=>enu(q.lat,q.lon)); enuC.set(a,{o:ORIGIN.lat+','+ORIGIN.lon,p}); return p; }
+const geoC=new WeakMap();                                         // geometria per spazio, calcolata una volta
+function geo(a){ const o=ORIGIN.lat+','+ORIGIN.lon; let v=geoC.get(a); if(v&&v.o===o&&v.n===a.pts.length) return v;
+  const p=a.pts.map(q=>enu(q.lat,q.lon)); let e0=1e12,e1=-1e12,n0=1e12,n1=-1e12;
+  for(const q of p){ if(q.E<e0) e0=q.E; if(q.E>e1) e1=q.E; if(q.N<n0) n0=q.N; if(q.N>n1) n1=q.N; }
+  const cE=(e0+e1)/2, cN=(n0+n1)/2, path=new Path2D();            // attorno al centro: numeri piccoli, niente errori di arrotondamento lontano dall'origine
+  p.forEach((q,i)=>i?path.lineTo(q.E-cE,q.N-cN):path.moveTo(q.E-cE,q.N-cN)); path.closePath();
+  v={o,n:a.pts.length,p,cE,cN,hE:(e1-e0)/2,hN:(n1-n0)/2,path,vt:0,bad:false,off:false,lt:0,li:-1}; geoC.set(a,v); return v; }
 function visibili(c,rng){
   const now=performance.now(), key=Math.round(c.E/2000)+','+Math.round(c.N/2000)+','+rng;
   if(now-cache.t<1500 && cache.key===key) return cache.list;
@@ -29,10 +36,16 @@ function visibili(c,rng){
   cache={t:now,key,list:out}; return out;
 }
 // ---- NOTAM sulla mappa: cerchio tratteggiato arancio con oggetto e quote (dal Piano › Briefing › NOTAM) ----
-let nCache={t:0,list:[]};
-PH.notamMap=function(){ const now=performance.now(); if(now-nCache.t<10000) return nCache.list;
-  let L=[]; try{ const w=document.getElementById('phAppFrame').contentWindow; L=w&&w.IA517_notam?w.IA517_notam():[]; }catch(e){}
-  nCache={t:now,list:L}; return L; };
+// L'elenco si richiede al Piano solo quando può essere cambiato: il Piano ha ridisegnato (testo nuovo), è stato ricaricato,
+// o sono passati 5 minuti (i NOTAM scaduti escono dall'elenco). Prima si rifaceva l'analisi del testo ogni 10 s.
+let nCache={t:0,chk:0,list:[],w:null,dirty:true};
+PH.notamMap=function(){ const now=performance.now(); if(now-nCache.chk<10000) return nCache.list; nCache.chk=now;
+  try{ const w=document.getElementById('phAppFrame').contentWindow;
+    if(w!==nCache.w||!w.__hzNotam){ nCache.w=w; nCache.dirty=true;
+      if(w&&typeof w.update==='function'&&!w.__hzNotam){ const u=w.update; w.update=function(){ nCache.dirty=true; return u.apply(this,arguments); }; w.__hzNotam=1; } }
+    if(nCache.dirty||!(w&&w.__hzNotam)||now-nCache.t>300000){ nCache.list=w&&w.IA517_notam?w.IA517_notam():[]; nCache.t=now; nCache.dirty=!(w&&w.IA517_notam); }   // Piano non ancora pronto: si riprova
+  }catch(e){}
+  return nCache.list; };
 function notamDraw(toS){
   if(PH.lyr.notam===false||PH.ui==='simple') return; const L=PH.notamMap(); if(!L.length) return;
   const now=Date.now(); ctx.save(); ctx.font=font(R*0.032,'700'); ctx.textAlign='center'; ctx.textBaseline='bottom';
@@ -51,22 +64,30 @@ PH.mapUnder=function(toS,sc,c){
   const rng=ZOOMS[zi]*1000, list=visibili(c,rng); if(!list.length){ try{ PH.vrpDraw&&PH.vrpDraw(toS); }catch(e){} return; }
   const alt=S.alt, z0=terrain(...xy(enu(S.lat,S.lon))), gFt=z0===z0?z0/FT2M:0;
   const lim=L=>L.ref==='AGL'?(L.ft?L.ft+gFt:-1e9):L.ft;
-  const R0=window.IA517_RULES; let labels=0;
+  const R0=window.IA517_RULES, now=performance.now(), etich=ZOOMS[zi]<=30; let labels=0;
+  // da metri a schermo: la stessa trasformazione di toS, ricavata da tre punti (pixel per metro lungo E e lungo N)
+  const o0=toS(c.E,c.N), oE=toS(c.E+1000,c.N), oN=toS(c.E,c.N+1000), ma=(oE.x-o0.x)/1000, mb=(oE.y-o0.y)/1000, mc=(oN.x-o0.x)/1000, md=(oN.y-o0.y)/1000;
+  const s1=Math.hypot(ma,mb)||1, eX=Math.abs(ma), eY=Math.abs(mb), nX=Math.abs(mc), nY=Math.abs(md);
   ctx.save(); ctx.lineJoin='round';
-  for(const a of list){
+  for(const a of list){ try{
+    const g=geo(a), dE=g.cE-c.E, dN=g.cN-c.N, ox=o0.x+ma*dE+mc*dN, oy=o0.y+mb*dE+md*dN, rx=eX*g.hE+nX*g.hN, ry=eY*g.hE+nY*g.hN;
+    if(ox+rx<0||ox-rx>W||oy+ry<0||oy-ry>H) continue;              // riquadro dello spazio fuori dallo schermo: niente altro lavoro
     const lo=lim(a.lo), hi=lim(a.hi), vicino=lo<=alt+1000 && hi>=alt-1000, dentroQ=lo<=alt+50&&hi>=alt-50;
-    const dim=PH.lyr.aspSmart && !vicino, [r,g,b]=COL(a.cls), off=R0&&R0.inattiva&&R0.inattiva(a);
-    const P=pts(a).map(p=>toS(p.E,p.N));
-    ctx.beginPath(); P.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)); ctx.closePath();
-    if(!dim){ let bad=false; try{ bad=R0&&R0.verdict(a).status==='bad'; }catch(e){}
-      ctx.fillStyle=`rgba(${r},${g},${b},${bad&&dentroQ?0.16:0.06})`; ctx.fill(); }
-    ctx.setLineDash(off?[6*k,6*k]:[]); ctx.strokeStyle=`rgba(${r},${g},${b},${dim?0.22:0.9})`; ctx.lineWidth=(dim?1:2.4)*k; ctx.stroke();
-    // nome e limiti degli spazi vicini alla quota (al massimo 8, solo con zoom stretto)
-    if(!dim && labels<8 && ZOOMS[zi]<=30){ const vis=P.filter(p=>p.x>0&&p.x<W&&p.y>0&&p.y<H); if(vis.length){
-        const q=vis[Math.floor(vis.length/2)]; ctx.setLineDash([]); ctx.font=font(R*0.034,'700'); ctx.textAlign='left'; ctx.textBaseline='middle';
-        const tx=`${a.cls} ${String(a.name||'').slice(0,18)} ${a.lo.txt}–${a.hi.txt}`; ctx.lineWidth=3*k; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.fillStyle=`rgb(${r},${g},${b})`;
-        ctx.strokeText(tx,q.x+4,q.y); ctx.fillText(tx,q.x+4,q.y); labels++; } }
-  }
+    const dim=PH.lyr.aspSmart && !vicino, [r,gg,b]=COL(a.cls);
+    if(now-g.vt>3000||!g.vt){ g.vt=now; g.off=!!(R0&&R0.inattiva&&R0.inattiva(a)); g.bad=false; try{ g.bad=!!(R0&&R0.verdict(a).status==='bad'); }catch(e){} }
+    ctx.save(); ctx.transform(ma,mb,mc,md,ox,oy);
+    if(!dim){ ctx.fillStyle=`rgba(${r},${gg},${b},${g.bad&&dentroQ?0.16:0.06})`; ctx.fill(g.path); }
+    ctx.setLineDash(g.off?[6*k/s1,6*k/s1]:[]); ctx.strokeStyle=`rgba(${r},${gg},${b},${dim?0.22:0.9})`; ctx.lineWidth=(dim?1:2.4)*k/s1; ctx.stroke(g.path);
+    ctx.restore();
+    // nome e limiti degli spazi vicini alla quota (al massimo 8, solo con zoom stretto). Il punto dell'etichetta si sceglie
+    // tra i vertici visibili e si tiene finché resta sullo schermo (almeno 0,7 s): non salta da un vertice all'altro
+    if(!dim && labels<8 && etich){ const P=g.p, X=q=>o0.x+ma*(q.E-c.E)+mc*(q.N-c.N), Y=q=>o0.y+mb*(q.E-c.E)+md*(q.N-c.N), vis=q=>{ const x=X(q), y=Y(q); return x>0&&x<W&&y>0&&y<H; };
+      if(g.li<0||g.li>=P.length||(!vis(P[g.li])&&now-g.lt>700)){ g.lt=now; let n=0; for(const q of P) if(vis(q)) n++;
+        g.li=-1; if(n){ let m=Math.floor(n/2); for(let i=0;i<P.length;i++) if(vis(P[i])&&m--===0){ g.li=i; break; } } }
+      if(g.li>=0&&vis(P[g.li])){ const q=P[g.li], qx=X(q), qy=Y(q); ctx.setLineDash([]); ctx.font=font(R*0.034,'700'); ctx.textAlign='left'; ctx.textBaseline='middle';
+        const tx=`${a.cls} ${String(a.name||'').slice(0,18)} ${a.lo.txt}–${a.hi.txt}`; ctx.lineWidth=3*k; ctx.strokeStyle='rgba(0,0,0,.8)'; ctx.fillStyle=`rgb(${r},${gg},${b})`;
+        ctx.strokeText(tx,qx+4,qy); ctx.fillText(tx,qx+4,qy); labels++; } }
+  }catch(e){} }
   ctx.setLineDash([]); ctx.restore();
   try{ PH.vrpDraw&&PH.vrpDraw(toS); }catch(e){}
 };
@@ -84,6 +105,7 @@ function pannello(){
     ${T('campi','CAMPI')}${T('vrp','PUNTI VFR','di riporto')}
     ${T('notam','NOTAM','dal Briefing')}${T('meteo','METEO CAMPI','colori VFR dai METAR')}
     <button type="button" data-l="planata" class="${PH.glideOn?'on':''}"><i>${PH.glideOn?'✓':'—'}</i>PLANATA<small>zona raggiungibile</small></button>
+    ${T('prati','PRATI','© OpenStreetMap')}
     <button type="button" data-l="base"><i>🗺</i>MAPPA<small>${(PH.BASES[PH.base]||{}).name||PH.base} · tocca per cambiare</small></button>
     <button type="button" data-x class="x"><i>✕</i>CHIUDI</button></div>`;
   document.body.appendChild(d);
