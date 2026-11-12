@@ -1319,7 +1319,9 @@ function drawMap(g){
   ctx.fillStyle='#1d2a1a'; ctx.fillRect(0,0,W,H); if(PH) PH.baseHint='';
   if(!base || PH.baseMiss!==false) rast(MR.cv,MR);
   if(base){ phoneBase(ac,sc,ax,ay,t);
-    if(MR.hzOk && MR.hzG){ if(MR.hzN) rast(MR.hz,MR.hzG); } else if(PH.baseMiss===false) rast(MR.cv,MR,.5); }   // se il disegno leggero non è riuscito: rilievo e pericolo in trasparenza
+    // a terra tutto quello che sta attorno è «a meno di 60 m»: la carta diventava tutta rossa proprio quando la si legge per pianificare.
+    // Il pericolo sopra la carta si disegna solo in volo (o in simulazione); gli avvisi non c'entrano e restano com'erano.
+    if(MR.hzOk && MR.hzG){ if(MR.hzN && PH_air()) rast(MR.hz,MR.hzG); } else if(PH.baseMiss===false) rast(MR.cv,MR,.5); }   // se il disegno leggero non è riuscito: rilievo e pericolo in trasparenza
   ctx.fillStyle='rgba(0,0,0,.12)'; ctx.fillRect(0,0,W,H);
   if(PH&&PH.baseHint){ ctx.save(); ctx.font=font(R*0.05,'700'); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.lineWidth=4*k; ctx.strokeStyle='rgba(0,0,0,.85)'; ctx.fillStyle='#ffd23f';
     ctx.strokeText(PH.baseHint,W/2,H-R*0.12); ctx.fillText(PH.baseHint,W/2,H-R*0.12); ctx.restore(); }
