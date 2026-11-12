@@ -2086,8 +2086,10 @@ async function nomiCarica(pts){
   if(NOMI.done.some(k=>{ const [a,b,c,d]=k.split(',').map(Number); return a<=s&&b<=w&&c>=n&&d>=e; })) return;
   const bb=`${s},${w},${n},${e}`, q=`[out:json][timeout:25];(node["place"~"^(city|town|village)$"]["name"](${bb});way["natural"="water"]["name"](${bb});relation["natural"="water"]["name"](${bb});node["natural"="peak"]["name"](${bb}););out center bb tags;`;
   NOMI.busy=true; let fine; NOMI.p=new Promise(r=>fine=r);
-  try{ const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});
-    if(!r.ok) return; nomiAggiungi((await r.json()).elements||[]); NOMI.done.push(bb); NOMI.done=NOMI.done.slice(-80); store.set('ia517_nomi_q',NOMI.done);
+  try{ let els;                                           // nell'app la richiesta passa dal modulo di rete nativo: dalla pagina restava appesa
+    if(PHONE&&parent.PH&&parent.PH.native&&parent.PH.native.http&&parent.IA517&&parent.IA517.http){ const r=await parent.IA517.http('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q)); if(r.status!==200) return; els=JSON.parse(r.text).elements; }
+    else { const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)}); if(!r.ok) return; els=(await r.json()).elements; }
+    nomiAggiungi(els||[]); NOMI.done.push(bb); NOMI.done=NOMI.done.slice(-80); store.set('ia517_nomi_q',NOMI.done);
   }catch(e){} finally{ NOMI.busy=false; fine(); }
 }
 function nomiAggiungi(els){

@@ -135,10 +135,21 @@ async function scarica(k){
   if(RETE.busy) return false; RETE.busy=true; RETE.last=Date.now(); let ok=false;
   const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),CFG.tout);
   try{ const url=RETE.falliti%2?URL_OP2:URL_OP;                                         // a ogni tentativo fallito si cambia servizio
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(domanda(k,RETE.semplice)),signal:ctl.signal});
-    if(r.status===400&&!RETE.semplice){ RETE.semplice=true; throw new Error('domanda non accettata'); }      // filtro non accettato dal servizio: la prossima volta senza
-    if(!r.ok) throw new Error('risposta '+r.status);
-    const rec=await leggi(await r.json(),k);
+    // Nell'app Android la richiesta passa dal modulo di rete nativo (IA517.http), come meteo e traffico: dalla pagina la
+    // richiesta a questo servizio restava appesa fino al tempo scaduto (visto dall'autore: sul web andava, nell'app mai).
+    let dati;
+    if(PH.native&&PH.native.http&&window.IA517&&IA517.http){
+      const r=await IA517.http(url+'?data='+encodeURIComponent(domanda(k,RETE.semplice)));
+      if(r.status===400&&!RETE.semplice){ RETE.semplice=true; throw new Error('domanda non accettata'); }
+      if(r.status!==200) throw new Error('risposta '+r.status);
+      dati=JSON.parse(r.text);
+    } else {
+      const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(domanda(k,RETE.semplice)),signal:ctl.signal});
+      if(r.status===400&&!RETE.semplice){ RETE.semplice=true; throw new Error('domanda non accettata'); }      // filtro non accettato dal servizio: la prossima volta senza
+      if(!r.ok) throw new Error('risposta '+r.status);
+      dati=await r.json();
+    }
+    const rec=await leggi(dati,k);
     await dbPut(rec); IDX[k]=rec.t; inMem(apri(rec)); await tetto(); ok=true; RETE.falliti=0; RETE.fatti++; RETE.male.delete(k);
     RETE.err='';
   }catch(e){ RETE.falliti++; if(RETE.falliti>1) RETE.male.set(k,Date.now());      // al primo rifiuto lo stesso riquadro si riprova subito con l'altro servizio
