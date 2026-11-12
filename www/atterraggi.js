@@ -128,12 +128,13 @@ async function carica(k){ if(MEM.has(k)||carico.has(k)) return; carico.add(k);
   try{ const rec=await dbGet(k); if(rec&&rec.k===k) inMem(apri(rec)); else if(rec===null && (await db())){ delete IDX[k]; lsSet(KEY_I,IDX); } }catch(e){} finally{ carico.delete(k); } }
 
 // ---- rete: un riquadro alla volta ----
-const RETE={busy:false,last:0,poi:0,falliti:0,male:new Map(),semplice:true,forza:0,msg:'',fatti:0};
+const RETE={busy:false,last:0,poi:0,falliti:0,male:new Map(),semplice:true,forza:0,msg:'',fatti:0,byte:0};   // byte: peso delle risposte di questo giro di scarichi (per la barretta)
 function domanda(k,semplice){ const [s,w,n,e]=bordi(k), f=semplice?'':'(if:length()>600)', f2=semplice?'':'(if:length()>300)';   // perimetro minimo: i ritagli non si scaricano nemmeno
   return `[out:json][timeout:60][bbox:${s},${w},${n},${e}];(way["landuse"~"^(meadow|farmland|grass)$"]${f};way["natural"="grassland"]${f};way["aeroway"~"^(aerodrome|airstrip)$"];`+
     `way["landuse"~"^(residential|industrial|commercial|retail|forest)$"]${f2};way["natural"~"^(wood|water)$"]${f2};way["power"~"^(line|minor_line)$"];node["place"~"^(city|town|village|hamlet)$"];);out geom qt;`; }
 async function scarica(k){
-  if(RETE.busy) return false; RETE.busy=true; RETE.last=Date.now(); let ok=false;
+  if(RETE.busy) return false; if(Date.now()-RETE.last>60000) RETE.byte=0;     // dopo una pausa lunga è un giro nuovo: i MB ripartono da zero
+  RETE.busy=true; RETE.last=Date.now(); let ok=false;
   const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),CFG.tout);
   try{ const url=[URL_OP,URL_OP2,URL_OP3][RETE.falliti%3];                                         // a ogni tentativo fallito si cambia servizio
     // Nell'app Android la richiesta passa dal modulo di rete nativo (IA517.http), come meteo e traffico: dalla pagina la
@@ -144,12 +145,12 @@ async function scarica(k){
       const r={status:g.status,text:typeof g.data==='string'?g.data:JSON.stringify(g.data)};
       if(r.status===400&&!RETE.semplice){ RETE.semplice=true; throw new Error('domanda non accettata'); }
       if(r.status!==200) throw new Error('risposta '+r.status);
-      dati=JSON.parse(r.text);
+      RETE.byte+=r.text.length; dati=JSON.parse(r.text);
     } else {
       const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(domanda(k,RETE.semplice)),signal:ctl.signal});
       if(r.status===400&&!RETE.semplice){ RETE.semplice=true; throw new Error('domanda non accettata'); }      // filtro non accettato dal servizio: la prossima volta senza
       if(!r.ok) throw new Error('risposta '+r.status);
-      dati=await r.json();
+      const t=await r.text(); RETE.byte+=t.length; dati=JSON.parse(t);                // il servizio non dice il peso: vale la lunghezza della risposta arrivata
     }
     const rec=await leggi(dati,k);
     await dbPut(rec); IDX[k]=rec.t; inMem(apri(rec)); await tetto(); ok=true; RETE.falliti=0; RETE.fatti++; RETE.male.delete(k);
@@ -346,19 +347,28 @@ function disegna(toS){
 
 // ---- Impostazioni › Volare senza internet: stato e scarico a richiesta (solo a terra) ----
 PH.pratiStato=function(){ const now=Date.now(), n=Object.keys(IDX).length; let zona=0, tot=0;
-  try{ if(gpsOk()){ const v=voluti(); tot=v.length; zona=v.filter(x=>IDX[x]>now-CFG.giorni*864e5).length; } }catch(e){}
-  return {n,zona,tot,busy:RETE.busy,attesa:Math.max(0,RETE.poi-now),falliti:RETE.falliti,mem:MEM.size,best:BEST?BEST.list.length:0,err:RETE.err||'',errT:RETE.errT||0,fatti:RETE.fatti,
+  try{ if(gpsOk()||EXTRA.length){ const v=voluti(); tot=v.length; zona=v.filter(x=>IDX[x]>now-CFG.giorni*864e5).length; } }catch(e){}
+  return {n,zona,tot,busy:RETE.busy,attesa:Math.max(0,RETE.poi-now),falliti:RETE.falliti,mem:MEM.size,best:BEST?BEST.list.length:0,err:RETE.err||'',errT:RETE.errT||0,fatti:RETE.fatti,byte:RETE.byte,last:RETE.last,forza:now-RETE.forza<600000,
     qui:gpsOk()?!!IDX[chiave(S.lat,S.lon)]:null,planata:!!PH.glideOn,livello:!(PH.lyr&&PH.lyr.prati===false)}; };
-PH.pratiScarica=function(){ RETE.forza=Date.now(); RETE.poi=0; RETE.falliti=0; RETE.male.clear(); try{ rete(); }catch(e){} };
+PH.pratiScarica=function(){ RETE.forza=Date.now(); RETE.poi=0; RETE.falliti=0; RETE.err=''; RETE.byte=0; RETE.male.clear(); try{ rete(); }catch(e){} };
 PH.pratiCfg=CFG;
 if(PH.renderImp){ const orig=PH.renderImp; PH.renderImp=function(){ orig.apply(this,arguments);
   try{ const h=[...document.querySelectorAll('#phImpBody section')].find(s=>s.dataset.t==='Volare senza internet'||(s.querySelector('h3')&&s.querySelector('h3').textContent==='Volare senza internet')); if(!h) return;
-    const host=h.querySelector('.hz-sb')||h, box=document.createElement('div'); box.id='hzPrati';
+    const host=h.querySelector('.hz-sb')||h, tutto=document.createElement('div'), box=document.createElement('div'), bar=document.createElement('div'); tutto.id='hzPrati'; bar.id='hzPrBar';
+    // barretta e MB (PH.dlBar) in un riquadro a parte: il testo qui sopra si riscrive ogni 5 s, lei no. Un riquadro ogni 6 s:
+    // «0,4 MB · 3 di 9 riquadri». I MB sono la lunghezza delle risposte arrivate (dati non compressi).
+    let vista=false;
+    const barra=()=>{ if(!PH.dlBar) return; const s=PH.pratiStato(), o={testo:'Prati',fatti:s.zona,totale:s.tot,mb:s.byte/1048576};
+      const manca=s.tot?s.zona<s.tot:true, vivo=s.busy||(manca&&(s.forza||Date.now()-s.last<15000));
+      if(vivo && s.falliti && s.err){ PH.dlBar(bar,Object.assign(o,{err:s.err+' · riprovo'})); vista=true; }
+      else if(vivo){ PH.dlBar(bar,o); vista=true; }
+      else if(vista){ vista=false; if(s.tot&&!manca) PH.dlBar(bar,Object.assign(o,{fine:true,testo:`Prati · ${s.tot} riquadri`})); else if(s.err) PH.dlBar(bar,Object.assign(o,{err:s.err})); else PH.dlBar(bar,null); } };
     const draw=()=>{ const s=PH.pratiStato(), volo=!PH.sim&&(PH_air()||(+S.gs||0)>=15);
       box.innerHTML=`<p class="ph-sub"><b>Prati per l'atterraggio fuori campo</b> (dentro la zona di planata e nella pagina EMERGENZA): si scaricano da soli a terra, con la rete, attorno a dove sei e lungo la rotta attiva. Sul telefono: ${s.n} riquadr${s.n===1?'o':'i'}${s.tot?` · zona e rotta ${s.zona} su ${s.tot}`:''}${s.busy?' · scarico in corso…':(s.attesa&&s.falliti?' · servizio non raggiungibile, riprovo tra '+Math.ceil(s.attesa/60000)+' min':'')}${s.err?` · ultimo errore: <b>${String(s.err).replace(/[<&>]/g,'')}</b>`:''}${s.qui===false?' · <b>nessun dato per la zona dove sei adesso</b>':''}${!s.planata?' · <b>la zona di planata è spenta (Impostazioni › Velivoli): sulla mappa i prati non si vedono</b>':''}${!s.livello?' · <b>il livello PRATI è spento (tasto ◧ sulla mappa)</b>':''}. Dati © OpenStreetMap (ODbL): un'indicazione, da verificare a vista.</p>
       <div class="ph-btns"><button class="ph-btn" type="button" id="hzPrGo"${volo||!navigator.onLine?' disabled':''}>Scarica i prati della zona</button></div>`;
-      const g=box.querySelector('#hzPrGo'); if(g) g.onclick=()=>{ PH.pratiScarica(); toastShow('PRATI: SCARICO IN SOTTOFONDO'); setTimeout(draw,600); }; };
-    draw(); host.appendChild(box);
-    const tm=setInterval(()=>{ if(!document.body.contains(box)){ clearInterval(tm); return; } try{ if(!box.contains(document.activeElement)) draw(); }catch(e){} },5000);
+      const g=box.querySelector('#hzPrGo'); if(g) g.onclick=()=>{ PH.pratiScarica(); toastShow('PRATI: SCARICO IN SOTTOFONDO'); setTimeout(draw,600); try{ barra(); }catch(e){} }; };
+    draw(); tutto.appendChild(box); tutto.appendChild(bar); host.appendChild(tutto); try{ barra(); }catch(e){}
+    const tm=setInterval(()=>{ if(!document.body.contains(box)){ clearInterval(tm); clearInterval(tb); return; } try{ if(!box.contains(document.activeElement)) draw(); }catch(e){} },5000);
+    const tb=setInterval(()=>{ try{ if(document.body.contains(bar)) barra(); }catch(e){} },500);
   }catch(e){} }; }
 })();

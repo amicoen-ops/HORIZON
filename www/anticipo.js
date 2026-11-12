@@ -182,10 +182,10 @@ async function esegui(job){
     nota(`parte ${job.nome}: terreno ${nD}, mappa ${nM}, circa ${job.mb.toFixed(1)} MB`);
     let kb0=0, fatti=0, buoni=0, rete=0;
     job.fase='terreno';
-    const a=await PH.prefetch('dem',(d,t,ok,kb)=>{ job.kb=kb; },Object.assign({pausa:CFG.pausaDem,par:2,tettoKB:tetto,stop,kb:CFG.kbDem,signal:ctl&&ctl.signal},oD));
+    const a=await PH.prefetch('dem',(d,t,ok,kb,st)=>{ job.kb=kb; if(st) job.circa=true; },Object.assign({pausa:CFG.pausaDem,par:2,tettoKB:tetto,stop,kb:CFG.kbDem,signal:ctl&&ctl.signal},oD));
     kb0=a.kb||0; fatti+=a.done; buoni+=a.ok; rete+=a.rete||0;
     if(mOk && !stop() && kb0<tetto){ job.fase='mappa';
-      const b=await PH.prefetch('map',(d,t,ok,kb)=>{ job.kb=kb0+kb; },Object.assign({pausa:CFG.pausaMappa,par:1,tettoKB:tetto-kb0,stop,kb:CFG.kbMappa,signal:ctl&&ctl.signal},oM));
+      const b=await PH.prefetch('map',(d,t,ok,kb,st)=>{ job.kb=kb0+kb; if(st) job.circa=true; },Object.assign({pausa:CFG.pausaMappa,par:1,tettoKB:tetto-kb0,stop,kb:CFG.kbMappa,signal:ctl&&ctl.signal},oM));
       kb0+=b.kb||0; fatti+=b.done; buoni+=b.ok; rete+=b.rete||0; }
     job.kb=kb0;
     if(stop()){ esito=aTerra()?'fermato':'fermato: decollo'; return; }
@@ -193,8 +193,12 @@ async function esegui(job){
     segna(job.sig); esito=kb0>=tetto?`tetto di ${CFG.tettoMB} MB raggiunto`:'finito';
     if(aTerra()) toastShow(`SCARICO FINITO · ${job.nome} · ${Math.max(1,Math.round(kb0/1024))} MB`);
   }catch(e){ esito='errore: '+String(e&&e.message||e).slice(0,60); AD.poi=Date.now()+CFG.riprova; }
-  finally{ AD.ultimo=`${job.nome}: ${esito} · ${(job.kb/1024).toFixed(1)} MB`; nota(AD.ultimo); AD.job=null; }
+  finally{ AD.ultimo=`${job.nome}: ${esito} · ${(job.kb/1024).toFixed(1)} MB`; nota(AD.ultimo); chiusa(job,esito); AD.job=null; }
 }
+// fine di uno scarico: per qualche secondo la riga di stato e Impostazioni dicono com'è andata («fatto · 13 MB», o il motivo in giallo)
+function chiusa(job,esito){ try{ if(job.fase==='conto'){ AD.fine=null; return; }                      // niente da scaricare: niente da dire
+    const bene=/^(finito|tetto|scaricata)/.test(esito), decollo=/decollo/.test(esito);
+    AD.fine=decollo?null:{tipo:job.tipo,nome:job.nome,kb:job.kb,mb:job.mb,circa:!!job.circa,err:bene?'':esito.replace(/^errore: /,'').replace('rete o servizio non','rete non'),t:Date.now()}; }catch(e){ AD.fine=null; } }
 async function carta(){
   if(!PH.cartaPuo || !PH.cartaScarica || !PH.airac) return false;
   if(PH.carta && String(PH.carta.version)===PH.airac(0)) return false;          // quella del ciclo in corso c'è già
@@ -204,7 +208,7 @@ async function carta(){
   toastShow('SCARICO IN SOTTOFONDO · CARTA VFR · CIRCA 105 MB'); nota('parte la carta VFR');
   let ok=false;
   try{ ok=await PH.cartaScarica((d,t)=>{ job.kb=d/1024; if(t>0) job.mb=t/1048576; },true); }catch(e){}
-  finally{ AD.ultimo='CARTA VFR: '+(ok?'scaricata':'non riuscita, riprovo domani'); nota(AD.ultimo); AD.job=null; }
+  finally{ AD.ultimo='CARTA VFR: '+(ok?'scaricata':'non riuscita, riprovo domani'); nota(AD.ultimo); chiusa(job,ok?'scaricata':(PH.cartaErr||'non riuscita')+' · riprovo domani'); AD.job=null; }
   return true; }
 // ogni 5 s, solo a terra e con la rete: una cosa alla volta
 function giro(){
@@ -228,9 +232,17 @@ setInterval(()=>{ try{ const j=AD.job; if(j && j.tipo!=='carta' && (!aTerra() ||
 function salvata(r){ try{ if(r && Array.isArray(r.wps) && r.wps.length>1 && aTerra() && permesso('zona')) accoda('rotta',r.name||'ROTTA',r.wps); }catch(e){} }
 if(PH.handle){ const h0=PH.handle; PH.handle=function(m,p,b){ const r=h0.apply(this,arguments); try{ if(m==='POST' && p==='/api/routes') salvata(r&&r.route); else if(m==='POST' && p==='/api/plan') salvata(b&&b.route); }catch(e){} return r; }; }
 if(PH.fromPfd){ const f0=PH.fromPfd; PH.fromPfd=function(o){ try{ if(o&&o.t==='route') salvata(o.r); }catch(e){} return f0.apply(this,arguments); }; }
-// riga di stato: cosa si sta scaricando e quanti MB
+// riga di stato: cosa si sta scaricando e quanti MB, con la barretta sottile dentro l'etichetta (PH.dlCss). La barretta e
+// l'esito («FATTO 13 MB», o il motivo in giallo) solo a terra: in volo lo scarico è già fermo e non deve comparire niente di nuovo.
+const TIPO={carta:'CARTA',zona:'ZONA',rotta:'ROTTA'};
+// stato per PH.dlBar/PH.dlHtml: il totale di rotta e zona è una stima (media per riquadro), quello della carta è il peso vero
+const perBarra=j=>({testo:j.nome,mb:j.kb/1024,mbTot:Math.max(j.mb,j.kb/1024),circa:j.tipo!=='carta'});
 if(PH.statoHtml){ const s0=PH.statoHtml; PH.statoHtml=function(){ let h=s0.apply(this,arguments);
-    try{ const j=AD.job; if(j && j.fase!=='conto') h+=`<i class="o">⬇ ${j.tipo==='carta'?'CARTA':j.tipo==='zona'?'ZONA':'ROTTA'} ${Math.round(j.kb/1024)}/${Math.max(1,Math.round(j.mb))} MB</i>`; }catch(e){} return h; }; }
+    try{ const j=AD.job, f=AD.fine, giu=aTerra(), bar=p=>`<span class="hz-dl-b"><b style="width:${Math.round(Math.max(0,Math.min(1,p))*50)*2}%"></b></span>`;   // a passi del 2%: la riga non si riscrive a ogni byte
+      if(j && j.fase!=='conto') h+=`<i class="o${giu?' hz-dlk':''}">⬇ ${TIPO[j.tipo]||'ROTTA'} ${Math.round(j.kb/1024)}/${Math.max(1,Math.round(Math.max(j.mb,j.kb/1024)))} MB${giu?bar(j.kb/1024/Math.max(j.mb,0.1)):''}</i>`;   // la stima può essere scarsa: il totale non resta mai sotto lo scaricato
+      else if(f && giu && Date.now()-f.t<(f.err?8000:4000)) h+=f.err?`<i class="w hz-dlk">⬇ ${TIPO[f.tipo]||''} ${PH.esc(f.err.toUpperCase().slice(0,28))}${bar(f.kb/1024/Math.max(f.mb,0.1))}</i>`
+        :`<i class="o hz-dlk">⬇ ${TIPO[f.tipo]||''} FATTO · ${PH.dlMb(f.kb/1024)} MB${bar(1)}</i>`;
+    }catch(e){} return h; }; }
 PH.autoDl={cfg:AD.cfg,CFG,permesso,aTerra,reteTipo,
   stato:()=>({job:AD.job?{tipo:AD.job.tipo,nome:AD.job.nome,fase:AD.job.fase,kb:AD.job.kb,mb:AD.job.mb}:null,coda:AD.coda.length,ultimo:AD.ultimo,log:AD.log.slice(),rete:reteTipo(),aTerra:aTerra()}),
   set(k,v){ if(!['zona','carta'].includes(k)||!['sempre','wifi','mai'].includes(v)) return; AD.cfg[k]=v; lsSet(KEY,AD.cfg); },
@@ -242,7 +254,14 @@ if(PH.renderImp){ const orig=PH.renderImp; PH.renderImp=function(){ orig.apply(t
         b.onclick=()=>{ PH.autoDl.set(k,b.dataset.v); box.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b))); msg(); }; }); }
     const msg=()=>{ const m=document.getElementById('phAdMsg'); if(!m) return; const j=AD.job;
       m.textContent=`Adesso: ${reteTipo()==='wifi'?'Wi-Fi':'rete mobile (o non riconosciuta)'} · ${aTerra()?'a terra':'in volo o in simulazione: nessuno scarico'}`+
-        (j?` · scarico in corso: ${j.nome} ${Math.round(j.kb/1024)} di circa ${Math.max(1,Math.round(j.mb))} MB`:(AD.ultimo?' · ultimo: '+AD.ultimo:''))+(PH.cartaPuo?'':' · carta VFR: non disponibile in questo browser'); };
+        (j?` · scarico in corso: ${j.nome}`:(AD.ultimo?' · ultimo: '+AD.ultimo:''))+(PH.cartaPuo?'':' · carta VFR: non disponibile in questo browser'); barra(); };
+    // la stessa barretta degli altri scarichi, sotto la riga; segue lo scarico due volte al secondo
+    let bar=null, vista=false;
+    const barra=()=>{ try{ const m=document.getElementById('phAdMsg'); if(!m||!PH.dlBar) return; if(!bar||!bar.isConnected){ bar=document.createElement('div'); bar.id='phAdBar'; m.after(bar); }
+      const j=AD.job, f=AD.fine;
+      if(j && j.fase!=='conto'){ PH.dlBar(bar,perBarra(j)); vista=true; }
+      else if(vista){ vista=false; if(f&&f.err) PH.dlBar(bar,{testo:f.nome,err:f.err,mb:f.kb/1024,circa:f.circa}); else if(f) PH.dlBar(bar,{testo:f.nome,fine:true,mb:f.kb/1024,circa:f.circa}); else PH.dlBar(bar,null); } }catch(e){} };
+    const tb=setInterval(()=>{ if(!document.getElementById('phAdMsg')){ clearInterval(tb); return; } barra(); },500);
     msg(); const tm=setInterval(()=>{ if(!document.getElementById('phAdMsg')){ clearInterval(tm); return; } try{ msg(); }catch(e){} },3000);
   }catch(e){} }; }
 })();
