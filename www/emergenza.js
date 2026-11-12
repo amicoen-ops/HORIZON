@@ -166,7 +166,9 @@ PH.emergOpen=function(){
         <p class="ph-sub">Sulla frequenza in uso, oppure <b>121.500</b>${fi?' o '+esc(fi[1]||'FIS')+' <b>'+esc(Number(fi[2]).toFixed(3))+'</b>':''}. Transponder <b>7700</b>.</p></section>
       <section><h3>Altri campi</h3>${e.list.slice(0,8).map(riga).join('')||'<p class="ph-sub">Nessun campo nei dati entro la planata.</p>'}</section>
       ${pr.length?`<section><h3>Prati raggiungibili · da verificare a vista</h3>${cOk?'<p class="ph-sub">Un campo vero è raggiungibile: viene prima.</p>':''}${pr.map(rigaP).join('')}
-        <p class="ph-sub">Indicazione dalle mappe (© OpenStreetMap), <b>non una pista</b>: coltura, fossi, fili, recinti e pendenza vera si vedono solo dall'alto. Striscia e prua di atterraggio sono stimate, controvento se il vento è noto.</p></section>`:''}
+        <p class="ph-sub">Indicazione dalle mappe (© OpenStreetMap), <b>non una pista</b>: coltura, fossi, fili, recinti e pendenza vera si vedono solo dall'alto. Striscia e prua di atterraggio sono stimate, controvento se il vento è noto.</p></section>`:(()=>{ try{ const s=PH.pratiStato&&PH.pratiStato(); if(!s) return '';
+          // senza prati il pilota deve sapere perché: dati non scaricati, oppure nessun prato adatto
+          return `<section><h3>Prati raggiungibili</h3><p class="ph-sub">${s.qui===false?'Nessun dato dei prati per questa zona: si scaricano a terra, con la rete (Impostazioni › Volare senza internet).':(s.n?'Nessun prato adatto entro la planata, secondo le mappe.':'Dati dei prati mai scaricati: si scaricano a terra, con la rete (Impostazioni › Volare senza internet).')}</p></section>`; }catch(x){ return ''; } })()}
       <div class="hz-emb">${chk>=0?'<button type="button" class="ph-btn" id="hzEmChk">Check list di emergenza</button>':''}<button type="button" class="ph-btn" id="hzEmEnd">Fine emergenza</button></div>
       <p class="ph-sub">Stima con l'efficienza del velivolo, il vento e il terreno, con il 25% di margine e 500 ft per il circuito: vale sempre il tuo giudizio.</p>
     </div>`;

@@ -43,6 +43,8 @@ const CFG={
   maxCand:400           // aree esaminate per volta (le più vicine)
 };
 const URL_OP='https://overpass-api.de/api/interpreter';
+// secondo servizio Overpass pubblico: se il primo rifiuta o non risponde (capita sulle reti mobili, dove molti telefoni escono con lo stesso indirizzo) si prova questo
+const URL_OP2='https://overpass.kumi.systems/api/interpreter';
 const KEY_I='ia517p_prati_idx';
 const CO=Math.cos(ORIGIN.lat*D2R), M_LAT=110540, M_LON=111320;
 const lat2N=N=>ORIGIN.lat+N/M_LAT, lon2E=E=>ORIGIN.lon+E/(M_LON*CO);
@@ -132,12 +134,17 @@ function domanda(k,semplice){ const [s,w,n,e]=bordi(k), f=semplice?'':'(if:lengt
 async function scarica(k){
   if(RETE.busy) return false; RETE.busy=true; RETE.last=Date.now(); let ok=false;
   const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),CFG.tout);
-  try{ const r=await fetch(URL_OP,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(domanda(k,RETE.semplice)),signal:ctl.signal});
-    if(r.status===400&&!RETE.semplice){ RETE.semplice=true; throw new Error('domanda'); }      // filtro non accettato dal servizio: la prossima volta senza
-    if(!r.ok) throw new Error('http '+r.status);
+  try{ const url=RETE.falliti%2?URL_OP2:URL_OP;                                         // a ogni tentativo fallito si cambia servizio
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(domanda(k,RETE.semplice)),signal:ctl.signal});
+    if(r.status===400&&!RETE.semplice){ RETE.semplice=true; throw new Error('domanda non accettata'); }      // filtro non accettato dal servizio: la prossima volta senza
+    if(!r.ok) throw new Error('risposta '+r.status);
     const rec=await leggi(await r.json(),k);
     await dbPut(rec); IDX[k]=rec.t; inMem(apri(rec)); await tetto(); ok=true; RETE.falliti=0; RETE.fatti++; RETE.male.delete(k);
-  }catch(e){ RETE.falliti++; RETE.male.set(k,Date.now()); RETE.poi=Date.now()+Math.min(900000,60000*2**Math.min(4,RETE.falliti-1)); }   // 1, 2, 4, 8, 15 minuti
+    RETE.err='';
+  }catch(e){ RETE.falliti++; if(RETE.falliti>1) RETE.male.set(k,Date.now());      // al primo rifiuto lo stesso riquadro si riprova subito con l'altro servizio
+    RETE.err=(e&&e.name==='AbortError'?'tempo scaduto':String(e&&e.message||e)).slice(0,60); RETE.errT=Date.now();     // il motivo si vede in Impostazioni: prima un rifiuto restava muto
+    // il primo fallimento riprova subito con l'altro servizio (10 s), poi 1, 2, 4, 8, 15 minuti
+    RETE.poi=Date.now()+(RETE.falliti===1?10000:Math.min(900000,60000*2**Math.min(4,RETE.falliti-2))); }
   finally{ clearTimeout(tm); RETE.busy=false; RETE.last=Date.now(); }
   return ok; }
 // riquadri che servono a terra: i 9 attorno alla posizione, poi quelli lungo la rotta attiva (una fascia di circa 5 km per lato)
@@ -326,14 +333,15 @@ function disegna(toS){
 // ---- Impostazioni › Volare senza internet: stato e scarico a richiesta (solo a terra) ----
 PH.pratiStato=function(){ const now=Date.now(), n=Object.keys(IDX).length; let zona=0, tot=0;
   try{ if(gpsOk()){ const v=voluti(); tot=v.length; zona=v.filter(x=>IDX[x]>now-CFG.giorni*864e5).length; } }catch(e){}
-  return {n,zona,tot,busy:RETE.busy,attesa:Math.max(0,RETE.poi-now),falliti:RETE.falliti,mem:MEM.size,best:BEST?BEST.list.length:0}; };
+  return {n,zona,tot,busy:RETE.busy,attesa:Math.max(0,RETE.poi-now),falliti:RETE.falliti,mem:MEM.size,best:BEST?BEST.list.length:0,err:RETE.err||'',errT:RETE.errT||0,fatti:RETE.fatti,
+    qui:gpsOk()?!!IDX[chiave(S.lat,S.lon)]:null,planata:!!PH.glideOn,livello:!(PH.lyr&&PH.lyr.prati===false)}; };
 PH.pratiScarica=function(){ RETE.forza=Date.now(); RETE.poi=0; RETE.falliti=0; RETE.male.clear(); try{ rete(); }catch(e){} };
 PH.pratiCfg=CFG;
 if(PH.renderImp){ const orig=PH.renderImp; PH.renderImp=function(){ orig.apply(this,arguments);
   try{ const h=[...document.querySelectorAll('#phImpBody section')].find(s=>s.dataset.t==='Volare senza internet'||(s.querySelector('h3')&&s.querySelector('h3').textContent==='Volare senza internet')); if(!h) return;
     const host=h.querySelector('.hz-sb')||h, box=document.createElement('div'); box.id='hzPrati';
     const draw=()=>{ const s=PH.pratiStato(), volo=PH_air()||(+S.gs||0)>=15;
-      box.innerHTML=`<p class="ph-sub"><b>Prati per l'atterraggio fuori campo</b> (dentro la zona di planata e nella pagina EMERGENZA): si scaricano da soli a terra, con la rete, attorno a dove sei e lungo la rotta attiva. Sul telefono: ${s.n} riquadr${s.n===1?'o':'i'}${s.tot?` · zona e rotta ${s.zona} su ${s.tot}`:''}${s.busy?' · scarico in corso…':(s.attesa&&s.falliti?' · servizio non raggiungibile, riprovo tra '+Math.ceil(s.attesa/60000)+' min':'')}. Dati © OpenStreetMap (ODbL): un'indicazione, da verificare a vista.</p>
+      box.innerHTML=`<p class="ph-sub"><b>Prati per l'atterraggio fuori campo</b> (dentro la zona di planata e nella pagina EMERGENZA): si scaricano da soli a terra, con la rete, attorno a dove sei e lungo la rotta attiva. Sul telefono: ${s.n} riquadr${s.n===1?'o':'i'}${s.tot?` · zona e rotta ${s.zona} su ${s.tot}`:''}${s.busy?' · scarico in corso…':(s.attesa&&s.falliti?' · servizio non raggiungibile, riprovo tra '+Math.ceil(s.attesa/60000)+' min':'')}${s.err?` · ultimo errore: <b>${String(s.err).replace(/[<&>]/g,'')}</b>`:''}${s.qui===false?' · <b>nessun dato per la zona dove sei adesso</b>':''}${!s.planata?' · <b>la zona di planata è spenta (Impostazioni › Velivoli): sulla mappa i prati non si vedono</b>':''}${!s.livello?' · <b>il livello PRATI è spento (tasto ◧ sulla mappa)</b>':''}. Dati © OpenStreetMap (ODbL): un'indicazione, da verificare a vista.</p>
       <div class="ph-btns"><button class="ph-btn" type="button" id="hzPrGo"${volo||!navigator.onLine?' disabled':''}>Scarica i prati della zona</button></div>`;
       const g=box.querySelector('#hzPrGo'); if(g) g.onclick=()=>{ PH.pratiScarica(); toastShow('PRATI: SCARICO IN SOTTOFONDO'); setTimeout(draw,600); }; };
     draw(); host.appendChild(box);
