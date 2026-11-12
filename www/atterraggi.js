@@ -45,6 +45,7 @@ const CFG={
 const URL_OP='https://overpass-api.de/api/interpreter';
 // secondo servizio Overpass pubblico: se il primo rifiuta o non risponde (capita sulle reti mobili, dove molti telefoni escono con lo stesso indirizzo) si prova questo
 const URL_OP2='https://overpass.kumi.systems/api/interpreter';
+const URL_OP3='https://overpass.private.coffee/api/interpreter';            // terzo servizio pubblico: i primi due nelle ore piene rispondono 504
 const KEY_I='ia517p_prati_idx';
 const CO=Math.cos(ORIGIN.lat*D2R), M_LAT=110540, M_LON=111320;
 const lat2N=N=>ORIGIN.lat+N/M_LAT, lon2E=E=>ORIGIN.lon+E/(M_LON*CO);
@@ -127,14 +128,14 @@ async function carica(k){ if(MEM.has(k)||carico.has(k)) return; carico.add(k);
   try{ const rec=await dbGet(k); if(rec&&rec.k===k) inMem(apri(rec)); else if(rec===null && (await db())){ delete IDX[k]; lsSet(KEY_I,IDX); } }catch(e){} finally{ carico.delete(k); } }
 
 // ---- rete: un riquadro alla volta ----
-const RETE={busy:false,last:0,poi:0,falliti:0,male:new Map(),semplice:false,forza:0,msg:'',fatti:0};
+const RETE={busy:false,last:0,poi:0,falliti:0,male:new Map(),semplice:true,forza:0,msg:'',fatti:0};
 function domanda(k,semplice){ const [s,w,n,e]=bordi(k), f=semplice?'':'(if:length()>600)', f2=semplice?'':'(if:length()>300)';   // perimetro minimo: i ritagli non si scaricano nemmeno
   return `[out:json][timeout:60][bbox:${s},${w},${n},${e}];(way["landuse"~"^(meadow|farmland|grass)$"]${f};way["natural"="grassland"]${f};way["aeroway"~"^(aerodrome|airstrip)$"];`+
     `way["landuse"~"^(residential|industrial|commercial|retail|forest)$"]${f2};way["natural"~"^(wood|water)$"]${f2};way["power"~"^(line|minor_line)$"];node["place"~"^(city|town|village|hamlet)$"];);out geom qt;`; }
 async function scarica(k){
   if(RETE.busy) return false; RETE.busy=true; RETE.last=Date.now(); let ok=false;
   const ctl=new AbortController(), tm=setTimeout(()=>ctl.abort(),CFG.tout);
-  try{ const url=RETE.falliti%2?URL_OP2:URL_OP;                                         // a ogni tentativo fallito si cambia servizio
+  try{ const url=[URL_OP,URL_OP2,URL_OP3][RETE.falliti%3];                                         // a ogni tentativo fallito si cambia servizio
     // Nell'app Android la richiesta passa dal modulo di rete nativo (IA517.http), come meteo e traffico: dalla pagina la
     // richiesta a questo servizio restava appesa fino al tempo scaduto (visto dall'autore: sul web andava, nell'app mai).
     let dati;
@@ -183,7 +184,8 @@ function rete(){
   if(now<RETE.poi&&!forza) return;
   if(!forza&&PH.lyr&&PH.lyr.prati===false) return;                // livello spento: niente scarichi da soli
   if((PH.demo&&!PH.sim)||(!gpsOk()&&!EXTRA.length)) return;       // volo dimostrativo o posizione non nota (e nessuna rotta da preparare): niente rete
-  const volo=PH_air()||(PH.inVolo&&PH.inVolo())||(+S.gs||0)>=15;
+  // la simulazione non è un volo vero: si scarica come a terra, attorno al punto simulato e lungo la rotta simulata
+  const volo=!PH.sim&&(PH_air()||(PH.inVolo&&PH.inVolo())||(+S.gs||0)>=15);
   if(volo){ if(!gpsOk()) return; const k=chiave(S.lat,S.lon);                          // in volo: solo il riquadro sotto l'aereo, solo se manca del tutto
     if(IDX[k]||now-RETE.last<CFG.pausaVolo||now-(RETE.male.get(k)||0)<600000) return; scarica(k); return; }
   if(now-RETE.last<CFG.pausa) return;
@@ -352,7 +354,7 @@ PH.pratiCfg=CFG;
 if(PH.renderImp){ const orig=PH.renderImp; PH.renderImp=function(){ orig.apply(this,arguments);
   try{ const h=[...document.querySelectorAll('#phImpBody section')].find(s=>s.dataset.t==='Volare senza internet'||(s.querySelector('h3')&&s.querySelector('h3').textContent==='Volare senza internet')); if(!h) return;
     const host=h.querySelector('.hz-sb')||h, box=document.createElement('div'); box.id='hzPrati';
-    const draw=()=>{ const s=PH.pratiStato(), volo=PH_air()||(+S.gs||0)>=15;
+    const draw=()=>{ const s=PH.pratiStato(), volo=!PH.sim&&(PH_air()||(+S.gs||0)>=15);
       box.innerHTML=`<p class="ph-sub"><b>Prati per l'atterraggio fuori campo</b> (dentro la zona di planata e nella pagina EMERGENZA): si scaricano da soli a terra, con la rete, attorno a dove sei e lungo la rotta attiva. Sul telefono: ${s.n} riquadr${s.n===1?'o':'i'}${s.tot?` · zona e rotta ${s.zona} su ${s.tot}`:''}${s.busy?' · scarico in corso…':(s.attesa&&s.falliti?' · servizio non raggiungibile, riprovo tra '+Math.ceil(s.attesa/60000)+' min':'')}${s.err?` · ultimo errore: <b>${String(s.err).replace(/[<&>]/g,'')}</b>`:''}${s.qui===false?' · <b>nessun dato per la zona dove sei adesso</b>':''}${!s.planata?' · <b>la zona di planata è spenta (Impostazioni › Velivoli): sulla mappa i prati non si vedono</b>':''}${!s.livello?' · <b>il livello PRATI è spento (tasto ◧ sulla mappa)</b>':''}. Dati © OpenStreetMap (ODbL): un'indicazione, da verificare a vista.</p>
       <div class="ph-btns"><button class="ph-btn" type="button" id="hzPrGo"${volo||!navigator.onLine?' disabled':''}>Scarica i prati della zona</button></div>`;
       const g=box.querySelector('#hzPrGo'); if(g) g.onclick=()=>{ PH.pratiScarica(); toastShow('PRATI: SCARICO IN SOTTOFONDO'); setTimeout(draw,600); }; };
