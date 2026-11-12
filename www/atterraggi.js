@@ -23,7 +23,7 @@ const CFG={
   mem:40,               // riquadri tenuti aperti in memoria
   pausa:6000,           // ms tra due richieste a terra
   pausaVolo:60000,      // ms tra due richieste in volo (solo il riquadro sotto l'aereo, se manca)
-  tout:30000,           // ms di attesa della risposta
+  tout:80000,           // ms di attesa della risposta: in pianura i coltivi sono tantissimi e il servizio ci mette anche un minuto (a 30 s scadeva sempre)
   lmin:250,             // m: striscia utile minima
   lbuona:500,           // m: oltre questa lunghezza il punteggio non cresce più
   larg:30,              // m: larghezza della striscia
@@ -129,7 +129,7 @@ async function carica(k){ if(MEM.has(k)||carico.has(k)) return; carico.add(k);
 // ---- rete: un riquadro alla volta ----
 const RETE={busy:false,last:0,poi:0,falliti:0,male:new Map(),semplice:false,forza:0,msg:'',fatti:0};
 function domanda(k,semplice){ const [s,w,n,e]=bordi(k), f=semplice?'':'(if:length()>600)', f2=semplice?'':'(if:length()>300)';   // perimetro minimo: i ritagli non si scaricano nemmeno
-  return `[out:json][timeout:25][bbox:${s},${w},${n},${e}];(way["landuse"~"^(meadow|farmland|grass)$"]${f};way["natural"="grassland"]${f};way["aeroway"~"^(aerodrome|airstrip)$"];`+
+  return `[out:json][timeout:60][bbox:${s},${w},${n},${e}];(way["landuse"~"^(meadow|farmland|grass)$"]${f};way["natural"="grassland"]${f};way["aeroway"~"^(aerodrome|airstrip)$"];`+
     `way["landuse"~"^(residential|industrial|commercial|retail|forest)$"]${f2};way["natural"~"^(wood|water)$"]${f2};way["power"~"^(line|minor_line)$"];node["place"~"^(city|town|village|hamlet)$"];);out geom qt;`; }
 async function scarica(k){
   if(RETE.busy) return false; RETE.busy=true; RETE.last=Date.now(); let ok=false;
@@ -139,7 +139,8 @@ async function scarica(k){
     // richiesta a questo servizio restava appesa fino al tempo scaduto (visto dall'autore: sul web andava, nell'app mai).
     let dati;
     if(PH.native&&PH.native.http&&window.IA517&&IA517.http){
-      const r=await IA517.http(url+'?data='+encodeURIComponent(domanda(k,RETE.semplice)));
+      const g=await PH.native.http.get({url:url+'?data='+encodeURIComponent(domanda(k,RETE.semplice)),headers:{'User-Agent':'HORIZON/1.0'},responseType:'text',connectTimeout:15000,readTimeout:CFG.tout});   // attesa lunga: quella di IA517.http (30 s) non bastava
+      const r={status:g.status,text:typeof g.data==='string'?g.data:JSON.stringify(g.data)};
       if(r.status===400&&!RETE.semplice){ RETE.semplice=true; throw new Error('domanda non accettata'); }
       if(r.status!==200) throw new Error('risposta '+r.status);
       dati=JSON.parse(r.text);
