@@ -3380,6 +3380,44 @@ PH.mapCaption=function(){
   return b.attr+' · '+dem;
 };
 
+// ---- barretta di avanzamento degli scarichi: UN componente per tutti (Impostazioni, aggiornamento, scarico automatico, Piano) ----
+// o = {testo, fatti, totale, unita, mb, mbTot, circa, fine, err}; o nullo = togli. Testo: «12 di 60 MB» se il totale in MB si sa,
+// «12 MB · 34 di 120 riquadri» se si sanno solo i pezzi, altrimenti i MB arrivati. circa = i MB sono una stima (media per riquadro).
+// Al massimo 3 ritocchi al secondo (un telefono lento non deve rallentare per una barretta). Finito: piena per 2,5 s, poi resta
+// solo «fatto · 13 MB». Errore: ferma dov'è, in giallo, con il motivo. Il Piano la usa con parent.PH.dlBar: lo stile va con lei.
+PH.dlCss='.hz-dl{display:block;margin:6px 0 2px}.hz-dl-b{display:block;height:5px;border-radius:3px;background:#0b0e12;box-shadow:inset 0 0 0 1px #2a2f38;overflow:hidden}'+
+  '.hz-dl-b b{display:block;height:100%;width:0;border-radius:3px;background:#33e1ff;transition:width .3s linear}'+
+  '.hz-dl-t{display:block;margin-top:4px;font:600 12px/1.3 system-ui,sans-serif;color:#8b93a0;font-variant-numeric:tabular-nums}'+
+  '.hz-dl.ind .hz-dl-b b{width:30%!important;animation:hzDl 1.1s ease-in-out infinite alternate}@keyframes hzDl{from{margin-left:0}to{margin-left:70%}}'+
+  '.hz-dl.err .hz-dl-b b{background:#ffd21e}.hz-dl.err .hz-dl-t{color:#ffd21e}.hz-dl.fin .hz-dl-b{display:none}.hz-dl.fin .hz-dl-t{margin-top:0}'+
+  '.ph-stat i.hz-dlk .hz-dl-b{height:3px;margin:3px 0 -1px;box-shadow:none;background:rgba(255,255,255,.14)}.ph-stat i.hz-dlk .hz-dl-b b{background:currentColor}';
+PH.dlMb=v=>{ v=+v||0; return v>=10?String(Math.round(v)):v.toFixed(1).replace('.',','); };
+PH.dlFraz=o=>o.fine?1:(o.mbTot>0?(+o.mb||0)/o.mbTot:(o.totale>0?(+o.fatti||0)/o.totale:null));
+PH.dlTxt=function(o){ const c=o.circa?'circa ':'', haMb=o.mb!=null&&isFinite(o.mb), mb=haMb?`${c}${PH.dlMb(o.mb)} MB`:'', pre=o.testo?o.testo+' · ':'';
+  if(o.err) return (o.testo?o.testo+': ':'')+String(o.err).slice(0,90)+(haMb&&o.mb>0?' · '+mb:'');
+  if(o.fine) return pre+'fatto'+(haMb?' · '+mb:'');
+  if(o.mbTot>0) return pre+`${c}${PH.dlMb(Math.min(+o.mb||0,o.mbTot))} di ${PH.dlMb(o.mbTot)} MB`;
+  const q=o.totale>0?`${Math.floor(+o.fatti||0)} di ${o.totale} ${o.unita||'riquadri'}`:'';
+  return pre+((mb+(mb&&q?' · ':'')+q)||'scarico…'); };
+PH.dlHtml=function(o){ const f=PH.dlFraz(o);                    // la stessa barretta come testo HTML, per le righe che si riscrivono da sole
+  return `<span class="hz-dl${o.err?' err':''}${f==null&&!o.err?' ind':''}"><span class="hz-dl-b"><b style="width:${f==null?0:Math.round(Math.max(0,Math.min(1,f))*50)*2}%"></b></span><span class="hz-dl-t">${PH.esc(PH.dlTxt(o))}</span></span>`; };
+PH.dlBar=function(el,o){ try{
+  if(!el) return; const doc=el.ownerDocument||document, st=el._dl||(el._dl={t:0,tm:0,fin:0,box:null,pend:null});
+  clearTimeout(st.fin);
+  if(!o){ clearTimeout(st.tm); st.tm=0; st.pend=null; if(st.box) st.box.remove(); st.box=null; return; }
+  const now=Date.now(), subito=o.fine||o.err;
+  if(!subito && now-st.t<300){ st.pend=o; if(!st.tm) st.tm=setTimeout(()=>{ st.tm=0; const p=st.pend; st.pend=null; if(p) PH.dlBar(el,p); },300-(now-st.t)); return; }   // l'ultimo valore arriva comunque
+  clearTimeout(st.tm); st.tm=0; st.pend=null; st.t=now;
+  if(!doc.getElementById('hzDlCss')){ const s=doc.createElement('style'); s.id='hzDlCss'; s.textContent=PH.dlCss; (doc.head||doc.documentElement).appendChild(s); }   // anche nella pagina del Piano
+  if(!st.box || !el.contains(st.box)){ st.box=doc.createElement('span'); st.box.innerHTML='<span class="hz-dl-b"><b></b></span><span class="hz-dl-t"></span>'; el.appendChild(st.box); }
+  const f=PH.dlFraz(o), b=st.box;
+  b.className='hz-dl'+(o.err?' err':'')+(f==null&&!o.err?' ind':'');
+  if(f!=null && !o.err) b.firstChild.firstChild.style.width=(Math.max(0,Math.min(1,f))*100).toFixed(1)+'%';      // con un errore resta dov'è
+  b.lastChild.textContent=PH.dlTxt(o);                           // textContent: il motivo di un errore può venire dalla rete
+  if(o.fine) st.fin=setTimeout(()=>{ try{ b.classList.add('fin'); }catch(e){} },2500);
+}catch(e){} };
+try{ const s=document.createElement('style'); s.id='hzDlCss'; s.textContent=PH.dlCss; document.head.appendChild(s); }catch(e){}
+
 // ---- scarico per il volo senza internet ----
 // Con i tasti di Impostazioni: la zona attorno a dove sei, come sempre. Lo scarico automatico (anticipo.js) usa la stessa funzione
 // con «opt»: centri = più punti (lungo una rotta), raggio(z,c,kind) = km per livello e per punto (0 = niente), pausa = ms tra due
@@ -3396,11 +3434,12 @@ PH.prefetch=async function(kind,onProg,opt){
   if(kind==='dem'){ for(const z of [7,8,9,10,11]) for(const c of cen) add(z,rg(z,c,rD[z]),phDemUrl,c); }
   else { const bd=PH.baseDef(); if(PH.base==='dem'||bd.local) return {done:0,ok:0,n:0,kb:0};      // la carta VFR è già tutta sul telefono
     for(const z of [8,9,10,11,12,13]) if(z>=(bd.min||6) && z<=(bd.max||17)) for(const c of cen) add(z,rg(z,c,rM(z)),(z,x,y)=>PH.tileUrl(z,x,y,bd),c); }
-  let done=0, ok=0, kb=0, rete=0, stop=false, cache=null;
+  let done=0, ok=0, kb=0, rete=0, stima=0, stop=false, cache=null;
   const kbDef=opt.kb||(kind==='dem'?90:35), sw=!!(navigator.serviceWorker&&navigator.serviceWorker.controller);
   if(opt.cache){ try{ cache=await caches.open(kind==='dem'?'ia517-dem':'ia517-map'); }catch(e){} }
   if(opt.conta){ let n=jobs.length; if(cache){ n=0; for(const u of jobs){ try{ if(!(await cache.match(u))) n++; }catch(e){ n++; } } } return {n,tot:jobs.length}; }   // quanti mancano davvero
   if(opt.centri) jobs.reverse();                              // con un tetto al peso: prima i livelli larghi, il dettaglio per ultimo
+  const tot=jobs.length;                                      // il totale si conta una volta: con più richieste insieme «fatti + in coda» ballava
   const worker=async()=>{ while(jobs.length && !stop){
     if(opt.stop && opt.stop()){ stop=true; break; }
     const u=jobs.pop(); let net=false;
@@ -3409,13 +3448,15 @@ PH.prefetch=async function(kind,onProg,opt){
         if(kind==='dem') r=await fetch(u,{mode:'cors',signal:opt.signal});
         else if(cache && !sw){ try{ r=await fetch(u,{mode:'cors',credentials:'omit',signal:opt.signal}); }catch(e){ if(opt.stop&&opt.stop()) throw e; r=await fetch(u,{mode:'no-cors',signal:opt.signal}); } }
         else r=await fetch(u,{mode:'no-cors',signal:opt.signal});
-        if(r.ok||r.type==='opaque'){ ok++; const cl=r.ok?+r.headers.get('content-length'):0; kb+=cl>0?cl/1024:kbDef;
+        if(r.ok||r.type==='opaque'){ ok++; let cl=r.ok?+r.headers.get('content-length'):0;
+          if(r.ok && !(cl>0)){ try{ cl=(await r.clone().blob()).size; }catch(e){} }           // il server non dice il peso: si misura ciò che è arrivato
+          if(cl>0) kb+=cl/1024; else { kb+=kbDef; stima++; }                                   // risposta opaca (tessere senza CORS): non si può misurare, vale la media
           if(cache && !sw && r.ok){ try{ await cache.put(u,r.clone()); }catch(e){} } } } }catch(e){}
-    done++; onProg&&onProg(done,done+jobs.length,ok,kb);
+    done++; onProg&&onProg(done,tot,ok,kb,stima);
     if(opt.tettoKB && kb>=opt.tettoKB) stop=true;
     if(net && opt.pausa) await new Promise(r=>setTimeout(r,opt.pausa)); } };
   await Promise.all(Array.from({length:opt.par||4},worker));
-  return {done,ok,kb,rete,rest:jobs.length,stop};
+  return {done,ok,kb,rete,stima,rest:jobs.length,stop};
 };
 
 // ---- dati locali al posto del servizio: le stesse richieste che l'app faceva al Raspberry ----
@@ -3687,12 +3728,12 @@ PH.renderImp=function(){
     <p class="ph-sub">Per esempio la quota di un altimetro con il QNH del giorno, o la quota di un punto noto. Vale per la fonte in uso (GPS del telefono o GLO 2).</p>
   </section>
   <section><h3>Volare senza internet</h3>
-    <p class="ph-sub">Scarica prima, con il WiFi: il terreno per la vista sintetica e gli avvisi (circa 10 MB attorno a dove sei, o alla Carolina) e la mappa di base della zona. Pagine, campi, rotte e meteo già scaricato restano sul telefono.</p>
+    <p class="ph-sub">Scarica prima, con il WiFi: il terreno per la vista sintetica e gli avvisi (circa 10 MB attorno a dove sei, o alla Carolina) e la mappa di base della zona. Ogni scarico mostra una barretta e i MB. Pagine, campi, rotte e meteo già scaricato restano sul telefono.</p>
     <div class="ph-btns"><button class="ph-btn pri" id="phDlDem">Scarica terreno</button><button class="ph-btn" id="phDlMap">Scarica mappa della zona</button></div>
     <p class="ph-sub" id="phDlMsg"></p>
   </section>
   <section><h3>Scarico automatico</h3>
-    <p class="ph-sub">A terra, senza chiedere niente, l'app prepara quello che serve per volare senza rete: quando salvi una rotta o fai un DIRECT TO scarica terreno, mappa di base e prati lungo la rotta (10 km per lato) e attorno a partenza e arrivo; all'avvio la zona attorno a dove sei e, se è uscito un ciclo AIRAC nuovo, la carta VFR. Una riga in basso dice cosa scarica e quanti MB. Mai in volo: se decolli si ferma subito. Al massimo 60 MB per rotta o zona.</p>
+    <p class="ph-sub">A terra, senza chiedere niente, l'app prepara quello che serve per volare senza rete: quando salvi una rotta o fai un DIRECT TO scarica terreno, mappa di base e prati lungo la rotta (10 km per lato) e attorno a partenza e arrivo; all'avvio la zona attorno a dove sei e, se è uscito un ciclo AIRAC nuovo, la carta VFR. Una barretta nella riga di stato (etichetta ⬇) e qui sotto dice cosa scarica e quanti MB. Mai in volo: se decolli si ferma subito. Al massimo 60 MB per rotta o zona.</p>
     <div class="ph-row"><span>Rotta e zona (terreno, mappa, prati)</span></div>
     <div class="ph-seg" id="phAdZ">${[['sempre','Sempre'],['wifi','Solo Wi-Fi'],['mai','Mai']].map(([v,l])=>`<button data-v="${v}" aria-pressed="${((PH.autoDl&&PH.autoDl.cfg.zona)||'sempre')===v}">${l}</button>`).join('')}</div>
     <div class="ph-row"><span>Carta VFR intera (circa 105 MB)</span></div>
@@ -3768,9 +3809,15 @@ PH.renderImp=function(){
     PH.altOfsBy[src]=v-PH.mslRaw; PH.altOfs=PH.altOfsBy[src]; PH.altCal={field:'manuale',t:Date.now(),src}; lsSet('ia517p_altofs2',PH.altOfsBy); lsSet('ia517p_altcal',PH.altCal); PH.vario.h=NaN;
     toast(`QUOTA TARATA: ${Math.round(v)} m (${Math.round(v/FT2M)} ft)`); stat(); };
   el('phAltReset').onclick=()=>{ PH.altOfs=0; PH.altOfsBy={phone:0,glo:0}; PH.altCal=null; lsSet('ia517p_altofs2',PH.altOfsBy); lsSet('ia517p_altcal',null); PH.vario.h=NaN; stat(); };
-  const dl=async(kind)=>{ const m=el('phDlMsg'); m.textContent='Scarico…';
-    const r=await PH.prefetch(kind,(d,t,ok)=>{ m.textContent=`${kind==='dem'?'Terreno':'Mappa'}: ${d}/${t} riquadri`; });
-    m.textContent=`${kind==='dem'?'Terreno':'Mappa'}: ${r.ok} riquadri salvati su ${r.done}`+(r.ok<r.done?' · senza internet o servizio non raggiungibile':''); };
+  // barretta e MB (PH.dlBar): avanza con i riquadri arrivati davvero, così se la rete cade si ferma dov'è
+  const dl=async(kind)=>{ const m=el('phDlMsg'), nome=kind==='dem'?'Terreno':'Mappa'; if(PH.dlBusy) return; PH.dlBusy=true;
+    try{ m.textContent=''; PH.dlBar(m,{testo:nome});
+      const r=await PH.prefetch(kind,(d,t,ok,kb,st)=>PH.dlBar(m,{testo:nome,fatti:ok,totale:t,mb:kb/1024,circa:st>0}));
+      const o={testo:nome,mb:(r.kb||0)/1024,circa:r.stima>0};
+      if(!r.done){ PH.dlBar(m,null); m.textContent=nome+': niente da scaricare (questa mappa è già sul telefono)'; }
+      else if(r.ok<r.done) PH.dlBar(m,Object.assign(o,{err:`${r.ok} riquadri su ${r.done} · ${navigator.onLine?'servizio non raggiungibile':'senza internet'}`}));
+      else PH.dlBar(m,Object.assign(o,{fine:true,testo:`${nome} · ${r.ok} riquadri`}));
+    }catch(e){ PH.dlBar(m,{testo:nome,err:String(e&&e.message||e)}); } finally{ PH.dlBusy=false; } };
   el('phDlDem').onclick=()=>dl('dem'); el('phDlMap').onclick=()=>dl('map');
   const NOTE={topo:'Topografica con curve di livello, da OpenStreetMap. Gratuita, nessuna chiave.',
     osm:'Stradale OpenStreetMap. Gratuita, nessuna chiave.',
@@ -4462,6 +4509,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.174","Tutti gli scarichi mostrano una barretta di avanzamento e i MB: terreno, mappa della zona, prati, carta VFR, scarico automatico (nell'etichetta ⬇ della riga di stato e in Impostazioni), spazi aerei nel Briefing, terreno di Calcola rotta e aggiornamento dell'app. Dove il peso totale si sa prima leggi «12 di 60 MB», altrimenti «12 MB · 34 di 120 riquadri»; «circa» quando è una stima. A scarico finito resta scritto «fatto» con i MB; se qualcosa va storto la barretta si ferma, diventa gialla e dice il motivo. In volo non compare niente di nuovo."],
   ["1.0.168","Trasmetti la tua posizione su OGN (solo app Android, in prova, spenta di serie): chi non ha FLARM né trasponder può farsi vedere sulla Open Glider Network dagli altri piloti HORIZON e da chi guarda OGN. Si accende a terra da Impostazioni › Trasmetti la posizione (OGN), dopo aver letto cosa esce dal telefono; trasmette solo in volo, ogni 5 secondi, anonimo o con le marche. In volo la riga di stato dice OGN ↑ (visibile) o NO OGN, e la pagina Traffico «VISIBILE / NON VISIBILE SU OGN». Non è un anticollisione. L'app guarda avanti: in volo stima dove sarai tra 20–60 secondi (traccia, velocità, virata, rotta attiva) e prepara prima terreno e mappa di quella zona, così entrando in una zona nuova non ci sono attese né scatti; in memoria tiene quello che hai sotto e davanti e butta per primo quello che hai alle spalle. Nuovo «Scarico automatico» (Impostazioni): a terra, senza chiedere niente, quando salvi una rotta o fai un DIRECT TO scarica terreno, mappa di base e prati lungo la rotta (10 km per lato) e attorno a partenza e arrivo; all'avvio la zona attorno a dove sei e la carta VFR se è uscito un ciclo AIRAC nuovo. Due scelte, «Sempre / Solo Wi-Fi / Mai»: rotta e zona (di serie Sempre, al massimo 60 MB per volta) e carta VFR intera (di serie Solo Wi-Fi). Una riga dice cosa scarica e quanti MB. Mai in volo: se decolli si ferma subito."],
   ["1.0.167","Zona di planata: dentro la zona verde compaiono i prati adatti a un atterraggio fuori campo, presi dalle mappe (prati e coltivi sì; paesi, boschi, acqua e linee elettriche no), con la striscia più lunga, il verso col vento e i metri; in EMERGENZA la sezione «Prati raggiungibili», sempre dopo i campi veri. Sono un'indicazione, da verificare a vista. Si scaricano a terra con la rete (Impostazioni › Volare senza internet › «Scarica i prati della zona»). Piano molto più pronto: non ricalcola tutto a ogni tasto e in volo non ruba tempo allo strumento. Mappa in montagna: con una carta sotto (carta VFR, OpenTopoMap, IGM, ortofoto, satellite) il giallo e il rosso del terreno non la coprono più. La carta resta davanti e si legge; il pericolo è disegnato sopra con una velatura leggera, un tratteggio e un contorno netto, giallo sotto i 180 m e rosso (più spesso) sotto i 60 m dal terreno: le soglie sono quelle di sempre. Con «Solo rilievo» la mappa resta com'era. Se le tessere della carta non sono ancora arrivate, o manca la rete, sotto si vede il rilievo e non il fondo scuro. Orizzonte con il terreno molto più leggero: il rilievo davanti si calcola una volta e si riusa mentre l'aereo avanza, quindi il movimento è più fluido e in automatico il dettaglio sale più spesso. I versanti hanno anche un'ombra che viene da nord-ovest, e quattro archi sottili sul terreno segnano 1, 2, 5 e 10 km. Mappa senza scatti quando si sposta e quando si sale o si scende: il rilievo si rifà un po' per volta e, se cambia solo la quota, si ricolora soltanto il pericolo."],
   ["1.0.163","Controllo generale dell'app. Avvisi di terreno e di spazio aereo anche se il diario non ha visto il decollo: bastano 5 secondi a più di 25 km/h e a più di 60 m sul terreno (un velivolo lento in salita controvento restava senza avvisi). Se davanti manca il rilievo (zona non scaricata, senza rete) compare la bandierina «TERRENO NON DISPONIBILE» e l'etichetta TERRENO diventa gialla. In volo: una riattaccata o un tocca-e-riparti non viene più presa per atterraggio; «TERRENO! CABRA» non viene più coperto da un altro avviso; la quota obiettivo alzata per il terreno torna giù a terreno passato; con il GPS perso niente pericoli di traffico, planata o riporti calcolati da una posizione ferma, e l'orizzonte non resta inclinato dall'ultima accelerazione. Carburante impostato a terra: vale anche dopo il decollo, e dopo l'atterraggio resta il residuo. Emergenza: distanze e prue vere anche lontano dal Nord (in Sicilia erano corte del 13%). La pista scelta a mano non resta per il campo dopo. NOTAM sulla mappa anche con gli spazi aerei spenti. Mappa più fluida con lo zoom largo. Piano: NOTAM con la riga Q scritta a larghezza fissa, quote «ASFC», METAR senza vento, rotta non data per libera se manca il terreno. HORIZON 2: l'orologio ha tre pagine (VOLO con rosa della bussola e deviazione dalla rotta, ARRIVO con frequenza, vento e tramonto, PILOTA con ora UTC, tempo di volo e autonomia). La pagina segue il volo da sola: a terra PILOTA, in rotta VOLO, negli ultimi 10 minuti e all'ingresso in circuito ARRIVO, in base e in finale di nuovo VOLO; un tocco sullo schermo mostra un'altra pagina per 20 secondi. I tasti restano tutti per lo strumento. Avvisi scritti su più righe."],
@@ -4642,6 +4690,7 @@ PH.doUpdate=async function(u,msg,btn){
   const say=t=>{ if(msg) msg.innerHTML=t; };
   if(PH.updMoving()){ say('In volo non si aggiorna: riprova a terra.'); return; }
   PH.updBusy=true; if(btn) btn.disabled=true; PH.act&&PH.act('aggiorna '+(u.latest||''));
+  let bar=null;                                                  // la barretta dello scarico, sotto il messaggio
   try{
     if(u.channel==='web'){
       say('Carico la versione nuova…');
@@ -4654,13 +4703,15 @@ PH.doUpdate=async function(u,msg,btn){
       say('Apro l\'aggiornamento del Play Store…'); await U.playStart(); say('Segui le istruzioni del Play Store.'); return; }
     // APK di GitHub
     if(!U || !u.apk){ window.open(u.url,'_blank'); say('Si apre la pagina della versione: scarica l\'APK e installalo.'); return; }
-    let lis=null;
-    try{ lis=await U.addListener('progress',p=>{ const mb=v=>(v/1048576).toFixed(1);
-      say(p.total>0?`Scarico… ${Math.round(p.done*100/p.total)}% · ${mb(p.done)} di ${mb(p.total)} MB`:`Scarico… ${mb(p.done)} MB`); }); }catch(e){}
-    say('Scarico la versione nuova…');
+    let lis=null, fatti=0;
+    try{ if(msg){ bar=msg._bar&&msg._bar.isConnected?msg._bar:(msg._bar=document.createElement('div')); msg.after(bar); } }catch(e){}
+    // il peso viene dal modulo (Content-Length) o, se manca, dalla scheda della versione su GitHub
+    try{ lis=await U.addListener('progress',p=>{ fatti=+p.done||0; const tot=p.total>0?p.total:(+u.size||0); PH.dlBar(bar,{testo:'Versione nuova',mb:fatti/1048576,mbTot:tot/1048576}); }); }catch(e){}
+    say('Scarico la versione nuova…'); PH.dlBar(bar,{testo:'Versione nuova',mb:0,mbTot:(+u.size||0)/1048576});
     const r=await U.apkDownload({url:u.url});
     try{ lis&&lis.remove&&lis.remove(); }catch(e){}
     if(u.size && Math.abs(r.size-u.size)>0) throw new Error('file incompleto, riprova');
+    PH.dlBar(bar,{testo:'Versione nuova',fine:true,mb:(+r.size||fatti)/1048576}); bar=null;
     PH.updFile=r.path;
     const inst=async()=>{ const x=await U.apkInstall({path:PH.updFile});
       if(x.needPermission){ say('Android chiede il permesso: attiva <b>«Consenti da questa fonte»</b> per HORIZON e torna qui, l\'installazione riparte da sola.');
@@ -4668,7 +4719,8 @@ PH.doUpdate=async function(u,msg,btn){
         document.addEventListener('visibilitychange',back); return; }
       say('Conferma «Aggiorna» nella finestra di Android. L\'app si riapre aggiornata.'); };
     await inst();
-  }catch(e){ say('Aggiornamento non riuscito: '+String(e&&e.message||e).replace(/</g,'').slice(0,120)+(u.url?` · <a href="${u.url}" target="_blank" rel="noopener">scaricalo a mano</a>`:'')); }
+  }catch(e){ say('Aggiornamento non riuscito: '+String(e&&e.message||e).replace(/</g,'').slice(0,120)+(u.url?` · <a href="${u.url}" target="_blank" rel="noopener">scaricalo a mano</a>`:''));
+    if(bar) PH.dlBar(bar,{testo:'Versione nuova',err:String(e&&e.message||e).slice(0,60)}); }
   finally{ PH.updBusy=false; if(btn) btn.disabled=false; }
 };
 // registro degli errori, da allegare alle segnalazioni

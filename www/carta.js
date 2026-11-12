@@ -39,11 +39,11 @@ let busy=false;
 PH.cartaPuo=!!plug;
 // zitto=true: scarico automatico (anticipo.js), un errore non si dice a voce (il ciclo nuovo può non essere ancora pubblicato)
 PH.cartaScarica=async function(onP,zitto){
-  if(!plug){ if(!zitto) toast('CARTA VFR: NON DISPONIBILE IN QUESTO BROWSER'); return; } if(busy) return; busy=true;
+  if(!plug){ if(!zitto) toast('CARTA VFR: NON DISPONIBILE IN QUESTO BROWSER'); return; } if(busy) return; busy=true; PH.cartaErr='';
   const lst=plug.addListener?await plug.addListener('progresso',p=>onP&&onP(p.done,p.total)):null;
   try{ for(const a of [PH.airac(0),PH.airac(1)]){ try{ await plug.scarica({url:url(a),nome:NOME}); if(!nativo) segno(true); await aggiorna(); toast('CARTA VFR SCARICATA · AIRAC '+a); PH.act&&PH.act('carta VFR '+a); return true; }catch(e){ if(a===PH.airac(1)) throw e;
       if(PH.carta && String(PH.carta.version)===PH.airac(1)) throw e; } } }   // il ciclo di prima è già sul telefono: non lo si riscarica sopra se stesso (uno scarico interrotto lascerebbe senza carta)
-  catch(e){ if(!zitto) toast('CARTA VFR: '+String(e&&e.message||e).slice(0,60)); return false; }
+  catch(e){ PH.cartaErr=String(e&&e.message||e).slice(0,60); if(!zitto) toast('CARTA VFR: '+PH.cartaErr); return false; }   // il motivo serve anche alla barretta
   finally{ busy=false; try{ lst&&lst.remove(); }catch(e){} }
 };
 PH.cartaStato=function(){ if(!plug) return {txt:'Questo browser non può tenere la carta: usa l\'app Android, oppure Chrome o Safari aggiornati (su iPhone/iPad da iOS 16.4).',ok:false};
@@ -55,20 +55,21 @@ PH.cartaStato=function(){ if(!plug) return {txt:'Questo browser non può tenere 
 // impostazioni: in «Volare senza internet»
 { const orig=PH.renderImp; PH.renderImp=function(){ orig.apply(this,arguments);
     const h=[...document.querySelectorAll('#phImpBody section')].find(s=>s.dataset.t==='Volare senza internet'||(s.querySelector('h3')&&s.querySelector('h3').textContent==='Volare senza internet')); if(!h) return;
-    const host=h.querySelector('.hz-sb')||h, box=document.createElement('div'); box.className='hz-carta';
+    const host=h.querySelector('.hz-sb')||h, tutto=document.createElement('div'), box=document.createElement('div'), bar=document.createElement('div'); tutto.className='hz-carta'; bar.id='hzCaBar';   // la barretta sta fuori dal testo che si riscrive
     const draw=()=>{ const s=PH.cartaStato();
       box.innerHTML=`<p class="ph-sub"><b>Carta VFR open flightmaps</b> (Italia, circa 105 MB): si scarica una volta col Wi-Fi e resta sul telefono. Si sceglie da ◧ LIVELLI › MAPPA. ${s.txt}</p>
-      <div class="ph-btns">${plug?`<button class="ph-btn pri" type="button" id="hzCaGo">${PH.carta?'Aggiorna la carta':'Scarica la carta VFR'}</button>${PH.carta?'<button class="ph-btn" type="button" id="hzCaUse">Usala come mappa</button><button class="ph-btn" type="button" id="hzCaDel">Cancella</button>':''}`:''}</div>
-      <p class="ph-sub" id="hzCaP"></p>`;
+      <div class="ph-btns">${plug?`<button class="ph-btn pri" type="button" id="hzCaGo">${PH.carta?'Aggiorna la carta':'Scarica la carta VFR'}</button>${PH.carta?'<button class="ph-btn" type="button" id="hzCaUse">Usala come mappa</button><button class="ph-btn" type="button" id="hzCaDel">Cancella</button>':''}`:''}</div>`;
       const g=box.querySelector('#hzCaGo'); if(g) g.onclick=async()=>{
         if(PH.stato&&PH.stato.rete&&PH.stato.rete!=='WIFI' && !confirm('Non sei col Wi-Fi: scaricare circa 105 MB con i dati del telefono?')) return;
-        g.disabled=true; const P=box.querySelector('#hzCaP');
-        const ok=await PH.cartaScarica((d,t)=>{ P.textContent=t>0?`Scarico… ${Math.round(d/1048576)} di ${Math.round(t/1048576)} MB (${Math.round(d*100/t)}%)`:`Scarico… ${Math.round(d/1048576)} MB`; });
+        g.disabled=true; let mb=0; const o={testo:'Carta VFR'}, dl=x=>{ try{ PH.dlBar&&PH.dlBar(bar,Object.assign({},o,x)); }catch(e){} };
+        dl({});                                                  // subito: finché il server non risponde la barretta scorre da sola
+        const ok=await PH.cartaScarica((d,t)=>{ mb=d/1048576; dl({mb,mbTot:t>0?t/1048576:0}); });      // byte veri, dal modulo o dal worker
+        if(ok) dl({fine:true,mb:PH.carta&&PH.carta.size?PH.carta.size/1048576:mb}); else if(ok===false) dl({err:PH.cartaErr||'non riuscito',mb}); else dl(null);
         if(ok&&PH.base!=='ofm'){ PH.base='ofm'; lsSet('ia517p_basemap','ofm'); MR.zi=-1; } draw(); };
       const u=box.querySelector('#hzCaUse'); if(u) u.onclick=()=>{ PH.base='ofm'; lsSet('ia517p_basemap','ofm'); MR.zi=-1; toast('MAPPA: CARTA VFR'); };
       const dl=box.querySelector('#hzCaDel'); if(dl) dl.onclick=async()=>{ if(!confirm('Cancellare la carta VFR dal telefono?')) return; try{ await plug.cancella({nome:NOME}); }catch(e){} if(PH.base==='ofm'){ PH.base='topo'; lsSet('ia517p_basemap','topo'); MR.zi=-1; } await aggiorna(); draw(); };
     };
-    draw(); host.appendChild(box); }; }
+    draw(); tutto.appendChild(box); tutto.appendChild(bar); host.appendChild(tutto); }; }
 // all'avvio: se la mappa scelta è la carta ma non c'è (browser, iPhone, cancellata), si torna a OpenTopoMap
 setTimeout(()=>{ if(PH.base==='ofm' && !PH.cartaOk){ PH.base='topo'; MR.zi=-1; } },4000);
 })();
