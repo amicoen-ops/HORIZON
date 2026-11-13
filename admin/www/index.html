@@ -172,9 +172,11 @@ async function salute(){
 const barre=(voci,max)=>{ const m=max||Math.max(1,...voci.map(v=>v[1])); return voci.map(([k,n])=>`<div class="bar"><span title="${esc(k)}">${esc(k)}</span><i style="width:${Math.max(1,Math.round(100*n/m))}%"></i><b>${n}</b></div>`).join(''); };
 const conta=(lista,f)=>{ const c={}; lista.forEach(x=>{ const k=f(x); if(k) c[k]=(c[k]||0)+1; }); return Object.entries(c).sort((a,b)=>b[1]-a[1]); };
 let RILASCI=null;
+// GitHub non dà le versioni in ordine di numero («admin-9» gli risulta dopo «admin-12»): la più recente è quella col numero più alto
+const numero=r=>+String(r.tag_name).replace(/^.*-/,'')||0;
 function scarichi(d){
   const el=$('aScar'), n=r=>(r.assets||[]).filter(a=>/\.apk$/i.test(a.name)).reduce((s,a)=>s+(a.download_count||0),0);
-  const gruppi=[['build-','HORIZON'],['horizon2-','HORIZON 2']].map(([p,nome])=>{ const rs=d.filter(r=>r.tag_name.startsWith(p)); return {nome,rs,tot:rs.reduce((s,r)=>s+n(r),0)}; });
+  const gruppi=[['build-','HORIZON'],['horizon2-','HORIZON 2']].map(([p,nome])=>{ const rs=d.filter(r=>r.tag_name.startsWith(p)).sort((a,b)=>numero(b)-numero(a)); return {nome,rs,tot:rs.reduce((s,r)=>s+n(r),0)}; });
   el.innerHTML=`<div class="tiles">${gruppi.map(g=>`<div class="tile"><b>${g.tot}</b><span>${esc(g.nome)} · ultime ${g.rs.length} versioni</span></div>`).join('')}</div>`
     +gruppi.map(g=>{ const v=g.rs.map(r=>[r.tag_name.replace(/^[a-z0-9]+-/,'n. ')+' · '+new Date(r.published_at).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit'}),n(r)]).filter(x=>x[1]>0).slice(0,12);
       return `<p class="gr">${esc(g.nome)}, per versione</p>`+(v.length?barre(v):'<p class="sub">Nessuno scarico registrato.</p>'); }).join('')
@@ -182,8 +184,8 @@ function scarichi(d){
 }
 async function versioni(){
   const el=$('ver'); el.innerHTML='<p class="sub">Carico…</p>';
-  try{ const d=await gh('/releases?per_page=60'); RILASCI=d; scarichi(d);
-    const prima=p=>d.find(x=>x.tag_name.startsWith(p));
+  try{ const d=await gh('/releases?per_page=100'); RILASCI=d; scarichi(d);
+    const prima=p=>d.filter(x=>x.tag_name.startsWith(p)).sort((a,b)=>numero(b)-numero(a))[0];
     el.innerHTML=[['build-','HORIZON'],['horizon2-','HORIZON 2'],['admin-','HorizonAdmin']].map(([p,n])=>{ const r=prima(p);
       return r?`<div class="row"><a class="t" href="${esc(solohttps(r.html_url))}" target="_blank" rel="noopener">${esc(n)} · ${esc(r.tag_name)}</a><small>${fa(r.published_at)}</small></div>`
               :`<div class="row"><span class="t">${esc(n)}</span><small>nessuna</small></div>`; }).join('');
@@ -287,7 +289,7 @@ async function collega(){ const e=$('collegaE'); e.style.color=''; e.textContent
   e.style.color='var(--bad)'; e.textContent='Non funziona: '+ultimo+'.'; }
 let inCorso=false, FORZA=false, ULTIMO=0;
 const MIA=+((document.querySelector('meta[name="horizonadmin-versione"]')||{}).content||'').split('.').pop()||0;
-function nuovaVersione(){ if(!MIA||!RILASCI) return; const r=RILASCI.find(x=>x.tag_name.startsWith('admin-')); const n=r?+r.tag_name.slice(6):0;
+function nuovaVersione(){ if(!MIA||!RILASCI) return; const r=RILASCI.filter(x=>x.tag_name.startsWith('admin-')).sort((a,b)=>numero(b)-numero(a))[0]; const n=r?numero(r):0;
   if(n>MIA) avvisi.unshift(`<div class="msg">È uscita HorizonAdmin ${n} (tu hai la ${MIA}): <a href="${esc(solohttps(r.html_url))}" target="_blank" rel="noopener">scaricala</a>.</div>`); }
 async function aggiorna(forza){
   if(inCorso) return; inCorso=true; FORZA=!!forza; GH_VECCHI=false; GH_MOTIVO=''; $('bAgg').disabled=true; $('bAgg').textContent='Aggiorno…'; avvisi=[]; $('avvisi').innerHTML='';
