@@ -230,13 +230,13 @@ function analisiSeg(casi){
 // code di lavoro: le dà lo script in Gmail (funzione doGet), con la chiave nell'indirizzo
 async function code(){
   const t=$('code'), l=$('codeL'), u=ls.get('adm_cons'); l.innerHTML='';
-  if(!u){ t.innerHTML=''; l.innerHTML='<p class="sub">Per vedere le code della posta: nello script di Gmail lancia la funzione «consoleCollega», apri sul telefono la mail che ti arriva, copia l\'indirizzo e tocca qui.</p><p><button class="pri" id="bCollega">Collega</button></p><p class="sub" id="collegaE"></p>'; $('bCollega').onclick=collega; return; }
+  if(!u){ t.innerHTML=''; l.innerHTML='<p class="sub">Per vedere le code della posta serve l\'indirizzo della console.</p>'+AREA_COLLEGA; $('bCollega').onclick=collega; return; }
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ t.innerHTML=''; l.innerHTML='<p class="sub">L\'indirizzo della console non ha la forma giusta. Deve essere: https://script.google.com/macros/s/…/exec?k=… — '+(/\?k=/.test(u)?'':'manca ?k= con la chiave in fondo. ')+(/\/exec/.test(u)?'':'manca /exec. ')+(/…|\.\.\./.test(u)?'ci sono dei puntini: serve l\'identificativo vero, copiato da «Gestisci deployment». ':'')+'Apri ⚙, tocca «Cancella tutto» e incolla di nuovo URL e chiave: ora la casella della chiave mostra quello che c\'è dentro.</p>'; return; }
   t.innerHTML='<p class="sub">Carico…</p>';
   let d=null, nota='';
   try{ d=await leggiConsole(u); cache.set('code',d); }
   catch(e){ const c=cache.get('code'); avvisa('Code della posta non lette: '+e.message+'.',!c);
-    if(!c){ t.innerHTML=''; l.innerHTML=`<p class="sub">Code non lette: ${esc(e.message)}.</p><p class="sub">Intanto puoi aprire <a href="https://mail.google.com/" target="_blank" rel="noopener">Gmail</a> e usare le etichette come sempre.</p>`; return; }
+    if(!c){ t.innerHTML=''; l.innerHTML=`<p class="sub">Code non lette: ${esc(e.message)}.</p>`+AREA_COLLEGA+`<p class="sub">Intanto puoi aprire <a href="https://mail.google.com/" target="_blank" rel="noopener">Gmail</a> e usare le etichette come sempre.</p>`; $('bCollega').onclick=collega; return; }
     d=c.d; d.tasti=false; nota=vecchi(c); }
   try{
     const c=d.code||[];
@@ -277,16 +277,20 @@ async function premi(){ const a=ATTESA; if(!a) return; const u=ls.get('adm_cons'
 $('vSi').onclick=premi; $('vNo').onclick=()=>{ $('velo').hidden=true; ATTESA=null; };
 $('codeL').addEventListener('click',e=>{ const b=e.target.closest('button[data-az]'); if(b) chiedi(b.dataset.az,b.dataset.id||''); });
 document.addEventListener('visibilitychange',()=>{ if(document.hidden){ PIN=''; } });
-// un tocco: prende l'indirizzo dagli appunti, lo prova e, se risponde, lo salva
-async function collega(){ const e=$('collegaE'); e.style.color=''; e.textContent='Leggo gli appunti…';
-  let t=''; try{ t=(await navigator.clipboard.readText()).trim(); }catch(x){ e.style.color='var(--bad)'; e.textContent='Non riesco a leggere gli appunti: apri ⚙ e incolla l\'indirizzo nella prima casella.'; return; }
+// collegamento: si incolla l'indirizzo (o più varianti) nel riquadro e si tocca «Collega»; l'app prova e salva quello che risponde.
+// Dentro l'app Android gli appunti non si possono leggere da soli: per questo c'è il riquadro dove incollare a mano.
+const AREA_COLLEGA='<textarea id="tCollega" rows="3" placeholder="Tieni premuto qui e scegli «Incolla»: l\'indirizzo della console (anche più righe)" autocapitalize="off" autocorrect="off" spellcheck="false" style="width:100%;font:13px ui-monospace,monospace;color:var(--txt);background:#0f141c;border:1px solid var(--line);border-radius:10px;padding:10px"></textarea><p style="margin:8px 0 0"><button class="pri" id="bCollega">Collega</button></p><p class="sub" id="collegaE"></p>';
+async function collega(){ const e=$('collegaE'); e.style.color='';
+  let t=($('tCollega')&&$('tCollega').value||'').trim();
+  if(!t){ try{ t=(await navigator.clipboard.readText()).trim(); }catch(x){} }
+  if(!t){ e.style.color='var(--bad)'; e.textContent='Il riquadro è vuoto: tienilo premuto, scegli «Incolla» e poi tocca «Collega».'; return; }
   // negli appunti possono esserci più indirizzi (varianti dello stesso, quando una lettera è incerta): si provano uno dopo l'altro
   const m=t.match(/https:\/\/script\.google\.com\/macros\/(?:u\/\d+\/)?s\/[\w-]+\/exec\?k=[\w-]{16,}/g);
-  if(!m){ e.style.color='var(--bad)'; e.textContent='Negli appunti non c\'è l\'indirizzo della console. Copialo dalla mail «HorizonAdmin · indirizzo per collegare la console» e riprova.'; return; }
+  if(!m){ e.style.color='var(--bad)'; e.textContent='In quello che hai incollato non c\'è un indirizzo della console (deve cominciare con https://script.google.com/macros/ e finire con ?k= e la chiave).'; return; }
   const lista=[...new Set(m.map(x=>x.replace(/\/macros\/u\/\d+\/s\//,'/macros/s/')))].slice(0,40); let ultimo='';
   for(let i=0;i<lista.length;i++){ e.textContent='Provo il collegamento…'+(lista.length>1?' ('+(i+1)+' di '+lista.length+')':'');
     try{ await leggiConsole(lista[i]); ls.set('adm_cons',lista[i]); aggiorna(true); return; }catch(x){ ultimo=x.message; if(/chiave è sbagliata|accedere a Google|versione vecchia/.test(ultimo)) break; } }
-  e.style.color='var(--bad)'; e.textContent='Non funziona: '+ultimo+'.'; }
+  e.style.color='var(--bad)'; e.textContent='Non funziona'+(lista.length>1?' con nessuno dei '+lista.length+' indirizzi':'')+': '+ultimo+'.'; }
 let inCorso=false, FORZA=false, ULTIMO=0;
 const MIA=+((document.querySelector('meta[name="horizonadmin-versione"]')||{}).content||'').split('.').pop()||0;
 function nuovaVersione(){ if(!MIA||!RILASCI) return; const r=RILASCI.filter(x=>x.tag_name.startsWith('admin-')).sort((a,b)=>numero(b)-numero(a))[0]; const n=r?numero(r):0;
