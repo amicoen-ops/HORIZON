@@ -70,7 +70,7 @@ jobs:
           if [ -f reg/licenze/prezzi.json.enc ]; then dec reg/licenze/prezzi.json.enc "$T/prezzi.json"; fi
           cp reg/licenze/ultimo_riepilogo.txt "$T/ultimo.txt" 2>/dev/null || true
           PRIVATA="$T/priv.pem" PUBBLICA=reg/licenze/chiave_pubblica.txt REGISTRO="$T/reg.json" PREZZI="$T/prezzi.json" \
-          REVOCATE=reg/licenze/revocate.json ULTIMO_RIEPILOGO="$T/ultimo.txt" PISTE="$T/piste" SEGNALAZIONI="$T/segnalazioni" RIEPILOGO="$GITHUB_STEP_SUMMARY" \
+          REVOCATE=reg/licenze/revocate.json ULTIMO_RIEPILOGO="$T/ultimo.txt" PISTE="$T/piste" SEGNALAZIONI="$T/segnalazioni" SEG_REGISTRO=reg/segnalazioni RIEPILOGO="$GITHUB_STEP_SUMMARY" \
             python3 tools/posta_licenze.py
       # sempre, anche se il passo prima si è fermato a metà o è scaduto il tempo: i codici già mandati restano annotati.
       # Se nel frattempo un altro giro ha scritto sul ramo, i due registri si uniscono (tools/registro_unisci.py).

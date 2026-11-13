@@ -323,3 +323,32 @@ def riga_anonima(c, esito, giorno):
     modello = re.sub(r'[^A-Za-z0-9 ._-]', '', (c.telefono.split('·')[0] or '').strip())[:24]
     return ' | '.join([giorno, c.tipo or '?', v_txt(c.ver), c.canale, modello or '?',
                        'riconosciuto' if esito['riconosciuto'] else 'autore: ' + (esito['motivo'] or '?'), ','.join(esito['codici']) or '-'])
+
+
+def scheda(c, esito, ha_indirizzo):
+    """Per i casi che guarda l'autore: cosa ha visto l'agente, in poche righe, da tenere nella conversazione."""
+    r, out = c.rec, ["SCHEDA DELL'AGENTE (automatica, non è arrivata al pilota)", '',
+                     f"Perché è rimasta a te: {esito['motivo'] or '?'}.",
+                     "Al pilota: " + ('è partita solo la ricevuta («il nostro team è al lavoro»).' if ha_indirizzo else
+                                      'niente, non ha lasciato un indirizzo: non gli si può rispondere da qui.'), '']
+    out.append(f"Versione {v_txt(c.ver)} ({c.canale})" + (f", {c.ritardo} versioni indietro rispetto alla {v_txt(c.ultima)}" if c.ritardo else ', aggiornata')
+               + f" · telefono {c.telefono or '?'}")
+    if not c.con_dati: out.append('Dati tecnici: non allegati.')
+    else:
+        strane = [f'{k}: {c.riga(k)}' for k, cattivo in (('GPS del telefono', r'^(?!±\s*\d{1,2}\s*m)'), ('Sensori di movimento', r'nessun dato|^1?\d Hz|^20 Hz'),
+                  ('Bussola', 'da calibrare'), ('Barometro', 'non presente'), ('Montaggio', 'telefono verticale'), ('Quota GPS', 'non tarata'),
+                  ('Terreno (DEM)', 'non ancora'), ('Internet', '^no')) if c.riga(k) and re.search(cattivo, c.riga(k))]
+        out.append('Fuori dal normale nei dati: ' + ('; '.join(strane) if strane else 'niente') + '.')
+        for etichetta, modello in (('Errori di disegno', r'Errori di disegno:\s*(.+)'), ('Disegno', r'Disegno:\s*(.+)')):
+            m = re.search(modello, c.diag)
+            if m: out.append(f'{etichetta}: {m.group(1).strip()[:160]}')
+        if 'Ultimi errori:' in c.diag:
+            err = [x.strip() for x in c.diag.split('Ultimi errori:', 1)[1].split('REGISTRAZIONE SENSORI', 1)[0].split('\n') if x.strip()][:4]
+            out.append('Ultimi errori: ' + (' | '.join(e[:140] for e in err) or 'nessuno'))
+    if r and r.get('righe'):
+        out.append(f"Registrazione: {r['righe']} letture, GS {r.get('gs')} km/h, inclinazione {r['rollio']:+.1f}°, beccheggio {r['beccheggio']:+.1f}°, "
+                   f"livella a terra {r.get('a_terra')}°, deriva in 20 s {r['deriva']:.1f}°.")
+    if esito['codici']: out.append('Regole che sarebbero scattate (non usate): ' + ', '.join(esito['codici']) + '.')
+    out += ['', 'Per chiudere: rispondi al pilota da questa conversazione, oppure metti l\'etichetta «Chiusa».',
+            'Se il caso si ripete, incolla la mail a Claude: diventa una regola e la prossima volta parte la risposta automatica.']
+    return '\n'.join(out) + '\n'
