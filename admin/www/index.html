@@ -97,7 +97,7 @@ nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
 <script>
 'use strict';
 const REPO='amicoen-ops/HORIZON', API='https://api.github.com/repos/'+REPO, RAW='https://raw.githubusercontent.com/'+REPO+'/licenze/';
-const LAVORI=[['licenze-posta.yml','Posta: licenze e segnalazioni',90],['build-apk.yml','App HORIZON',0],['horizon2.yml','HORIZON 2 e orologio',0],
+const LAVORI=[['licenze-posta.yml','Posta: licenze e segnalazioni',300],['build-apk.yml','App HORIZON',0],['horizon2.yml','HORIZON 2 e orologio',0],
   ['pubblica-web.yml','Versione web',0],['test-assetto.yml','Prove automatiche',0]];
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[<&>"']/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -161,7 +161,7 @@ async function salute(){
       const corso=r.status!=='completed', ok=r.conclusion==='success', min=(Date.now()-new Date(r.run_started_at||r.created_at))/60000;
       const vecchio=maxMin&&min>maxMin;
       if(!corso&&!ok) avvisa(nome+': ultima corsa non riuscita.',true);
-      if(vecchio) avvisa(nome+': non parte da '+fa(r.run_started_at||r.created_at)+' (dovrebbe girare almeno ogni ora).',false);
+      if(vecchio) avvisa(nome+': non parte da '+fa(r.run_started_at||r.created_at)+' (di solito gira ogni 1–3 ore, e subito quando arriva posta). Se arriva una mail e non parte, controlla lo script di Gmail.',false);
       return `<div class="row"><span class="dot ${corso?'warn':ok&&!vecchio?'ok':ok?'warn':'bad'}"></span><a class="t" href="${esc(solohttps(r.html_url))}" target="_blank" rel="noopener">${esc(nome)}</a>
         <small>${corso?'in corso':ok?'riuscito':r.conclusion==='failure'?'non riuscito':r.conclusion==='cancelled'?'annullato':esc(r.conclusion||'?')} · ${fa(r.run_started_at||r.created_at)}</small></div>`;
     }catch(e){ return `<div class="row"><span class="dot bad"></span><span class="t">${esc(nome)}</span><small>${esc(e.message)}</small></div>`; } }));
