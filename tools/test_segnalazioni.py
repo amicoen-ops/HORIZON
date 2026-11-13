@@ -58,6 +58,7 @@ vero('registrazione storta: riconosciuta', e['riconosciuto'] and e['codici'] == 
 t, h = S.risposta(c, e)
 vero('risposta: parla di livella non confermata e di biciclo', 'non è stata applicata' in t and 'biciclo' in t and 'LIVELLA' in t and '<ol>' in h)
 vero('risposta: avvertenza sempre presente', S.AVVISO in t and S.AVVISO in h)
+vero('ai piloti si parla del team, mai dell\'autore', 'autore' not in t and 'autore' not in S.ricevuta(c)[0] and 'nostro team' in S.ricevuta(c)[0])
 # 2. registrazione regolare
 c, e = caso('Registrazione sensori', 'Registrazione di 20 s', coda=rec(0.4, -1.1))
 vero('registrazione regolare: riconosciuta come sensori-ok', e['riconosciuto'] and e['codici'] == ['sensori-ok'])
