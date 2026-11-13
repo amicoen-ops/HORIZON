@@ -66,7 +66,7 @@ nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
   <label for="iCons">URL dell'applicazione web (script di Gmail › Esegui il deployment › Gestisci deployment › Copia)</label>
   <input id="iCons" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec">
   <label for="iKey">Chiave della console (quella scritta dalla funzione «consoleChiave», senza ?k=)</label>
-  <input id="iKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <input id="iKey" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
   <p style="margin:10px 0 0"><button id="bIncolla">Incolla dagli appunti</button> <button id="bProva">Prova il collegamento</button></p>
   <p class="sub" style="margin:8px 0 0">Dal computer: copia l'indirizzo intero (URL + ?k= + chiave), mandalo al telefono come preferisci, copialo qui e tocca «Incolla dagli appunti»: riempie da sola le due caselle.</p>
   <p class="sub" id="provaE" style="margin:8px 0 0"></p>
@@ -107,6 +107,7 @@ const fa=t=>{ if(!t) return '—'; const m=Math.round((Date.now()-new Date(t).ge
 const giorno=t=>new Date(t).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const solohttps=u=>/^https:\/\//i.test(u)?u:'#';
 let avvisi=[];
+const FORMA=/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/;
 // ---- rete che non si arrende: tempo massimo, due riprove, e in caso di guasto gli ultimi dati buoni salvati sul telefono ----
 const NAT=(()=>{ try{ const C=window.Capacitor; if(!C||!C.isNativePlatform||!C.isNativePlatform()) return null; return (C.Plugins&&C.Plugins.CapacitorHttp)||C.registerPlugin('CapacitorHttp'); }catch(e){ return null; } })();
 const pausa=ms=>new Promise(r=>setTimeout(r,ms));
@@ -228,7 +229,7 @@ function analisiSeg(casi){
 async function code(){
   const t=$('code'), l=$('codeL'), u=ls.get('adm_cons'); l.innerHTML='';
   if(!u){ t.innerHTML=''; l.innerHTML='<p class="sub">Per vedere le code della posta scrivi nelle impostazioni (⚙) l\'indirizzo della console di Gmail.</p>'; return; }
-  if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ t.innerHTML=''; l.innerHTML='<p class="sub">L\'indirizzo della console non ha la forma giusta. Deve essere: https://script.google.com/macros/s/…/exec?k=… — '+(/\?k=/.test(u)?'':'manca ?k= con la chiave in fondo. ')+(/\/exec/.test(u)?'':'manca /exec. ')+(/…|\.\.\./.test(u)?'ci sono dei puntini: serve l\'identificativo vero, copiato da «Gestisci deployment».':'')+'</p>'; return; }
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ t.innerHTML=''; l.innerHTML='<p class="sub">L\'indirizzo della console non ha la forma giusta. Deve essere: https://script.google.com/macros/s/…/exec?k=… — '+(/\?k=/.test(u)?'':'manca ?k= con la chiave in fondo. ')+(/\/exec/.test(u)?'':'manca /exec. ')+(/…|\.\.\./.test(u)?'ci sono dei puntini: serve l\'identificativo vero, copiato da «Gestisci deployment». ':'')+'Apri ⚙, tocca «Cancella tutto» e incolla di nuovo URL e chiave: ora la casella della chiave mostra quello che c\'è dentro.</p>'; return; }
   t.innerHTML='<p class="sub">Carico…</p>';
   let d=null, nota='';
   try{ d=await leggiConsole(u); cache.set('code',d); }
@@ -297,7 +298,11 @@ $('bAgg').onclick=()=>aggiorna(true);
 // indirizzo e chiave in due caselle (ma si accetta anche l'indirizzo intero con ?k= incollato nella prima)
 const componi=()=>{ // l'indirizzo intero finito per sbaglio nella casella della chiave: si sposta da solo nella prima
   if(/script\.google\.com\/macros\//.test($('iKey').value)&&!$('iCons').value.trim()){ $('iCons').value=$('iKey').value.trim(); $('iKey').value=''; }
-  let u=$('iCons').value.trim().replace(/\s+/g,'').replace(/\/macros\/u\/\d+\/s\//,'/macros/s/'), k=$('iKey').value.trim().replace(/^\?k=/,'');
+  let u=$('iCons').value.trim().replace(/\s+/g,'').replace(/\/macros\/u\/\d+\/s\//,'/macros/s/'), k=$('iKey').value.trim();
+  // nella casella della chiave può essere finito di tutto (l'indirizzo intero, «?k=», la chiave incollata due volte): si tiene
+  // solo l'ultima chiave vera, cioè l'ultimo pezzo di lettere e cifre lungo almeno 16
+  { const pezzi=k.split(/[^\w-]+/).filter(x=>x.length>=16&&!/^AKfyc/.test(x)); k=pezzi.length?pezzi[pezzi.length-1]:k.replace(/^\?k=/,'').replace(/[^\w-]/g,'');
+    const m=k.match(/[0-9a-f]{64}$/); if(k.length>64&&m) k=m[0]; }      // incollata in coda a qualcosa che c'era già: la chiave vera sono le ultime 64 cifre
   const i=u.indexOf('?'); if(i>=0){ const m=u.slice(i).match(/[?&]k=([\w-]+)/); if(m&&!k) k=m[1]; u=u.slice(0,i); }
   u=u.replace(/\/(dev|exec)\/?$/,'/exec'); if(u&&!/\/exec$/.test(u)) u=u.replace(/\/+$/,'')+'/exec';
   if(u&&k){ $('iCons').value=u; $('iKey').value=k; }                 // le caselle mostrano com'è stato capito
@@ -315,6 +320,7 @@ $('bProva').onclick=async()=>{ const e=$('provaE'), u=componi(); e.style.color='
   try{ const d=await leggiConsole(u); e.style.color='var(--ok)'; e.textContent='Funziona: '+(d.code||[]).length+' code lette, tasti '+(d.tasti?(d.senzaPin?'accesi senza PIN':'accesi'):'spenti (manca CONSOLE_PIN o sono bloccati)')+'. Ora tocca «Salva e aggiorna».'; }
   catch(x){ e.style.color='var(--bad)'; e.textContent='Non funziona: '+x.message+'.'; } finally{ $('bProva').disabled=false; } };
 $('bSalva').onclick=()=>{ const u=componi(); if(!u&&($('iCons').value.trim()||$('iKey').value.trim())){ $('provaE').style.color='var(--bad)'; $('provaE').textContent='Manca '+($('iCons').value.trim()?'la chiave (seconda casella)':'l\'URL dell\'applicazione web (prima casella)')+'.'; return; }
+  if(u&&!FORMA.test(u)){ $('provaE').style.color='var(--bad)'; $('provaE').textContent='Così non va: l\'URL deve cominciare con https://script.google.com/macros/s/ e finire con /exec, e la chiave è fatta solo di lettere e cifre. Tocca «Cancella tutto» e incolla di nuovo.'; return; }
   ls.set('adm_cons',u); ls.set('adm_tok',$('iTok').value.trim()); $('cImp').hidden=true; aggiorna(true); };
 $('bCanc').onclick=()=>{ ls.set('adm_cons',''); ls.set('adm_tok',''); cache.via(); $('iCons').value=$('iKey').value=$('iTok').value=''; aggiorna(true); };
 // tornando sull'app si riaggiorna da sola, ma non più di una volta ogni 2 minuti
