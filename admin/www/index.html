@@ -238,7 +238,7 @@ async function code(){
   try{
     const c=d.code||[];
     t.innerHTML=c.map(q=>`<div class="tile ${q.info?'':q.n?(q.urgente?'bad':'warn'):'ok'}"><b>${+q.n||0}</b><span>${esc(q.nome)}</span></div>`).join('');
-    TASTI=!!d.tasti; VOCI={};
+    TASTI=!!d.tasti; SENZA_PIN=!!d.senzaPin; VOCI={};
     const az=(q,v)=>{ if(!TASTI||!v.id) return ''; VOCI[v.id]=v.oggetto; const b=(a,t)=>`<button data-az="${a}" data-id="${esc(v.id)}">${t}</button>`;
       const fatto=FATTI[v.id]; if(fatto) return `<div class="fatto">${esc(fatto)}</div>`;
       return q.tipo==='licenza'?`<div class="az">${b('M','Mensile')}${b('A','Annuale')}${b('P','Perenne')}</div>`:q.tipo==='segnalazione'?`<div class="az">${b('chiusa','Chiusa')}</div>`
@@ -246,7 +246,7 @@ async function code(){
     l.innerHTML=nota+c.filter(q=>q.voci&&q.voci.length).map(q=>`<p class="sub" style="margin:12px 0 2px">${esc(q.nome)}</p>`+q.voci.map(v=>
       `<div class="row"><div class="t"><a href="${esc(solohttps(v.link))}" target="_blank" rel="noopener">${esc(v.oggetto)}</a>${az(q,v)}</div><small>${esc(v.quando?giorno(v.quando):'')}</small></div>`).join('')).join('')
       +(TASTI?'<div class="az" style="margin-top:14px"><button data-az="giro">Avvia il giro della posta</button><button data-az="riepilogo">Riepilogo subito</button></div>'
-             :nota?'<p class="sub" style="margin-top:12px">Tasti spenti finché la console non risponde.</p>':'<p class="sub" style="margin-top:12px">Tasti spenti: per accenderli scrivi nello script la proprietà CONSOLE_PIN (almeno 6 cifre), oppure lancia «consoleSblocca» se si sono bloccati.</p>');
+             :nota?'<p class="sub" style="margin-top:12px">Tasti spenti finché la console non risponde.</p>':'<p class="sub" style="margin-top:12px">Tasti spenti: per accenderli scrivi nello script la proprietà CONSOLE_PIN (un PIN di almeno 6 cifre, oppure «no» per usarli senza PIN); se si sono bloccati lancia «consoleSblocca».</p>');
     const s=d.stato||{};
     $('aLic').innerHTML=d.licenze?`<p style="margin:0">${esc(d.licenze.testo)}</p><p class="sub">Dal riepilogo del ${esc(d.licenze.quando?giorno(d.licenze.quando):'?')}. L'elenco completo è nella mail «Riepilogo licenze».</p>`:'<p class="sub">Nessun riepilogo delle licenze trovato nella casella.</p>';
     if(s.token===false) avvisa('Nello script di Gmail manca il token GitHub: la sveglia non può far partire i lavori.',true);
@@ -257,14 +257,14 @@ async function code(){
 }
 
 // ---- tasti: mettono un'etichetta in Gmail o avviano un giro; servono chiave (salvata) e PIN (mai salvato) ----
-let TASTI=false, VOCI={}, FATTI={}, PIN='', PIN_T=0, ATTESA=null;
+let TASTI=false, SENZA_PIN=false, VOCI={}, FATTI={}, PIN='', PIN_T=0, ATTESA=null;
 const NOMI={M:'Licenza MENSILE (5 €)',A:'Licenza ANNUALE (30 €)',P:'Licenza PERENNE (150 €)',chiusa:'Chiudi la segnalazione',sbagliata:'Segna la risposta automatica come sbagliata',giro:'Avvia il giro della posta',riepilogo:'Manda subito il riepilogo'};
 const DOPO={M:'Mensile: il codice parte tra 1–2 minuti',A:'Annuale: il codice parte tra 1–2 minuti',P:'Perenne: il codice parte tra 1–2 minuti',chiusa:'Chiusa: viene archiviata al prossimo giro',sbagliata:'Segnata: torna tra quelle da vedere al prossimo giro'};
 function chiedi(az,id){ ATTESA={az,id}; const lic='MAP'.includes(az)&&az.length===1; $('vT').textContent=NOMI[az]||az;
   $('vD').textContent=(id?VOCI[id]||'':'')+(lic?' — Hai già visto il pagamento su PayPal? Il codice viene creato e mandato al pilota.':'');
-  const serve=!(PIN&&Date.now()-PIN_T<600000); $('vPinB').hidden=!serve; $('vPin').value=''; $('vE').textContent=''; $('velo').hidden=false; if(serve) $('vPin').focus(); }
+  const serve=!SENZA_PIN&&!(PIN&&Date.now()-PIN_T<600000); $('vPinB').hidden=!serve; $('vPin').value=''; $('vE').textContent=''; $('velo').hidden=false; if(serve) $('vPin').focus(); }
 async function premi(){ const a=ATTESA; if(!a) return; const u=ls.get('adm_cons'), i=u.indexOf('?k=');
-  const pin=$('vPinB').hidden?PIN:$('vPin').value.trim(); if(pin.length<6){ $('vE').textContent='Il PIN ha almeno 6 cifre.'; return; }
+  const pin=SENZA_PIN?'':$('vPinB').hidden?PIN:$('vPin').value.trim(); if(!SENZA_PIN&&pin.length<6){ $('vE').textContent='Il PIN ha almeno 6 cifre.'; return; }
   $('vSi').disabled=true; $('vE').textContent='';
   try{ const r=await chiediRete(u.slice(0,i),{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k:u.slice(i+3),pin,azione:a.az,id:a.id||''})},0);
     let d=null; try{ d=JSON.parse(r.testo); }catch(e){ throw new Error(diagnosi(r.testo,r.status)+'. Non so se il tasto è arrivato: aggiorna l\'elenco prima di riprovare'); }
@@ -309,7 +309,7 @@ $('bProva').onclick=async()=>{ const e=$('provaE'), u=componi(); e.style.color='
   if(!u){ e.style.color='var(--bad)'; e.textContent='Scrivi sia l\'URL dell\'applicazione web sia la chiave.'; return; }
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ e.style.color='var(--bad)'; e.textContent='La forma non è giusta: l\'URL deve cominciare con https://script.google.com/macros/s/ e la chiave è lunga almeno 16 caratteri'+(/…|\.\.\./.test($('iCons').value)?' (nell\'URL ci sono dei puntini: serve quello vero)':'')+'.'; return; }
   e.textContent='Provo…'; $('bProva').disabled=true;
-  try{ const d=await leggiConsole(u); e.style.color='var(--ok)'; e.textContent='Funziona: '+(d.code||[]).length+' code lette, tasti '+(d.tasti?'accesi':'spenti (manca CONSOLE_PIN o sono bloccati)')+'. Ora tocca «Salva e aggiorna».'; }
+  try{ const d=await leggiConsole(u); e.style.color='var(--ok)'; e.textContent='Funziona: '+(d.code||[]).length+' code lette, tasti '+(d.tasti?(d.senzaPin?'accesi senza PIN':'accesi'):'spenti (manca CONSOLE_PIN o sono bloccati)')+'. Ora tocca «Salva e aggiorna».'; }
   catch(x){ e.style.color='var(--bad)'; e.textContent='Non funziona: '+x.message+'.'; } finally{ $('bProva').disabled=false; } };
 $('bSalva').onclick=()=>{ const u=componi(); if(!u&&($('iCons').value.trim()||$('iKey').value.trim())){ $('provaE').style.color='var(--bad)'; $('provaE').textContent='Servono tutti e due: URL dell\'applicazione web e chiave.'; return; }
   ls.set('adm_cons',u); ls.set('adm_tok',$('iTok').value.trim()); $('cImp').hidden=true; aggiorna(true); };

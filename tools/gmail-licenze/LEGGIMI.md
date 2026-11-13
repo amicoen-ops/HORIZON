@@ -68,6 +68,8 @@ Per farle leggere le code della posta, una volta sola:
 
 **Per accendere i tasti**: Impostazioni progetto › Aggiungi proprietà dello script › `CONSOLE_PIN` = un numero di almeno 6 cifre che sai solo tu. L'app lo chiede a ogni uso e non lo salva. Dopo 5 PIN sbagliati i tasti si bloccano: per sbloccarli lancia la funzione **consoleSblocca**. Senza `CONSOLE_PIN` la console resta in sola lettura.
 
+**Tasti senza PIN**: se nella proprietà `CONSOLE_PIN` scrivi `no`, i tasti funzionano con la sola chiave. È una scelta di comodità: in quel caso chi ha il telefono sbloccato, o l'indirizzo completo con la chiave, può emettere licenze. La chiave va tenuta segreta e rifatta se è stata vista da altri.
+
 Perché due cose: la chiave sta sul telefono, il PIN solo nella tua testa. Chi trovasse il telefono sbloccato vedrebbe le code ma non potrebbe emettere licenze.
 
 Ogni volta che reincolli lo script con modifiche alla console: **Esegui il deployment** › **Gestisci deployment** › matita › *Versione*: **Nuova versione** › **Esegui il deployment** (l'indirizzo resta lo stesso).
