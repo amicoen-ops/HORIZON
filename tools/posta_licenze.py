@@ -22,11 +22,13 @@ from email.header import decode_header, make_header
 from email.message import EmailMessage
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import licenze
+import licenze, segnalazioni
 
 TIPI = {'M': 'mensile', 'A': 'annuale', 'P': 'perenne'}
 DA_GESTIRE, GESTITE, DA_VEDERE, INBOX = 'Da gestire', 'Gestite', 'Da vedere', '\\Inbox'
 ARCHIVIO = 'Archivio generale licenze'
+SEG_OK, SEG_VEDERE, SEG_SENZA = 'Segnalazioni analizzate', 'Segnalazioni da vedere', 'Senza indirizzo'
+SEG_GIORNO_IND, SEG_GIORNO = 5, 40      # risposte automatiche alle segnalazioni: per indirizzo e in tutto, al giorno
 PASSI_PAYPAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'licenze', 'paypal-passi.png')
 PREZZI = {'M': 5, 'A': 30, 'P': 150}
 MAX_RIGHE_PISTE = 20          # righe HORIZON-PISTA/CAMPI tenute per ogni mail (l'app ne manda una): vanno su un ramo pubblico
@@ -234,7 +236,7 @@ def stato_di(r, revocate, oggi, quando=None):
     return 'attiva', '#2e7d32'
 
 
-def riepilogo(posta, registro, rev):
+def riepilogo(posta, registro, rev, seg_da_vedere=0):
     """Mail all'autore (alla casella di HORIZON) con la tabella di tutte le licenze."""
     import datetime, html as H
     oggi = datetime.date.today()
@@ -254,7 +256,9 @@ def riepilogo(posta, registro, rev):
         testo.append(f"n. {r['numero']} · {TIPI.get(r['tipo'], r['tipo'])} · {chi} · {tel} · emessa {it(r['emesso'])} · scade {it(r.get('scade'))} · {st}")
     sintesi = ' · '.join(f'{v} {k}' for k, v in conta.items()) or 'nessuna licenza'
     td = 'style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:left"'
-    corpo = (f'<p><b>{len(registro)} licenze</b> · {sintesi}</p>'
+    avviso = (f'<p style="background:#fff6d6;border:1px solid #e0a800;border-radius:8px;padding:8px 12px"><b>{seg_da_vedere} segnalazioni dei piloti da vedere</b>: '
+              'sono in Posta in arrivo con l\'etichetta «Segnalazioni da vedere». Le altre hanno già avuto risposta automatica («Segnalazioni analizzate»).</p>') if seg_da_vedere else ''
+    corpo = (avviso + f'<p><b>{len(registro)} licenze</b> · {sintesi}</p>'
              f'<table style="border-collapse:collapse;font-size:14px"><tr style="background:#f0f3f7">'
              + ''.join(f'<th {td}>{h}</th>' for h in ('N.', 'Tipo', 'Pilota', 'Telefono', 'Emessa', 'Scade', 'Stato')) + '</tr>'
              + ''.join(righe).replace('<td>', f'<td {td}>') + '</table>'
@@ -267,7 +271,7 @@ def riepilogo(posta, registro, rev):
     r['From'] = email.utils.formataddr(('HORIZON', posta.utente)); r['To'] = posta.utente
     r['Subject'] = f'HORIZON · Riepilogo licenze · {oggi.strftime("%d/%m/%Y")}'
     if storico: testo += ['', 'Revoche e ripristini:'] + [f"{it(e['data'])} · licenza n. {e['numero']} · {'revocata' if e['azione'] == 'revoca' else 'ripristinata'}" for e in sorted(storico, key=lambda e: e['data'], reverse=True)]
-    r.set_content(f'{len(registro)} licenze · {sintesi}\n\n' + '\n'.join(testo) + '\n')
+    r.set_content((f'{seg_da_vedere} segnalazioni dei piloti da vedere (etichetta «Segnalazioni da vedere»).\n\n' if seg_da_vedere else '') + f'{len(registro)} licenze · {sintesi}\n\n' + '\n'.join(testo) + '\n')
     r.add_alternative(html_di(corpo), subtype='html')
     posta.manda(r)
 
@@ -289,7 +293,7 @@ def main():
     import datetime, hashlib
     oggi_d = datetime.date.today()
     lim = json.load(open(env['PREZZI'])) if env.get('PREZZI') and os.path.exists(env['PREZZI']) else {}
-    lim = {k: {x: d for x, d in lim.get(k, {}).items() if (oggi_d - datetime.date.fromisoformat(d)).days < 30} for k in ('tel', 'mail')}
+    lim = {k: {x: d for x, d in lim.get(k, {}).items() if (oggi_d - datetime.date.fromisoformat(d)).days < 30} for k in ('tel', 'mail', 'seg')}
     mandati_oggi = sum(1 for d in lim['mail'].values() if d == oggi_d.isoformat())
     def recente(k, x, giorni): d = lim[k].get(x); return bool(d) and (oggi_d - datetime.date.fromisoformat(d)).days < giorni
     def indirizzo_di(msg): return email.utils.parseaddr(msg.get('Reply-To') or msg.get('From'))[1].lower()
@@ -391,6 +395,68 @@ def main():
             except Exception:
                 conti['errori'] = conti.get('errori', 0) + 1
 
+    # 2c. segnalazioni dei piloti («Problema», «Registrazione sensori», …): tools/segnalazioni.py le analizza dai dati tecnici.
+    # Caso riconosciuto → risposta al pilota, mail in «Segnalazioni analizzate» fuori dalla Posta in arrivo (senza indirizzo
+    # l'analisi resta nella conversazione, con «Senza indirizzo»). Tutto il resto → «Segnalazioni da vedere», in arrivo, per
+    # l'autore; al pilota solo la ricevuta. Solo le ultime 3 giornate: mai risposte a segnalazioni vecchie.
+    try:
+        for uid in posta.cerca('from:me to:me in:inbox subject:(HORIZON Analisi automatica)'):     # le analisi senza indirizzo, tornate a noi
+            posta.etichetta(uid, aggiungi=[SEG_OK], togli=[INBOX])
+        ultima = segnalazioni.ultima_versione(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'www', 'index.html'), encoding='utf-8').read())
+    except Exception:
+        ultima = None
+    seg_oggi = lambda pref='': sum(1 for x, d in lim['seg'].items() if d == oggi_d.isoformat() and x.startswith(pref))
+    righe_seg = []
+    for uid in (posta.cerca('newer_than:3d -from:me -label:segnalazioni-analizzate -label:segnalazioni-da-vedere '
+                            '{subject:(HORIZON Problema) subject:(HORIZON Registrazione sensori) subject:(HORIZON Suggerimento) subject:(HORIZON Dato sbagliato)}')
+                if ultima else []):
+        try:
+            msg = posta.leggi(uid)
+            if msg is None: continue
+            ogg = dec(msg.get('Subject'))
+            if 'licenza' in ogg.lower(): continue          # le richieste di licenza hanno il loro giro
+            if msg.get('In-Reply-To') or re.match(r'\s*(re|r|aw|sv|fwd?|i)\s*:', ogg, re.I):     # il pilota ha risposto: la legge l'autore
+                posta.etichetta(uid, aggiungi=[SEG_VEDERE]); conti['seg da vedere'] = conti.get('seg da vedere', 0) + 1; continue
+            campi = segnalazioni.campi(testo_di(msg))
+            if not campi.get('Segnalazione'):
+                pagina = ''
+                for parte in msg.walk():
+                    if parte.get_content_type() == 'text/html':
+                        try: pagina += parte.get_payload(decode=True).decode(parte.get_content_charset() or 'utf-8', 'replace')
+                        except Exception: pass
+                campi = segnalazioni.campi(segnalazioni.testo_da_html(pagina))
+            caso = segnalazioni.Caso(campi, ultima)
+            esito = segnalazioni.analizza(caso) if campi.get('Segnalazione') else {'riconosciuto': False, 'motivo': 'mail non letta', 'codici': [], 'sezioni': []}
+            ind = indirizzo_di(msg)
+            ha_ind = bool(ind) and ind != posta.utente.lower() and 'web3forms' not in ind and 'noreply' not in ind
+            troppe = ha_ind and (seg_oggi(impronta(ind) + ':') >= SEG_GIORNO_IND or seg_oggi() >= SEG_GIORNO)
+            def segna():
+                lim['seg'][f"{impronta(ind)}:{seg_oggi(impronta(ind) + ':')}:{oggi_d.isoformat()}"] = oggi_d.isoformat()
+                if env.get('PREZZI'): json.dump(lim, open(env['PREZZI'], 'w'))
+            if esito['riconosciuto'] and ha_ind and not troppe and posta.rispondi(msg, *segnalazioni.risposta(caso, esito)):
+                segna(); posta.etichetta(uid, aggiungi=[SEG_OK], togli=[INBOX]); conti['seg risposte'] = conti.get('seg risposte', 0) + 1
+            elif esito['riconosciuto'] and not ha_ind:    # niente indirizzo: l'analisi resta scritta nella conversazione
+                t, h = segnalazioni.risposta(caso, esito)
+                r = EmailMessage()
+                r['From'] = email.utils.formataddr(('HORIZON', posta.utente)); r['To'] = posta.utente
+                r['Subject'] = 'Re: ' + re.sub(r'[\r\n\t]+', ' ', ogg)[:180] + ' · HORIZON Analisi automatica'
+                if msg.get('Message-ID'): r['In-Reply-To'] = r['References'] = ' '.join(msg['Message-ID'].split())
+                nota = 'Il pilota non ha lasciato un indirizzo: questa analisi NON gli è arrivata. Resta qui come traccia.\n\n'
+                r.set_content(nota + t); r.add_alternative(html_di('<p><b>' + nota.strip() + '</b></p>' + h), subtype='html')
+                posta.manda(r)
+                posta.etichetta(uid, aggiungi=[SEG_OK, SEG_SENZA], togli=[INBOX]); conti['seg senza indirizzo'] = conti.get('seg senza indirizzo', 0) + 1
+            else:                                         # non riconosciuta, difetto, troppe in un giorno: la guarda l'autore
+                if ha_ind and not troppe and posta.rispondi(msg, *segnalazioni.ricevuta(caso)): segna()
+                posta.etichetta(uid, aggiungi=[SEG_VEDERE]); conti['seg da vedere'] = conti.get('seg da vedere', 0) + 1
+            if campi.get('Segnalazione'): righe_seg.append(segnalazioni.riga_anonima(caso, esito, oggi_d.isoformat()))
+        except Exception:
+            conti['errori'] = conti.get('errori', 0) + 1
+            try: posta.etichetta(uid, aggiungi=[SEG_VEDERE, INBOX])
+            except Exception: pass
+    if righe_seg and env.get('SEGNALAZIONI'):             # registro anonimo dei casi, sul ramo «licenze» (cartella segnalazioni/)
+        os.makedirs(env['SEGNALAZIONI'], exist_ok=True)
+        with open(os.path.join(env['SEGNALAZIONI'], 'nuove.txt'), 'a', encoding='utf-8') as f: f.write('\n'.join(righe_seg) + '\n')
+
     if recupera_indirizzi(posta, registro, pub): json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)
     # 3. riepilogo: uno al giorno (al primo giro del giorno) o a richiesta; finisce in «Archivio generale licenze»
     import datetime
@@ -400,7 +466,9 @@ def main():
     ora_it = datetime.datetime.now(ZoneInfo('Europe/Rome'))
     if (ultimo != oggi and ora_it.hour >= 7) or env.get('MANDA_RIEPILOGO') == 'true':   # il riepilogo del giorno dalle 7
         rev = json.load(open(env['REVOCATE'])) if env.get('REVOCATE') and os.path.exists(env['REVOCATE']) else {}
-        riepilogo(posta, registro, rev); conti['riepilogo'] = 1
+        try: da_vedere = len(posta.cerca('label:segnalazioni-da-vedere in:inbox'))
+        except Exception: da_vedere = 0
+        riepilogo(posta, registro, rev, da_vedere); conti['riepilogo'] = 1
         if fu: open(fu, 'w').write(oggi + '\n')
     # in archivio: anche quello appena mandato, che Gmail consegna dopo qualche secondo (si aspetta al massimo 1 minuto)
     import time
@@ -414,7 +482,9 @@ def main():
     posta.imap.logout()
 
     riga = (f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"
-            f" · limitate {conti.get('limitate', 0)} · righe piste/campi {conti.get('piste', 0)} · errori {conti.get('errori', 0)}")
+            f" · limitate {conti.get('limitate', 0)} · righe piste/campi {conti.get('piste', 0)}"
+            f" · segnalazioni: risposte {conti.get('seg risposte', 0)}, senza indirizzo {conti.get('seg senza indirizzo', 0)}, da vedere {conti.get('seg da vedere', 0)}"
+            f" · errori {conti.get('errori', 0)}")
     print(riga)
     if env.get('RIEPILOGO'):
         with open(env['RIEPILOGO'], 'a') as f: f.write('## Licenze per posta\n\n' + riga + '\n')

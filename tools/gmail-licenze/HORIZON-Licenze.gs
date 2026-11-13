@@ -5,6 +5,8 @@
 //  · ogni minuto guarda la casella: se c'è una richiesta nuova o una mail con l'etichetta M, A o P
 //    (messa da te dopo aver visto il pagamento) fa partire su GitHub il giro «Licenze per posta», che manda
 //    i prezzi o il codice di licenza al pilota e sistema le etichette (Da gestire, Gestite);
+//  · lo stesso per le segnalazioni dei piloti («Problema», «Registrazione sensori»…): il giro le analizza, risponde da
+//    solo ai casi noti («Segnalazioni analizzate») e lascia in arrivo le altre («Segnalazioni da vedere»);
 //  · una volta al giorno, dalle 7, fa partire il giro anche per il riepilogo («Archivio generale licenze»);
 //  · nel Calendar di horizonlicenses mette i promemoria delle scadenze che servono a far funzionare tutto:
 //    token GitHub (data vera, letta da GitHub: avviso 14 giorni prima e il giorno stesso), controllo di Google Play
@@ -27,6 +29,9 @@ const REPO = 'amicoen-ops/HORIZON', WORKFLOW = 'licenze-posta.yml';
 // richieste nuove (senza etichette) oppure mail con M/A/P non ancora gestite
 const DA_LAVORARE = '(subject:(HORIZON licenza) newer_than:30d -from:me -label:da-gestire -label:gestite -label:da-vedere -label:m -label:a -label:p)'
   + ' OR label:m OR label:a OR label:p';
+// segnalazioni dei piloti arrivate dall'app e non ancora analizzate (il giro risponde da solo ai casi noti)
+const SEGNALAZIONI = 'newer_than:3d -from:me -label:segnalazioni-analizzate -label:segnalazioni-da-vedere '
+  + '{subject:(HORIZON Problema) subject:(HORIZON Registrazione sensori) subject:(HORIZON Suggerimento) subject:(HORIZON Dato sbagliato)}';
 const PAUSA_MS = 4 * 60 * 1000;          // dopo un avvio si aspetta che GitHub finisca prima di riavviarlo
 
 function avviaGiro_(riepilogo) {
@@ -45,7 +50,8 @@ function daLavorare_() {
   // a livello di conversazione: con M/A/P sì, anche se è già gestita (un rinnovo nella stessa conversazione: prima la
   // sveglia non partiva; il giro toglie M/A/P a tutte le mail, quindi non riparte a vuoto); già gestita no;
   // altrimenti solo se nessuno l'ha ancora presa (né Da gestire né Da vedere)
-  return GmailApp.search(DA_LAVORARE, 0, 20).filter(t => {
+  const seg = GmailApp.search(SEGNALAZIONI, 0, 20).filter(t => !t.getLabels().some(l => /^Segnalazioni (analizzate|da vedere)$/.test(l.getName()))).length;
+  return seg + GmailApp.search(DA_LAVORARE, 0, 20).filter(t => {
     const nomi = t.getLabels().map(l => l.getName());
     if (nomi.some(n => n === 'M' || n === 'A' || n === 'P')) return true;
     if (nomi.includes('Gestite')) return false;

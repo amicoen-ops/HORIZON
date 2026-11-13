@@ -3,9 +3,9 @@ name: Prove dell'assetto
 # Banco di prova del filtro di assetto (tools/test_assetto.js): pochi secondi, a ogni modifica della pagina strumento.
 on:
   push:
-    paths: ['www/index.html', 'tools/test_assetto.js', '.github/workflows/test-assetto.yml']
+    paths: ['www/index.html', 'tools/test_assetto.js', 'tools/segnalazioni.py', 'tools/test_segnalazioni.py', '.github/workflows/test-assetto.yml']
   pull_request:
-    paths: ['www/index.html', 'tools/test_assetto.js']
+    paths: ['www/index.html', 'tools/test_assetto.js', 'tools/segnalazioni.py', 'tools/test_segnalazioni.py']
   workflow_dispatch:
 
 permissions:
@@ -22,3 +22,5 @@ jobs:
           node-version: 22
       - name: Orizzonte in curva, in virata, con e senza giroscopio
         run: node tools/test_assetto.js
+      - name: Regole delle segnalazioni
+        run: python3 tools/test_segnalazioni.py
