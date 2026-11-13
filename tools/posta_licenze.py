@@ -32,6 +32,7 @@ SBAGLIATA = 'Risposta sbagliata'         # altro tasto: la risposta automatica n
 SEG_GESTITE, CHIUSA = 'Segnalazioni gestite', 'Chiusa'      # «Chiusa» è un tasto: la mette l'autore quando non serve risposta
 AUTO = 'X-HORIZON-Auto'                  # intestazione delle mail mandate da questo programma (non dall'autore a mano)
 SEG_GIORNO_IND, SEG_GIORNO = 5, 40      # risposte automatiche alle segnalazioni: per indirizzo e in tutto, al giorno
+LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'licenze', 'logo-mail.png')      # il logo in testa a ogni mail
 PASSI_PAYPAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'licenze', 'paypal-passi.png')
 PREZZI = {'M': 5, 'A': 30, 'P': 150}
 MAX_RIGHE_PISTE = 20          # righe HORIZON-PISTA/CAMPI tenute per ogni mail (l'app ne manda una): vanno su un ramo pubblico
@@ -121,10 +122,7 @@ class Posta:
             r['References'] = una_riga((msg.get('References') or '') + ' ' + msg['Message-ID'])
         r.set_content(testo)
         if html:
-            r.add_alternative(html, subtype='html')
-            parte = r.get_payload()[-1]
-            for cid, percorso in (immagini or {}).items():      # immagini dentro la mail (cid:…): si vedono anche senza scaricare
-                parte.add_related(open(percorso, 'rb').read(), 'image', 'png', cid='<' + cid + '>', filename=os.path.basename(percorso))
+            metti_html(r, html, immagini)
         self.manda(r)
         return True
 
@@ -140,9 +138,25 @@ PASSO = ('<div style="background:#e8f4ff;border-left:5px solid #1a73e8;padding:1
          '<b>{}</b></div>')
 
 
+TESTATA = ('<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px"><tr>'
+           '<td style="padding:0 12px 0 0"><img src="cid:logo-horizon" width="56" height="56" alt="HORIZON" style="display:block;border-radius:12px"></td>'
+           '<td style="font:700 22px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:.06em;color:#111">HORIZON'
+           '<div style="font:400 13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:0;color:#666">strumento di volo</div></td></tr></table>')
+
+
+def metti_html(r, html, immagini=None):
+    """La parte HTML di una mail: sempre con la testata e il logo dentro (cid:, si vede anche senza scaricare immagini)."""
+    if 'cid:logo-horizon' not in html: html = html_di(html)
+    r.add_alternative(html, subtype='html')
+    parte = r.get_payload()[-1]
+    for cid, percorso in dict(immagini or {}, **{'logo-horizon': LOGO}).items():
+        try: parte.add_related(open(percorso, 'rb').read(), 'image', 'png', cid='<' + cid + '>', filename=os.path.basename(percorso))
+        except OSError: pass                              # senza il file la mail parte lo stesso
+
+
 def html_di(corpo):
     return ('<div style="font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#222;max-width:560px">'
-            + corpo + '<p style="color:#666;font-size:13px;margin-top:24px">HORIZON · strumento di volo</p></div>')
+            + TESTATA + corpo + '<p style="color:#666;font-size:13px;margin-top:24px">HORIZON · strumento di volo</p></div>')
 
 
 def testo_prezzi(tel, paypal):
@@ -293,7 +307,7 @@ def riepilogo(posta, registro, rev, seg_da_vedere=0, seg_recenti=()):
     if storico: testo += ['', 'Revoche e ripristini:'] + [f"{it(e['data'])} · licenza n. {e['numero']} · {'revocata' if e['azione'] == 'revoca' else 'ripristinata'}" for e in sorted(storico, key=lambda e: e['data'], reverse=True)]
     r.set_content((f'{seg_da_vedere} segnalazioni dei piloti da vedere (etichetta «Segnalazioni da vedere»).\n\n' if seg_da_vedere else '')
                   + (('Segnalazioni di ieri e di oggi:\n' + '\n'.join('  · ' + x for x in seg_recenti) + '\n\n') if seg_recenti else '') + f'{len(registro)} licenze · {sintesi}\n\n' + '\n'.join(testo) + '\n')
-    r.add_alternative(html_di(corpo), subtype='html')
+    metti_html(r, corpo)
     posta.manda(r)
 
 
@@ -445,7 +459,7 @@ def main():
         r['Auto-Submitted'] = 'auto-generated'; r[AUTO] = '1'
         if msg.get('Message-ID'): r['In-Reply-To'] = r['References'] = ' '.join(msg['Message-ID'].split())
         r.set_content(testo)
-        if html: r.add_alternative(html, subtype='html')
+        if html: metti_html(r, html)
         posta.manda(r)
     seg_oggi = lambda pref='': sum(1 for x, d in lim['seg'].items() if d == oggi_d.isoformat() and x.startswith(pref))
     righe_seg = []
