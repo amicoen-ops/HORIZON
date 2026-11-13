@@ -51,7 +51,8 @@ function daLavorare_() {
   // sveglia non partiva; il giro toglie M/A/P a tutte le mail, quindi non riparte a vuoto); già gestita no;
   // altrimenti solo se nessuno l'ha ancora presa (né Da gestire né Da vedere)
   const seg = GmailApp.search(SEGNALAZIONI, 0, 20).filter(t => !t.getLabels().some(l => /^Segnalazioni (analizzate|da vedere)$/.test(l.getName()))).length;
-  return seg + GmailApp.search(DA_LAVORARE, 0, 20).filter(t => {
+  const chiuse = GmailApp.search('label:chiusa', 0, 5).length;      // «Chiusa» messa da te: il giro la archivia in «Segnalazioni gestite»
+  return seg + chiuse + GmailApp.search(DA_LAVORARE, 0, 20).filter(t => {
     const nomi = t.getLabels().map(l => l.getName());
     if (nomi.some(n => n === 'M' || n === 'A' || n === 'P')) return true;
     if (nomi.includes('Gestite')) return false;
@@ -128,7 +129,7 @@ function calendario_() {
 
 // da lanciare una volta: crea le etichette e la sveglia ogni minuto, poi fa un primo giro
 function installa() {
-  ['M', 'A', 'P', 'Da gestire', 'Gestite', 'Da vedere', 'Archivio generale licenze'].forEach(n => GmailApp.getUserLabelByName(n) || GmailApp.createLabel(n));
+  ['M', 'A', 'P', 'Da gestire', 'Gestite', 'Da vedere', 'Archivio generale licenze', 'Chiusa', 'Segnalazioni gestite'].forEach(n => GmailApp.getUserLabelByName(n) || GmailApp.createLabel(n));
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('sveglia').timeBased().everyMinutes(1).create();
   const err = avviaGiro_(false), p = PropertiesService.getScriptProperties();

@@ -28,6 +28,8 @@ TIPI = {'M': 'mensile', 'A': 'annuale', 'P': 'perenne'}
 DA_GESTIRE, GESTITE, DA_VEDERE, INBOX = 'Da gestire', 'Gestite', 'Da vedere', '\\Inbox'
 ARCHIVIO = 'Archivio generale licenze'
 SEG_OK, SEG_VEDERE, SEG_SENZA = 'Segnalazioni analizzate', 'Segnalazioni da vedere', 'Senza indirizzo'
+SEG_GESTITE, CHIUSA = 'Segnalazioni gestite', 'Chiusa'      # «Chiusa» è un tasto: la mette l'autore quando non serve risposta
+AUTO = 'X-HORIZON-Auto'                  # intestazione delle mail mandate da questo programma (non dall'autore a mano)
 SEG_GIORNO_IND, SEG_GIORNO = 5, 40      # risposte automatiche alle segnalazioni: per indirizzo e in tutto, al giorno
 PASSI_PAYPAL = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'docs', 'licenze', 'paypal-passi.png')
 PREZZI = {'M': 5, 'A': 30, 'P': 150}
@@ -81,6 +83,18 @@ class Posta:
             if isinstance(x, tuple): return email.message_from_bytes(x[1])
         return None
 
+    def conversazione(self, uid):
+        """Tutte le mail della stessa conversazione di Gmail."""
+        typ, d = self.imap.uid('FETCH', uid, '(X-GM-THRID)')
+        m = re.search(rb'X-GM-THRID (\d+)', b' '.join(x if isinstance(x, bytes) else x[0] for x in d if x)) if typ == 'OK' else None
+        if not m: return []
+        typ, d = self.imap.uid('SEARCH', 'X-GM-THRID', m.group(1).decode())
+        return d[0].split() if typ == 'OK' and d and d[0] else []
+
+    def crea(self, nome):
+        try: self.imap.create('"' + nome + '"')
+        except Exception: pass
+
     def etichetta(self, uid, aggiungi=(), togli=()):
         q = lambda e: e if e.startswith('\\') or ' ' not in e else '"' + e + '"'
         if aggiungi: self.imap.uid('STORE', uid, '+X-GM-LABELS', '(' + ' '.join(q(e) for e in aggiungi) + ')')
@@ -97,6 +111,7 @@ class Posta:
         r['To'] = email.utils.formataddr((re.sub(r'[\r\n\t]+', ' ', dec(nome))[:80], indirizzo))
         ogg = re.sub(r'[\r\n\t]+', ' ', dec(msg.get('Subject')))[:200]      # mai a capo nell'intestazione
         r['Subject'] = ogg if ogg.lower().startswith('re:') else 'Re: ' + ogg
+        r['Auto-Submitted'] = 'auto-replied'; r[AUTO] = '1'      # risposta automatica: si distingue da quelle scritte a mano
         if msg.get('Message-ID'):
             # su una riga sola: un'intestazione arrivata su più righe (References lungo, tipico delle risposte) tiene
             # gli a capo, e EmailMessage li rifiuta: il codice non partiva e la mail finiva in «Da vedere»
@@ -407,7 +422,7 @@ def main():
         ultima = None
     seg_oggi = lambda pref='': sum(1 for x, d in lim['seg'].items() if d == oggi_d.isoformat() and x.startswith(pref))
     righe_seg = []
-    for uid in (posta.cerca('newer_than:3d -from:me -label:segnalazioni-analizzate -label:segnalazioni-da-vedere '
+    for uid in (posta.cerca('newer_than:3d -from:me -label:segnalazioni-analizzate -label:segnalazioni-da-vedere -label:segnalazioni-gestite -label:chiusa '
                             '{subject:(HORIZON Problema) subject:(HORIZON Registrazione sensori) subject:(HORIZON Suggerimento) subject:(HORIZON Dato sbagliato)}')
                 if ultima else []):
         try:
@@ -440,6 +455,7 @@ def main():
                 r = EmailMessage()
                 r['From'] = email.utils.formataddr(('HORIZON', posta.utente)); r['To'] = posta.utente
                 r['Subject'] = 'Re: ' + re.sub(r'[\r\n\t]+', ' ', ogg)[:180] + ' · HORIZON Analisi automatica'
+                r['Auto-Submitted'] = 'auto-generated'; r[AUTO] = '1'
                 if msg.get('Message-ID'): r['In-Reply-To'] = r['References'] = ' '.join(msg['Message-ID'].split())
                 nota = 'Il pilota non ha lasciato un indirizzo: questa analisi NON gli è arrivata. Resta qui come traccia.\n\n'
                 r.set_content(nota + t); r.add_alternative(html_di('<p><b>' + nota.strip() + '</b></p>' + h), subtype='html')
@@ -456,6 +472,34 @@ def main():
     if righe_seg and env.get('SEGNALAZIONI'):             # registro anonimo dei casi, sul ramo «licenze» (cartella segnalazioni/)
         os.makedirs(env['SEGNALAZIONI'], exist_ok=True)
         with open(os.path.join(env['SEGNALAZIONI'], 'nuove.txt'), 'a', encoding='utf-8') as f: f.write('\n'.join(righe_seg) + '\n')
+
+    # 2d. le «Segnalazioni da vedere» che l'autore ha chiuso: ha risposto a mano nella conversazione (dopo la mail del
+    # pilota, e non è una nostra risposta automatica) oppure ha messo l'etichetta «Chiusa». Passano in «Segnalazioni
+    # gestite», fuori dalla Posta in arrivo. Se il pilota riscrive, la mail nuova rientra dal passo 2c in «da vedere».
+    try:
+        posta.crea(CHIUSA); posta.crea(SEG_GESTITE)
+        from email.utils import parsedate_to_datetime
+        def quando(m):
+            try: return parsedate_to_datetime(m.get('Date')).timestamp()
+            except Exception: return 0
+        def a_mano(m):
+            if m is None or m.get(AUTO): return False
+            if email.utils.parseaddr(m.get('From'))[1].lower() != posta.utente.lower(): return False
+            t = testo_di(m).lstrip()
+            return not (t.startswith('Ciao, abbiamo ricevuto la tua segnalazione') or t.startswith('Il pilota non ha lasciato un indirizzo'))
+        chiuse = set(posta.cerca('label:chiusa'))
+        for uid in set(posta.cerca('label:segnalazioni-da-vedere -from:me')) | chiuse:
+            try:
+                if uid not in chiuse:
+                    msg = posta.leggi(uid)
+                    if msg is None: continue
+                    t0 = quando(msg)
+                    if not any(a_mano(m) and quando(m) > t0 for m in (posta.leggi(u) for u in posta.conversazione(uid) if u != uid)): continue
+                posta.etichetta(uid, aggiungi=[SEG_GESTITE], togli=[SEG_VEDERE, CHIUSA, INBOX]); conti['seg gestite'] = conti.get('seg gestite', 0) + 1
+            except Exception:
+                conti['errori'] = conti.get('errori', 0) + 1
+    except Exception:
+        conti['errori'] = conti.get('errori', 0) + 1
 
     if recupera_indirizzi(posta, registro, pub): json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)
     # 3. riepilogo: uno al giorno (al primo giro del giorno) o a richiesta; finisce in «Archivio generale licenze»
@@ -483,7 +527,7 @@ def main():
 
     riga = (f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"
             f" · limitate {conti.get('limitate', 0)} · righe piste/campi {conti.get('piste', 0)}"
-            f" · segnalazioni: risposte {conti.get('seg risposte', 0)}, senza indirizzo {conti.get('seg senza indirizzo', 0)}, da vedere {conti.get('seg da vedere', 0)}"
+            f" · segnalazioni: risposte {conti.get('seg risposte', 0)}, senza indirizzo {conti.get('seg senza indirizzo', 0)}, da vedere {conti.get('seg da vedere', 0)}, chiuse dall'autore {conti.get('seg gestite', 0)}"
             f" · errori {conti.get('errori', 0)}")
     print(riga)
     if env.get('RIEPILOGO'):
