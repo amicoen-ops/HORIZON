@@ -44,8 +44,14 @@ input{width:100%;font:inherit;color:var(--txt);background:#0f141c;border:1px sol
 .bar i{display:block;height:12px;border-radius:3px;background:var(--acc);min-width:2px}
 .bar b{font-variant-numeric:tabular-nums;min-width:2.2em;text-align:right}
 .gr{margin:14px 0 4px;font-weight:600}
-nav{display:flex;gap:8px;margin:0 0 12px}
-nav button{flex:1}
+nav{display:flex;gap:6px;margin:0 0 12px}
+nav button{flex:1;padding:9px 4px;min-width:0}
+details.g summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:8px}
+details.g summary::after{content:'+';color:var(--sub)}
+details.g[open] summary::after{content:'–'}
+.gt{margin-top:10px;font-size:14.5px} .gt p{margin:0 0 8px} .gt ul,.gt ol{margin:0 0 8px;padding-left:20px} .gt li{margin:0 0 5px}
+textarea{width:100%;font:inherit;color:var(--txt);background:#0f141c;border:1px solid var(--line);border-radius:10px;padding:10px}
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px} .seg button{min-height:38px;padding:6px 12px;font-size:14px} .seg button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
 nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
 .az{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
 .az button{min-height:38px;padding:6px 12px;font-size:14px}
@@ -75,7 +81,7 @@ nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
   <p style="margin:12px 0 0"><button id="bSalva" class="pri">Salva e aggiorna</button> <button id="bCanc">Cancella tutto</button></p>
 </section>
 
-<nav><button id="tStato" aria-pressed="true">Stato</button><button id="tAnalisi" aria-pressed="false">Analisi</button></nav>
+<nav><button id="tStato" aria-pressed="true">Stato</button><button id="tAnalisi" aria-pressed="false">Analisi</button><button id="tGuida" aria-pressed="false">Guida</button><button id="tNote" aria-pressed="false">Note</button></nav>
 <div id="pStato">
 <section class="card"><h2>Da fare</h2><div class="tiles" id="code"></div><div id="codeL"></div></section>
 <section class="card"><h2>Salute del sistema</h2><div id="salute"></div></section>
@@ -88,12 +94,15 @@ nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
 <section class="card"><h2>Chi ha mandato segnalazioni</h2><div id="aSeg"></div></section>
 <section class="card"><h2>Cosa manca qui</h2><p class="sub" style="margin:0">HORIZON non manda dati d'uso: per scelta, dall'app non esce niente che dica dove e quando vola un pilota. Quindi questi grafici contano solo ciò che esiste già: scarichi, licenze e segnalazioni. Il numero di telefoni attivi e i paesi, per chi installa da Google Play, li ha la Play Console; chi installa l'APK o usa la versione web non è contato da nessuna parte.</p></section>
 </div>
+<div id="pGuida" hidden></div>
+<div id="pNote" hidden></div>
 <p class="sub" id="piede"></p>
 <div class="velo" id="velo" hidden><section class="card"><h2 id="vT">Conferma</h2><p id="vD" style="margin:0 0 4px;overflow-wrap:anywhere"></p>
   <div id="vPinB"><label for="vPin">PIN della console</label><input id="vPin" type="password" inputmode="numeric" autocomplete="off"></div>
   <p class="sub" id="vE" style="color:var(--bad)"></p>
   <p style="margin:12px 0 0"><button id="vSi" class="pri">Conferma</button> <button id="vNo">Annulla</button></p></section></div>
 
+<script src="guida.js"></script>
 <script>
 'use strict';
 const REPO='amicoen-ops/HORIZON', API='https://api.github.com/repos/'+REPO, RAW='https://raw.githubusercontent.com/'+REPO+'/licenze/';
@@ -313,8 +322,10 @@ async function aggiorna(forza){
 addEventListener('error',e=>{ try{ $('avvisi').insertAdjacentHTML('beforeend',`<div class="msg bad">Errore nell'app: ${esc(e.message||'sconosciuto')}. Tocca Aggiorna; se resta, dillo a Claude.</div>`); }catch(x){} });
 addEventListener('unhandledrejection',e=>{ try{ $('avvisi').insertAdjacentHTML('beforeend',`<div class="msg bad">Errore nell'app: ${esc(e.reason&&e.reason.message||e.reason||'sconosciuto')}.</div>`); }catch(x){} });
 addEventListener('online',()=>aggiorna(true));
-const scheda=a=>{ $('pStato').hidden=a; $('pAnalisi').hidden=!a; $('tStato').setAttribute('aria-pressed',String(!a)); $('tAnalisi').setAttribute('aria-pressed',String(a)); };
-$('tStato').onclick=()=>scheda(false); $('tAnalisi').onclick=()=>scheda(true);
+const SCHEDE=['Stato','Analisi','Guida','Note'];
+const scheda=n=>{ SCHEDE.forEach(x=>{ $('p'+x).hidden=x!==n; $('t'+x).setAttribute('aria-pressed',String(x===n)); });
+  if(n==='Guida'&&window.HZ_GUIDA) HZ_GUIDA.disegnaGuida(); if(n==='Note'&&window.HZ_GUIDA) HZ_GUIDA.disegnaNote(); };
+SCHEDE.forEach(x=>{ $('t'+x).onclick=()=>scheda(x); });
 $('bAgg').onclick=()=>aggiorna(true);
 // indirizzo e chiave in due caselle (ma si accetta anche l'indirizzo intero con ?k= incollato nella prima)
 const componi=()=>{ // l'indirizzo intero finito per sbaglio nella casella della chiave: si sposta da solo nella prima
