@@ -7,13 +7,17 @@ name: Prepara i prati (Nord-Ovest)
 #    scrive v1/<chiave>.json e v1/indice.json; la zona (Nord-Ovest, prima prova) è la costante ZONA in cima allo script;
 #  · il ramo «prati-dati» non ha storia: ogni salvataggio è UN commit solo, spinto sopra il precedente. Si parte però dai
 #    file che ci sono già, così i riquadri non rifatti (o non riusciti) restano quelli di prima;
-#  · si salva ogni 40 riquadri: se la corsa si interrompe il lavoro fatto è già sul ramo, e la corsa dopo riprende dai
-#    riquadri che mancano e poi dai più vecchi (quelli preparati da meno di 6 giorni si saltano);
+#  · si salva ogni 20 riquadri: se la corsa si interrompe il lavoro fatto è già sul ramo, e la corsa dopo riprende dai
+#    riquadri che mancano (dal centro della zona verso i bordi) e poi dai più vecchi; quelli preparati da meno di 25
+#    giorni si saltano;
 #  · a mano («Run workflow») si può dare un limite di riquadri, per una prova breve.
 # Dati © contributori OpenStreetMap (ODbL). Repo pubblico: nei log solo le chiavi dei riquadri e i conteggi.
 on:
   schedule:
-    - cron: "17 1 * * 2"          # ogni martedì notte (su questo repo i cron partono con ore di ritardo: non importa)
+    # ogni 6 ore: un riquadro chiede in media 3-4 minuti a Overpass, quindi una corsa ne fa circa 90 e la zona intera
+    # (780) si riempie in 2-3 giorni. Poi le corse trovano poco o niente da fare e finiscono subito: ogni riquadro si
+    # rifà solo dopo 25 giorni (le mappe cambiano piano, e così non si pesa sui servizi pubblici)
+    - cron: "17 */6 * * *"
   workflow_dispatch:
     inputs:
       limite:
@@ -52,8 +56,10 @@ jobs:
           else
             echo "Il ramo prati-dati non c'è ancora: si parte da zero"
           fi
-      - name: Prepara e salva ogni 40 riquadri
+      - name: Prepara e salva ogni 20 riquadri
         env:
           LIMITE: ${{ github.event.inputs.limite }}
+          PRATI_OPZIONI: "--freschi 25"
+          PRATI_GRUPPO: "20"
         run: |
           bash tools/prati_pubblica.sh dati "$LIMITE"
