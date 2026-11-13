@@ -191,13 +191,17 @@ function doGet(e) {
     const rie = GmailApp.search('subject:(HORIZON Riepilogo licenze) from:me', 0, 1)[0];      // numeri delle licenze: la prima riga dell'ultimo riepilogo
     if (rie) { const m = rie.getMessages().pop(), riga = String(m.getPlainBody() || '').split('\n').map(x => x.trim()).filter(x => /^\d+ licenze/.test(x))[0];
       if (riga) data.licenze = { testo: riga.slice(0, 200), quando: m.getDate().toISOString() }; }
-    data.tasti = !!p.getProperty('CONSOLE_PIN') && +(p.getProperty('CONSOLE_PIN_SBAGLIATI') || 0) < MAX_PIN_SBAGLIATI;
+    const pinC = String(p.getProperty('CONSOLE_PIN') || '').trim();
+    data.senzaPin = pinC.toLowerCase() === 'no';      // scelta dell'autore: tasti con la sola chiave
+    data.tasti = data.senzaPin || (pinC.length >= 6 && +(p.getProperty('CONSOLE_PIN_SBAGLIATI') || 0) < MAX_PIN_SBAGLIATI);
     data.stato = { ultimoAvvio: p.getProperty('ULTIMO_AVVIO') ? new Date(+p.getProperty('ULTIMO_AVVIO')).toISOString() : null,
       sveglie: ScriptApp.getProjectTriggers().length, token: !!p.getProperty('GITHUB_TOKEN'), scadenzaToken: p.getProperty('SCADENZA_TOKEN') || null };
   }
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
 
+// Se nella proprietà CONSOLE_PIN scrivi «no», i tasti funzionano con la sola chiave, senza PIN: comodo, ma allora chi
+// ha il telefono sbloccato (o l'indirizzo con la chiave) può emettere licenze. Tieni segreta la chiave.
 // I tasti: servono la chiave (sul telefono) E il PIN (proprietà CONSOLE_PIN, almeno 6 cifre, che scrivi tu nelle
 // Impostazioni progetto e che l'app non salva). Dopo 5 PIN sbagliati i tasti si bloccano: per sbloccarli lancia
 // «consoleSblocca». Senza la proprietà CONSOLE_PIN i tasti restano spenti e la console è in sola lettura.
@@ -206,16 +210,16 @@ function consoleSblocca() { PropertiesService.getScriptProperties().deleteProper
 function doPost(e) {
   const p = PropertiesService.getScriptProperties(), out = x => ContentService.createTextOutput(JSON.stringify(x)).setMimeType(ContentService.MimeType.JSON);
   let d = {}; try { d = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (err) {}
-  const k = p.getProperty('CONSOLE_KEY'), pin = p.getProperty('CONSOLE_PIN') || '';
+  const k = p.getProperty('CONSOLE_KEY'), pin = String(p.getProperty('CONSOLE_PIN') || '').trim(), senzaPin = pin.toLowerCase() === 'no';
   if (!k || String(d.k || '') !== k) return out({ errore: 'chiave della console sbagliata' });
-  if (pin.length < 6) return out({ errore: 'i tasti sono spenti: manca la proprietà CONSOLE_PIN (almeno 6 cifre) nello script' });
+  if (!senzaPin && pin.length < 6) return out({ errore: 'i tasti sono spenti: nello script manca la proprietà CONSOLE_PIN (un PIN di almeno 6 cifre, oppure «no» per usarli senza PIN)' });
   const blocco = LockService.getScriptLock(); blocco.waitLock(10000);
-  try {
+  try { if (!senzaPin) {
     const sbagli = +(p.getProperty('CONSOLE_PIN_SBAGLIATI') || 0);
     if (sbagli >= MAX_PIN_SBAGLIATI) return out({ errore: 'tasti bloccati dopo troppi PIN sbagliati: lancia «consoleSblocca» nello script' });
     if (String(d.pin || '') !== pin) { p.setProperty('CONSOLE_PIN_SBAGLIATI', String(sbagli + 1)); return out({ errore: 'PIN sbagliato (' + (MAX_PIN_SBAGLIATI - sbagli - 1) + ' tentativi rimasti)', pin: false }); }
     if (sbagli) p.deleteProperty('CONSOLE_PIN_SBAGLIATI');
-  } finally { blocco.releaseLock(); }
+  } } finally { blocco.releaseLock(); }
   if (d.azione === 'prova') return out({ ok: true });
   if (d.azione === 'riepilogo' || d.azione === 'giro') {
     const err = avviaGiro_(d.azione === 'riepilogo');

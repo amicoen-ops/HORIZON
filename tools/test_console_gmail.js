@@ -34,6 +34,12 @@ vero('riepilogo avvia il giro giusto', post({ k: K, pin: '246810', azione: 'riep
 for (let i = 0; i < 5; i++) post({ k: K, pin: '111111', azione: 'M', id: 'T1' });
 vero('dopo 5 PIN sbagliati: bloccati anche col PIN giusto', /bloccati/.test(post({ k: K, pin: '246810', azione: 'chiusa', id: 'T2' }).errore) && ctx.doGet({ parameter: { k: K } }).tasti === false);
 ctx.consoleSblocca(); vero('sblocco', post({ k: K, pin: '246810', azione: 'prova' }).ok);
+// scelta dell'autore: CONSOLE_PIN = «no» → tasti con la sola chiave
+prop.CONSOLE_PIN = 'No'; etichette.T5 = ['Segnalazioni da vedere'];
+vero('senza PIN: tasti accesi e dichiarati', ctx.doGet({ parameter: { k: K } }).tasti === true && ctx.doGet({ parameter: { k: K } }).senzaPin === true);
+vero('senza PIN: il tasto passa con la sola chiave', post({ k: K, azione: 'chiusa', id: 'T5' }).ok && etichette.T5.includes('Chiusa'));
+vero('senza PIN: la chiave sbagliata resta rifiutata', /chiave/.test(post({ k: 'x', azione: 'chiusa', id: 'T5' }).errore));
+prop.CONSOLE_PIN = '246810';
 // la sveglia non deve ripartire per una segnalazione già chiusa dall'autore («Segnalazioni gestite»)
 etichette.G1 = ['Segnalazioni gestite']; etichette.N1 = [];
 ctx.GmailApp.search = q => q.includes('Registrazione sensori') ? [thread('G1')] : [];
