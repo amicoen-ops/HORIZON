@@ -28,6 +28,7 @@ TIPI = {'M': 'mensile', 'A': 'annuale', 'P': 'perenne'}
 DA_GESTIRE, GESTITE, DA_VEDERE, INBOX = 'Da gestire', 'Gestite', 'Da vedere', '\\Inbox'
 ARCHIVIO = 'Archivio generale licenze'
 SEG_OK, SEG_VEDERE, SEG_SENZA = 'Segnalazioni analizzate', 'Segnalazioni da vedere', 'Senza indirizzo'
+SBAGLIATA = 'Risposta sbagliata'         # altro tasto: la risposta automatica non c'entrava, la mail torna all'autore
 SEG_GESTITE, CHIUSA = 'Segnalazioni gestite', 'Chiusa'      # «Chiusa» è un tasto: la mette l'autore quando non serve risposta
 AUTO = 'X-HORIZON-Auto'                  # intestazione delle mail mandate da questo programma (non dall'autore a mano)
 SEG_GIORNO_IND, SEG_GIORNO = 5, 40      # risposte automatiche alle segnalazioni: per indirizzo e in tutto, al giorno
@@ -251,7 +252,7 @@ def stato_di(r, revocate, oggi, quando=None):
     return 'attiva', '#2e7d32'
 
 
-def riepilogo(posta, registro, rev, seg_da_vedere=0):
+def riepilogo(posta, registro, rev, seg_da_vedere=0, seg_recenti=()):
     """Mail all'autore (alla casella di HORIZON) con la tabella di tutte le licenze."""
     import datetime, html as H
     oggi = datetime.date.today()
@@ -273,6 +274,10 @@ def riepilogo(posta, registro, rev, seg_da_vedere=0):
     td = 'style="padding:6px 8px;border-bottom:1px solid #ddd;text-align:left"'
     avviso = (f'<p style="background:#fff6d6;border:1px solid #e0a800;border-radius:8px;padding:8px 12px"><b>{seg_da_vedere} segnalazioni dei piloti da vedere</b>: '
               'sono in Posta in arrivo con l\'etichetta «Segnalazioni da vedere». Le altre hanno già avuto risposta automatica («Segnalazioni analizzate»).</p>') if seg_da_vedere else ''
+    if seg_recenti:
+        import html as H2
+        avviso += ('<p style="margin-top:14px"><b>Segnalazioni di ieri e di oggi</b> (cosa ha fatto l\'agente; se una risposta non c\'entrava, metti alla mail l\'etichetta «Risposta sbagliata»):</p>'
+                   '<ul style="font-size:14px">' + ''.join('<li>' + H2.escape(x) + '</li>' for x in seg_recenti) + '</ul>')
     corpo = (avviso + f'<p><b>{len(registro)} licenze</b> · {sintesi}</p>'
              f'<table style="border-collapse:collapse;font-size:14px"><tr style="background:#f0f3f7">'
              + ''.join(f'<th {td}>{h}</th>' for h in ('N.', 'Tipo', 'Pilota', 'Telefono', 'Emessa', 'Scade', 'Stato')) + '</tr>'
@@ -286,7 +291,8 @@ def riepilogo(posta, registro, rev, seg_da_vedere=0):
     r['From'] = email.utils.formataddr(('HORIZON', posta.utente)); r['To'] = posta.utente
     r['Subject'] = f'HORIZON · Riepilogo licenze · {oggi.strftime("%d/%m/%Y")}'
     if storico: testo += ['', 'Revoche e ripristini:'] + [f"{it(e['data'])} · licenza n. {e['numero']} · {'revocata' if e['azione'] == 'revoca' else 'ripristinata'}" for e in sorted(storico, key=lambda e: e['data'], reverse=True)]
-    r.set_content((f'{seg_da_vedere} segnalazioni dei piloti da vedere (etichetta «Segnalazioni da vedere»).\n\n' if seg_da_vedere else '') + f'{len(registro)} licenze · {sintesi}\n\n' + '\n'.join(testo) + '\n')
+    r.set_content((f'{seg_da_vedere} segnalazioni dei piloti da vedere (etichetta «Segnalazioni da vedere»).\n\n' if seg_da_vedere else '')
+                  + (('Segnalazioni di ieri e di oggi:\n' + '\n'.join('  · ' + x for x in seg_recenti) + '\n\n') if seg_recenti else '') + f'{len(registro)} licenze · {sintesi}\n\n' + '\n'.join(testo) + '\n')
     r.add_alternative(html_di(corpo), subtype='html')
     posta.manda(r)
 
@@ -420,9 +426,30 @@ def main():
         ultima = segnalazioni.ultima_versione(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'www', 'index.html'), encoding='utf-8').read())
     except Exception:
         ultima = None
+    def leggi_caso(msg):
+        campi = segnalazioni.campi(testo_di(msg))
+        if not campi.get('Segnalazione'):
+            pagina = ''
+            for parte in msg.walk():
+                if parte.get_content_type() == 'text/html':
+                    try: pagina += parte.get_payload(decode=True).decode(parte.get_content_charset() or 'utf-8', 'replace')
+                    except Exception: pass
+            campi = segnalazioni.campi(segnalazioni.testo_da_html(pagina))
+        caso = segnalazioni.Caso(campi, ultima)
+        esito = segnalazioni.analizza(caso) if campi.get('Segnalazione') else {'riconosciuto': False, 'motivo': 'mail non letta', 'codici': [], 'sezioni': []}
+        return campi, caso, esito
+    def nota_a_noi(msg, coda, testo, html=None):         # una nota dell'agente dentro la conversazione, solo per l'autore
+        r = EmailMessage()
+        r['From'] = email.utils.formataddr(('HORIZON', posta.utente)); r['To'] = posta.utente
+        r['Subject'] = 'Re: ' + re.sub(r'[\r\n\t]+', ' ', dec(msg.get('Subject')))[:180] + ' · HORIZON ' + coda
+        r['Auto-Submitted'] = 'auto-generated'; r[AUTO] = '1'
+        if msg.get('Message-ID'): r['In-Reply-To'] = r['References'] = ' '.join(msg['Message-ID'].split())
+        r.set_content(testo)
+        if html: r.add_alternative(html, subtype='html')
+        posta.manda(r)
     seg_oggi = lambda pref='': sum(1 for x, d in lim['seg'].items() if d == oggi_d.isoformat() and x.startswith(pref))
     righe_seg = []
-    for uid in (posta.cerca('newer_than:3d -from:me -label:segnalazioni-analizzate -label:segnalazioni-da-vedere -label:segnalazioni-gestite -label:chiusa '
+    for uid in (posta.cerca('newer_than:3d -from:me -label:segnalazioni-analizzate -label:segnalazioni-da-vedere -label:segnalazioni-gestite -label:chiusa -label:risposta-sbagliata '
                             '{subject:(HORIZON Problema) subject:(HORIZON Registrazione sensori) subject:(HORIZON Suggerimento) subject:(HORIZON Dato sbagliato)}')
                 if ultima else []):
         try:
@@ -432,16 +459,7 @@ def main():
             if 'licenza' in ogg.lower(): continue          # le richieste di licenza hanno il loro giro
             if msg.get('In-Reply-To') or re.match(r'\s*(re|r|aw|sv|fwd?|i)\s*:', ogg, re.I):     # il pilota ha risposto: la legge l'autore
                 posta.etichetta(uid, aggiungi=[SEG_VEDERE]); conti['seg da vedere'] = conti.get('seg da vedere', 0) + 1; continue
-            campi = segnalazioni.campi(testo_di(msg))
-            if not campi.get('Segnalazione'):
-                pagina = ''
-                for parte in msg.walk():
-                    if parte.get_content_type() == 'text/html':
-                        try: pagina += parte.get_payload(decode=True).decode(parte.get_content_charset() or 'utf-8', 'replace')
-                        except Exception: pass
-                campi = segnalazioni.campi(segnalazioni.testo_da_html(pagina))
-            caso = segnalazioni.Caso(campi, ultima)
-            esito = segnalazioni.analizza(caso) if campi.get('Segnalazione') else {'riconosciuto': False, 'motivo': 'mail non letta', 'codici': [], 'sezioni': []}
+            campi, caso, esito = leggi_caso(msg)
             ind = indirizzo_di(msg)
             ha_ind = bool(ind) and ind != posta.utente.lower() and 'web3forms' not in ind and 'noreply' not in ind
             troppe = ha_ind and (seg_oggi(impronta(ind) + ':') >= SEG_GIORNO_IND or seg_oggi() >= SEG_GIORNO)
@@ -452,32 +470,40 @@ def main():
                 segna(); posta.etichetta(uid, aggiungi=[SEG_OK], togli=[INBOX]); conti['seg risposte'] = conti.get('seg risposte', 0) + 1
             elif esito['riconosciuto'] and not ha_ind:    # niente indirizzo: l'analisi resta scritta nella conversazione
                 t, h = segnalazioni.risposta(caso, esito)
-                r = EmailMessage()
-                r['From'] = email.utils.formataddr(('HORIZON', posta.utente)); r['To'] = posta.utente
-                r['Subject'] = 'Re: ' + re.sub(r'[\r\n\t]+', ' ', ogg)[:180] + ' · HORIZON Analisi automatica'
-                r['Auto-Submitted'] = 'auto-generated'; r[AUTO] = '1'
-                if msg.get('Message-ID'): r['In-Reply-To'] = r['References'] = ' '.join(msg['Message-ID'].split())
                 nota = 'Il pilota non ha lasciato un indirizzo: questa analisi NON gli è arrivata. Resta qui come traccia.\n\n'
-                r.set_content(nota + t); r.add_alternative(html_di('<p><b>' + nota.strip() + '</b></p>' + h), subtype='html')
-                posta.manda(r)
+                nota_a_noi(msg, 'Analisi automatica', nota + t, html_di('<p><b>' + nota.strip() + '</b></p>' + h))
                 posta.etichetta(uid, aggiungi=[SEG_OK, SEG_SENZA], togli=[INBOX]); conti['seg senza indirizzo'] = conti.get('seg senza indirizzo', 0) + 1
             else:                                         # non riconosciuta, difetto, troppe in un giorno: la guarda l'autore
-                if ha_ind and not troppe and posta.rispondi(msg, *segnalazioni.ricevuta(caso)): segna()
+                mandata = bool(ha_ind and not troppe and posta.rispondi(msg, *segnalazioni.ricevuta(caso)))
+                if mandata: segna()
+                if campi.get('Segnalazione'):
+                    try: nota_a_noi(msg, 'Scheda', segnalazioni.scheda(caso, esito, mandata))
+                    except Exception: conti['errori'] = conti.get('errori', 0) + 1
                 posta.etichetta(uid, aggiungi=[SEG_VEDERE]); conti['seg da vedere'] = conti.get('seg da vedere', 0) + 1
             if campi.get('Segnalazione'): righe_seg.append(segnalazioni.riga_anonima(caso, esito, oggi_d.isoformat()))
         except Exception:
             conti['errori'] = conti.get('errori', 0) + 1
             try: posta.etichetta(uid, aggiungi=[SEG_VEDERE, INBOX])
             except Exception: pass
-    if righe_seg and env.get('SEGNALAZIONI'):             # registro anonimo dei casi, sul ramo «licenze» (cartella segnalazioni/)
-        os.makedirs(env['SEGNALAZIONI'], exist_ok=True)
-        with open(os.path.join(env['SEGNALAZIONI'], 'nuove.txt'), 'a', encoding='utf-8') as f: f.write('\n'.join(righe_seg) + '\n')
 
     # 2d. le «Segnalazioni da vedere» che l'autore ha chiuso: ha risposto a mano nella conversazione (dopo la mail del
     # pilota, e non è una nostra risposta automatica) oppure ha messo l'etichetta «Chiusa». Passano in «Segnalazioni
     # gestite», fuori dalla Posta in arrivo. Se il pilota riscrive, la mail nuova rientra dal passo 2c in «da vedere».
     try:
-        posta.crea(CHIUSA); posta.crea(SEG_GESTITE)
+        posta.crea(CHIUSA); posta.crea(SEG_GESTITE); posta.crea(SBAGLIATA)
+        # «Risposta sbagliata» messa dall'autore su una risposta automatica: la mail del pilota torna da vedere, in arrivo,
+        # e nel registro anonimo resta scritto quale regola ha sbagliato (così si sa quale correggere)
+        for uid in posta.cerca('label:risposta-sbagliata'):
+            try:
+                msg = posta.leggi(uid)
+                if msg is not None and email.utils.parseaddr(msg.get('From'))[1].lower() != posta.utente.lower():
+                    campi, caso, esito = leggi_caso(msg)
+                    if campi.get('Segnalazione'):
+                        righe_seg.append(segnalazioni.riga_anonima(caso, dict(esito, riconosciuto=False, motivo='RISPOSTA SBAGLIATA'), oggi_d.isoformat()))
+                    posta.etichetta(uid, aggiungi=[SEG_VEDERE, INBOX], togli=[SEG_OK, SBAGLIATA])
+                else: posta.etichetta(uid, togli=[SBAGLIATA])     # messa sulla nostra risposta: vale quella sulla mail del pilota
+                conti['seg sbagliate'] = conti.get('seg sbagliate', 0) + 1
+            except Exception: conti['errori'] = conti.get('errori', 0) + 1
         from email.utils import parsedate_to_datetime
         def quando(m):
             try: return parsedate_to_datetime(m.get('Date')).timestamp()
@@ -496,10 +522,17 @@ def main():
                     t0 = quando(msg)
                     if not any(a_mano(m) and quando(m) > t0 for m in (posta.leggi(u) for u in posta.conversazione(uid) if u != uid)): continue
                 posta.etichetta(uid, aggiungi=[SEG_GESTITE], togli=[SEG_VEDERE, CHIUSA, INBOX]); conti['seg gestite'] = conti.get('seg gestite', 0) + 1
+                for u in posta.conversazione(uid):       # anche le note dell'agente (scheda) escono dalla Posta in arrivo
+                    m = posta.leggi(u) if u != uid else None
+                    if m is not None and m.get(AUTO): posta.etichetta(u, togli=[INBOX])
             except Exception:
                 conti['errori'] = conti.get('errori', 0) + 1
     except Exception:
         conti['errori'] = conti.get('errori', 0) + 1
+
+    if righe_seg and env.get('SEGNALAZIONI'):             # registro anonimo dei casi, sul ramo «licenze» (cartella segnalazioni/)
+        os.makedirs(env['SEGNALAZIONI'], exist_ok=True)
+        with open(os.path.join(env['SEGNALAZIONI'], 'nuove.txt'), 'a', encoding='utf-8') as f: f.write('\n'.join(righe_seg) + '\n')
 
     if recupera_indirizzi(posta, registro, pub): json.dump(registro, open(env['REGISTRO'], 'w'), indent=1)
     # 3. riepilogo: uno al giorno (al primo giro del giorno) o a richiesta; finisce in «Archivio generale licenze»
@@ -512,7 +545,14 @@ def main():
         rev = json.load(open(env['REVOCATE'])) if env.get('REVOCATE') and os.path.exists(env['REVOCATE']) else {}
         try: da_vedere = len(posta.cerca('label:segnalazioni-da-vedere in:inbox'))
         except Exception: da_vedere = 0
-        riepilogo(posta, registro, rev, da_vedere); conti['riepilogo'] = 1
+        recenti = []
+        try:                                              # dal registro anonimo sul ramo «licenze»: le righe di ieri e di oggi
+            giorni = (oggi, (datetime.date.today() - datetime.timedelta(days=1)).isoformat())
+            for f in sorted(os.listdir(env.get('SEG_REGISTRO') or '/nonesiste'))[-2:]:
+                recenti += [x.strip() for x in open(os.path.join(env['SEG_REGISTRO'], f), encoding='utf-8') if x[:10] in giorni]
+            recenti = (recenti + [x for x in righe_seg if x[:10] in giorni])[-40:]
+        except Exception: pass
+        riepilogo(posta, registro, rev, da_vedere, recenti); conti['riepilogo'] = 1
         if fu: open(fu, 'w').write(oggi + '\n')
     # in archivio: anche quello appena mandato, che Gmail consegna dopo qualche secondo (si aspetta al massimo 1 minuto)
     import time
@@ -527,7 +567,7 @@ def main():
 
     riga = (f"prezzi mandati {conti['prezzi']} · codici mandati {conti['codici']} · da vedere {conti['da vedere']} · saltate {conti['saltate']}"
             f" · limitate {conti.get('limitate', 0)} · righe piste/campi {conti.get('piste', 0)}"
-            f" · segnalazioni: risposte {conti.get('seg risposte', 0)}, senza indirizzo {conti.get('seg senza indirizzo', 0)}, da vedere {conti.get('seg da vedere', 0)}, chiuse dall'autore {conti.get('seg gestite', 0)}"
+            f" · segnalazioni: risposte {conti.get('seg risposte', 0)}, senza indirizzo {conti.get('seg senza indirizzo', 0)}, da vedere {conti.get('seg da vedere', 0)}, chiuse dall'autore {conti.get('seg gestite', 0)}, risposte sbagliate {conti.get('seg sbagliate', 0)}"
             f" · errori {conti.get('errori', 0)}")
     print(riga)
     if env.get('RIEPILOGO'):

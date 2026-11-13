@@ -10,6 +10,10 @@
     - Caso noto: parte la risposta con le istruzioni e la mail va in **«Segnalazioni analizzate»**. Se il pilota non ha lasciato l'indirizzo, l'analisi resta scritta nella conversazione, con **«Senza indirizzo»**.
     - Tutto il resto (casi nuovi, difetti, suggerimenti, dati sbagliati, risposte dei piloti): resta in Posta in arrivo con **«Segnalazioni da vedere»**. Al pilota arriva solo la ricevuta. **Sono le uniche da guardare a mano.**
     - **Come chiudi quelle da vedere**: rispondi al pilota dalla casella (controlla che il destinatario sia il suo indirizzo e non web3forms), oppure, se non serve risposta, metti l'etichetta **«Chiusa»**. Al giro successivo la mail passa da sola in **«Segnalazioni gestite»**, fuori dalla Posta in arrivo. Se il pilota riscrive, la sua mail torna in arrivo con «Segnalazioni da vedere».
+    - In ogni segnalazione da vedere trovi la **scheda dell'agente**: perché è rimasta a te, cosa c'è di anomalo nei dati tecnici, gli ultimi errori.
+    - Se una risposta automatica non c'entrava, metti alla mail del pilota l'etichetta **«Risposta sbagliata»**: torna tra quelle da vedere e nel registro resta scritto quale regola ha sbagliato.
+    - Il riepilogo del mattino elenca le segnalazioni di ieri e di oggi con la regola scattata.
+    - Tutto funziona con regole fisse, senza intelligenza artificiale e senza mandare i dati dei piloti a servizi esterni.
     - Le regole stanno in `tools/segnalazioni.py`; per insegnarne una nuova si aggiunge lì il caso (e la prova in `tools/test_segnalazioni.py`).
 - **Ogni mattina dalle 7** parte il riepilogo, che va in «Archivio generale licenze».
 - **Nel Calendar di horizonlicenses** mette i promemoria delle scadenze:
