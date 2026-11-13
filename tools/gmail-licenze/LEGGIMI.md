@@ -54,9 +54,9 @@
 - **stato:** quante mail ci sono da lavorare, l'ultimo avvio, la sveglia e se il token c'è.
 - **riepilogoOra:** il riepilogo delle licenze subito.
 
-## Console HorizonAdmin (sola lettura)
+## Console HorizonAdmin
 
-L'app **HorizonAdmin** (APK a parte, nelle Release del progetto con il nome `admin-…`) mostra in una schermata le code della posta, la salute dei lavori automatici, cosa ha fatto l'agente delle segnalazioni e le ultime versioni. Non cambia niente: per agire si usano ancora le etichette di Gmail.
+L'app **HorizonAdmin** (APK a parte, nelle Release del progetto con il nome `admin-…`) mostra in una schermata le code della posta, la salute dei lavori automatici, cosa ha fatto l'agente delle segnalazioni e le ultime versioni. Con il PIN ha anche i **tasti**: Mensile / Annuale / Perenne sulle licenze, Chiusa sulle segnalazioni da vedere, Risposta sbagliata su quelle analizzate, avvio del giro e riepilogo subito. I tasti mettono le stesse etichette che metteresti tu in Gmail: il lavoro lo fa sempre il giro su GitHub, in 1–2 minuti.
 
 Per farle leggere le code della posta, una volta sola:
 
@@ -65,5 +65,9 @@ Per farle leggere le code della posta, una volta sola:
 3. Copia l'**URL dell'applicazione web**, aggiungi in fondo `?k=` e la chiave, e incolla tutto in HorizonAdmin › **⚙**.
 
 «Chiunque» serve perché l'app non entra con Google: senza la chiave l'indirizzo risponde solo «chiave sbagliata». Con la chiave si leggono oggetto e data delle mail in coda, mai gli indirizzi. Se il telefono va perso: cancella la proprietà `CONSOLE_KEY` nelle Impostazioni progetto e rilancia **consoleChiave**.
+
+**Per accendere i tasti**: Impostazioni progetto › Aggiungi proprietà dello script › `CONSOLE_PIN` = un numero di almeno 6 cifre che sai solo tu. L'app lo chiede a ogni uso e non lo salva. Dopo 5 PIN sbagliati i tasti si bloccano: per sbloccarli lancia la funzione **consoleSblocca**. Senza `CONSOLE_PIN` la console resta in sola lettura.
+
+Perché due cose: la chiave sta sul telefono, il PIN solo nella tua testa. Chi trovasse il telefono sbloccato vedrebbe le code ma non potrebbe emettere licenze.
 
 Ogni volta che reincolli lo script con modifiche alla console: **Esegui il deployment** › **Gestisci deployment** › matita › *Versione*: **Nuova versione** › **Esegui il deployment** (l'indirizzo resta lo stesso).

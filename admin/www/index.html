@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title>HorizonAdmin</title>
 <!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
-     HorizonAdmin: console dell'autore, SOLA LETTURA. Non contiene chiavi né indirizzi: l'indirizzo della console di Gmail
+     HorizonAdmin: console dell'autore. Legge, e con il PIN preme i «tasti» (etichette di Gmail e avvio dei giri). Non contiene chiavi né indirizzi: l'indirizzo della console di Gmail
      (con la sua chiave) e l'eventuale token GitHub si scrivono nell'app e restano solo su questo telefono. -->
 <style>
 :root{--bg:#0b0f15;--card:#141a23;--line:#263142;--txt:#e8edf4;--sub:#93a1b5;--ok:#35c066;--warn:#f0b429;--bad:#ff5a5a;--acc:#38d6ff}
@@ -46,17 +46,22 @@ input{width:100%;font:inherit;color:var(--txt);background:#0f141c;border:1px sol
 nav{display:flex;gap:8px;margin:0 0 12px}
 nav button{flex:1}
 nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
+.az{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 2px}
+.az button{min-height:38px;padding:6px 12px;font-size:14px}
+.velo{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:18px;z-index:9}
+.velo .card{width:100%;max-width:420px;margin:0}
+.fatto{color:var(--ok);font-size:13px}
 [hidden]{display:none!important}
 </style>
 </head>
 <body>
 <header><h1>HorizonAdmin</h1><button id="bAgg" class="pri">Aggiorna</button><button id="bImp" aria-label="Impostazioni">⚙</button></header>
-<p class="sub" id="quando">Sola lettura · mai aggiornato</p>
+<p class="sub" id="quando">Mai aggiornato</p>
 <div id="avvisi"></div>
 
 <section class="card" id="cImp" hidden>
   <h2>Impostazioni</h2>
-  <p class="sub">Restano solo su questo telefono. La console è in sola lettura: non può cambiare niente.</p>
+  <p class="sub">Restano solo su questo telefono. Il PIN dei tasti non viene mai salvato: lo chiede a ogni uso e lo dimentica dopo 10 minuti.</p>
   <label for="iCons">Indirizzo della console di Gmail (lo dà lo script, funzione «console»)</label>
   <input id="iCons" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec?k=…">
   <label for="iTok">Token GitHub (facoltativo: senza, GitHub risponde a 60 domande l'ora)</label>
@@ -78,6 +83,10 @@ nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
 <section class="card"><h2>Cosa manca qui</h2><p class="sub" style="margin:0">HORIZON non manda dati d'uso: per scelta, dall'app non esce niente che dica dove e quando vola un pilota. Quindi questi grafici contano solo ciò che esiste già: scarichi, licenze e segnalazioni. Il numero di telefoni attivi e i paesi, per chi installa da Google Play, li ha la Play Console; chi installa l'APK o usa la versione web non è contato da nessuna parte.</p></section>
 </div>
 <p class="sub" id="piede"></p>
+<div class="velo" id="velo" hidden><section class="card"><h2 id="vT">Conferma</h2><p id="vD" style="margin:0 0 4px;overflow-wrap:anywhere"></p>
+  <div id="vPinB"><label for="vPin">PIN della console</label><input id="vPin" type="password" inputmode="numeric" autocomplete="off"></div>
+  <p class="sub" id="vE" style="color:var(--bad)"></p>
+  <p style="margin:12px 0 0"><button id="vSi" class="pri">Conferma</button> <button id="vNo">Annulla</button></p></section></div>
 
 <script>
 'use strict';
@@ -181,8 +190,15 @@ async function code(){
     const d=await r.json(); if(d.errore) throw new Error(d.errore);
     const c=d.code||[];
     t.innerHTML=c.map(q=>`<div class="tile ${q.info?'':q.n?(q.urgente?'bad':'warn'):'ok'}"><b>${+q.n||0}</b><span>${esc(q.nome)}</span></div>`).join('');
+    TASTI=!!d.tasti; VOCI={};
+    const az=(q,v)=>{ if(!TASTI||!v.id) return ''; VOCI[v.id]=v.oggetto; const b=(a,t)=>`<button data-az="${a}" data-id="${esc(v.id)}">${t}</button>`;
+      const fatto=FATTI[v.id]; if(fatto) return `<div class="fatto">${esc(fatto)}</div>`;
+      return q.tipo==='licenza'?`<div class="az">${b('M','Mensile')}${b('A','Annuale')}${b('P','Perenne')}</div>`:q.tipo==='segnalazione'?`<div class="az">${b('chiusa','Chiusa')}</div>`
+        :q.tipo==='analizzata'?`<div class="az">${b('sbagliata','Risposta sbagliata')}</div>`:''; };
     l.innerHTML=c.filter(q=>q.voci&&q.voci.length).map(q=>`<p class="sub" style="margin:12px 0 2px">${esc(q.nome)}</p>`+q.voci.map(v=>
-      `<div class="row"><a class="t" href="${esc(solohttps(v.link))}" target="_blank" rel="noopener">${esc(v.oggetto)}</a><small>${esc(v.quando?giorno(v.quando):'')}</small></div>`).join('')).join('');
+      `<div class="row"><div class="t"><a href="${esc(solohttps(v.link))}" target="_blank" rel="noopener">${esc(v.oggetto)}</a>${az(q,v)}</div><small>${esc(v.quando?giorno(v.quando):'')}</small></div>`).join('')).join('')
+      +(TASTI?'<div class="az" style="margin-top:14px"><button data-az="giro">Avvia il giro della posta</button><button data-az="riepilogo">Riepilogo subito</button></div>'
+             :'<p class="sub" style="margin-top:12px">Tasti spenti: per accenderli scrivi nello script la proprietà CONSOLE_PIN (almeno 6 cifre).</p>');
     const s=d.stato||{};
     $('aLic').innerHTML=d.licenze?`<p style="margin:0">${esc(d.licenze.testo)}</p><p class="sub">Dal riepilogo del ${esc(d.licenze.quando?giorno(d.licenze.quando):'?')}. L'elenco completo è nella mail «Riepilogo licenze».</p>`:'<p class="sub">Nessun riepilogo delle licenze trovato nella casella.</p>';
     if(s.token===false) avvisa('Nello script di Gmail manca il token GitHub: la sveglia non può far partire i lavori.',true);
@@ -192,11 +208,29 @@ async function code(){
   }catch(e){ t.innerHTML=''; l.innerHTML=`<p class="sub">Code non lette: ${esc(e.message)}.</p>`; }
 }
 
+// ---- tasti: mettono un'etichetta in Gmail o avviano un giro; servono chiave (salvata) e PIN (mai salvato) ----
+let TASTI=false, VOCI={}, FATTI={}, PIN='', PIN_T=0, ATTESA=null;
+const NOMI={M:'Licenza MENSILE (5 €)',A:'Licenza ANNUALE (30 €)',P:'Licenza PERENNE (150 €)',chiusa:'Chiudi la segnalazione',sbagliata:'Segna la risposta automatica come sbagliata',giro:'Avvia il giro della posta',riepilogo:'Manda subito il riepilogo'};
+const DOPO={M:'Mensile: il codice parte tra 1–2 minuti',A:'Annuale: il codice parte tra 1–2 minuti',P:'Perenne: il codice parte tra 1–2 minuti',chiusa:'Chiusa: viene archiviata al prossimo giro',sbagliata:'Segnata: torna tra quelle da vedere al prossimo giro'};
+function chiedi(az,id){ ATTESA={az,id}; const lic='MAP'.includes(az)&&az.length===1; $('vT').textContent=NOMI[az]||az;
+  $('vD').textContent=(id?VOCI[id]||'':'')+(lic?' — Hai già visto il pagamento su PayPal? Il codice viene creato e mandato al pilota.':'');
+  const serve=!(PIN&&Date.now()-PIN_T<600000); $('vPinB').hidden=!serve; $('vPin').value=''; $('vE').textContent=''; $('velo').hidden=false; if(serve) $('vPin').focus(); }
+async function premi(){ const a=ATTESA; if(!a) return; const u=ls.get('adm_cons'), i=u.indexOf('?k=');
+  const pin=$('vPinB').hidden?PIN:$('vPin').value.trim(); if(pin.length<6){ $('vE').textContent='Il PIN ha almeno 6 cifre.'; return; }
+  $('vSi').disabled=true; $('vE').textContent='';
+  try{ const r=await fetch(u.slice(0,i),{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k:u.slice(i+3),pin,azione:a.az,id:a.id||''})});
+    if(!r.ok) throw new Error('la console ha risposto '+r.status); const d=await r.json();
+    if(d.errore){ if(d.pin===false){ PIN=''; $('vPinB').hidden=false; } throw new Error(d.errore); }
+    PIN=pin; PIN_T=Date.now(); if(a.id) FATTI[a.id]=DOPO[a.az]||'Fatto'; $('velo').hidden=true; ATTESA=null; aggiorna();
+  }catch(e){ $('vE').textContent=e.message; } finally{ $('vSi').disabled=false; } }
+$('vSi').onclick=premi; $('vNo').onclick=()=>{ $('velo').hidden=true; ATTESA=null; };
+$('codeL').addEventListener('click',e=>{ const b=e.target.closest('button[data-az]'); if(b) chiedi(b.dataset.az,b.dataset.id||''); });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden){ PIN=''; } });
 let inCorso=false;
 async function aggiorna(){
   if(inCorso) return; inCorso=true; $('bAgg').disabled=true; avvisi=[]; $('avvisi').innerHTML='';
   await Promise.all([code(),salute(),segnalazioni(),versioni()].map(p=>p.catch(()=>{})));
-  $('avvisi').innerHTML=avvisi.join(''); $('quando').textContent='Sola lettura · aggiornato alle '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+  $('avvisi').innerHTML=avvisi.join(''); $('quando').textContent='Aggiornato alle '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
   inCorso=false; $('bAgg').disabled=false;
 }
 const scheda=a=>{ $('pStato').hidden=a; $('pAnalisi').hidden=!a; $('tStato').setAttribute('aria-pressed',String(!a)); $('tAnalisi').setAttribute('aria-pressed',String(a)); };
