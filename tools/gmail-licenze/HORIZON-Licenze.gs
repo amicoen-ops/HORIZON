@@ -30,7 +30,7 @@ const REPO = 'amicoen-ops/HORIZON', WORKFLOW = 'licenze-posta.yml';
 const DA_LAVORARE = '(subject:(HORIZON licenza) newer_than:30d -from:me -label:da-gestire -label:gestite -label:da-vedere -label:m -label:a -label:p)'
   + ' OR label:m OR label:a OR label:p';
 // segnalazioni dei piloti arrivate dall'app e non ancora analizzate (il giro risponde da solo ai casi noti)
-const SEGNALAZIONI = 'newer_than:3d -from:me -label:segnalazioni-analizzate -label:segnalazioni-da-vedere '
+const SEGNALAZIONI = 'newer_than:3d -from:me -label:segnalazioni-analizzate -label:segnalazioni-da-vedere -label:segnalazioni-gestite '
   + '{subject:(HORIZON Problema) subject:(HORIZON Registrazione sensori) subject:(HORIZON Suggerimento) subject:(HORIZON Dato sbagliato)}';
 const PAUSA_MS = 4 * 60 * 1000;          // dopo un avvio si aspetta che GitHub finisca prima di riavviarlo
 
@@ -50,7 +50,7 @@ function daLavorare_() {
   // a livello di conversazione: con M/A/P sì, anche se è già gestita (un rinnovo nella stessa conversazione: prima la
   // sveglia non partiva; il giro toglie M/A/P a tutte le mail, quindi non riparte a vuoto); già gestita no;
   // altrimenti solo se nessuno l'ha ancora presa (né Da gestire né Da vedere)
-  const seg = GmailApp.search(SEGNALAZIONI, 0, 20).filter(t => !t.getLabels().some(l => /^Segnalazioni (analizzate|da vedere)$/.test(l.getName()))).length;
+  const seg = GmailApp.search(SEGNALAZIONI, 0, 20).filter(t => !t.getLabels().some(l => /^Segnalazioni (analizzate|da vedere|gestite)$/.test(l.getName()))).length;      // «gestite» comprese: senza, una segnalazione chiusa da te faceva ripartire il giro ogni 4 minuti per 3 giorni
   const chiuse = GmailApp.search('label:chiusa OR label:risposta-sbagliata', 0, 5).length;      // «Chiusa» messa da te: il giro la archivia in «Segnalazioni gestite»
   return seg + chiuse + GmailApp.search(DA_LAVORARE, 0, 20).filter(t => {
     const nomi = t.getLabels().map(l => l.getName());
