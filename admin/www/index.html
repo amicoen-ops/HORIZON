@@ -295,9 +295,12 @@ const scheda=a=>{ $('pStato').hidden=a; $('pAnalisi').hidden=!a; $('tStato').set
 $('tStato').onclick=()=>scheda(false); $('tAnalisi').onclick=()=>scheda(true);
 $('bAgg').onclick=()=>aggiorna(true);
 // indirizzo e chiave in due caselle (ma si accetta anche l'indirizzo intero con ?k= incollato nella prima)
-const componi=()=>{ let u=$('iCons').value.trim().replace(/\s+/g,'').replace(/\/macros\/u\/\d+\/s\//,'/macros/s/'), k=$('iKey').value.trim().replace(/^\?k=/,'');
+const componi=()=>{ // l'indirizzo intero finito per sbaglio nella casella della chiave: si sposta da solo nella prima
+  if(/script\.google\.com\/macros\//.test($('iKey').value)&&!$('iCons').value.trim()){ $('iCons').value=$('iKey').value.trim(); $('iKey').value=''; }
+  let u=$('iCons').value.trim().replace(/\s+/g,'').replace(/\/macros\/u\/\d+\/s\//,'/macros/s/'), k=$('iKey').value.trim().replace(/^\?k=/,'');
   const i=u.indexOf('?'); if(i>=0){ const m=u.slice(i).match(/[?&]k=([\w-]+)/); if(m&&!k) k=m[1]; u=u.slice(0,i); }
   u=u.replace(/\/(dev|exec)\/?$/,'/exec'); if(u&&!/\/exec$/.test(u)) u=u.replace(/\/+$/,'')+'/exec';
+  if(u&&k){ $('iCons').value=u; $('iKey').value=k; }                 // le caselle mostrano com'è stato capito
   return u&&k?u+'?k='+k:''; };
 $('bImp').onclick=()=>{ const c=$('cImp'); c.hidden=!c.hidden; if(!c.hidden){ const u=ls.get('adm_cons'), i=u.indexOf('?k='); $('iCons').value=i>0?u.slice(0,i):u; $('iKey').value=i>0?u.slice(i+3):''; $('iTok').value=ls.get('adm_tok'); $('provaE').textContent=''; } };
 $('bIncolla').onclick=async()=>{ const e=$('provaE'); e.style.color='';
@@ -311,7 +314,7 @@ $('bProva').onclick=async()=>{ const e=$('provaE'), u=componi(); e.style.color='
   e.textContent='Provo…'; $('bProva').disabled=true;
   try{ const d=await leggiConsole(u); e.style.color='var(--ok)'; e.textContent='Funziona: '+(d.code||[]).length+' code lette, tasti '+(d.tasti?(d.senzaPin?'accesi senza PIN':'accesi'):'spenti (manca CONSOLE_PIN o sono bloccati)')+'. Ora tocca «Salva e aggiorna».'; }
   catch(x){ e.style.color='var(--bad)'; e.textContent='Non funziona: '+x.message+'.'; } finally{ $('bProva').disabled=false; } };
-$('bSalva').onclick=()=>{ const u=componi(); if(!u&&($('iCons').value.trim()||$('iKey').value.trim())){ $('provaE').style.color='var(--bad)'; $('provaE').textContent='Servono tutti e due: URL dell\'applicazione web e chiave.'; return; }
+$('bSalva').onclick=()=>{ const u=componi(); if(!u&&($('iCons').value.trim()||$('iKey').value.trim())){ $('provaE').style.color='var(--bad)'; $('provaE').textContent='Manca '+($('iCons').value.trim()?'la chiave (seconda casella)':'l\'URL dell\'applicazione web (prima casella)')+'.'; return; }
   ls.set('adm_cons',u); ls.set('adm_tok',$('iTok').value.trim()); $('cImp').hidden=true; aggiorna(true); };
 $('bCanc').onclick=()=>{ ls.set('adm_cons',''); ls.set('adm_tok',''); cache.via(); $('iCons').value=$('iKey').value=$('iTok').value=''; aggiorna(true); };
 // tornando sull'app si riaggiorna da sola, ma non più di una volta ogni 2 minuti
