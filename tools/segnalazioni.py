@@ -302,13 +302,13 @@ def _fmt(sezioni, saluto, chiusa):
 def risposta(c, esito):
     """Testo e HTML della risposta al pilota per un caso riconosciuto."""
     return _fmt(esito['sezioni'], f"Ciao, abbiamo ricevuto la tua segnalazione dalla versione {v_txt(c.ver)} e l'abbiamo analizzata in automatico dai dati tecnici allegati.",
-                ["Questa risposta è preparata in automatico. Se non risolve, rispondi a questa mail: la legge l'autore.", AVVISO, 'Buoni voli!'])
+                ["Questa risposta è preparata in automatico. Se non risolve, rispondi a questa mail: la legge il nostro team.", AVVISO, 'Buoni voli!'])
 
 
 def ricevuta(c):
     """Testo e HTML per i casi che guarda l'autore: solo «ricevuta», nessun consiglio."""
     return _fmt([], "Ciao, abbiamo ricevuto la tua segnalazione" + (f" dalla versione {v_txt(c.ver)}" if c.ver else '') + ". Grazie!",
-                ["La guarda l'autore di persona e ti risponde a questo indirizzo.", AVVISO])
+                ["Il nostro team è al lavoro per darti la risposta: ti scriviamo a questo indirizzo.", AVVISO])
 
 
 def riga_anonima(c, esito, giorno):
