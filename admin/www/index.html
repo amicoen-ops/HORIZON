@@ -62,7 +62,7 @@ nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
 <section class="card" id="cImp" hidden>
   <h2>Impostazioni</h2>
   <p class="sub">Restano solo su questo telefono. Il PIN dei tasti non viene mai salvato: lo chiede a ogni uso e lo dimentica dopo 10 minuti.</p>
-  <label for="iCons">Indirizzo della console di Gmail (lo dà lo script, funzione «console»)</label>
+  <label for="iCons">Indirizzo della console di Gmail: l'URL dell'applicazione web dello script, con in fondo ?k= e la chiave</label>
   <input id="iCons" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec?k=…">
   <label for="iTok">Token GitHub (facoltativo: senza, GitHub risponde a 60 domande l'ora)</label>
   <input id="iTok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -184,7 +184,7 @@ function analisiSeg(casi){
 async function code(){
   const t=$('code'), l=$('codeL'), u=ls.get('adm_cons'); l.innerHTML='';
   if(!u){ t.innerHTML=''; l.innerHTML='<p class="sub">Per vedere le code della posta scrivi nelle impostazioni (⚙) l\'indirizzo della console di Gmail.</p>'; return; }
-  if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ t.innerHTML=''; l.innerHTML='<p class="sub">L\'indirizzo della console non ha la forma giusta: ricopialo dallo script.</p>'; return; }
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ t.innerHTML=''; l.innerHTML='<p class="sub">L\'indirizzo della console non ha la forma giusta. Deve essere: https://script.google.com/macros/s/…/exec?k=… — '+(/\?k=/.test(u)?'':'manca ?k= con la chiave in fondo. ')+(/\/exec/.test(u)?'':'manca /exec. ')+(/…|\.\.\./.test(u)?'ci sono dei puntini: serve l\'identificativo vero, copiato da «Gestisci deployment».':'')+'</p>'; return; }
   t.innerHTML='<p class="sub">Carico…</p>';
   try{ const r=await fetch(u,{cache:'no-store',redirect:'follow'}); if(!r.ok) throw new Error('la console ha risposto '+r.status);
     const d=await r.json(); if(d.errore) throw new Error(d.errore);
@@ -237,7 +237,8 @@ const scheda=a=>{ $('pStato').hidden=a; $('pAnalisi').hidden=!a; $('tStato').set
 $('tStato').onclick=()=>scheda(false); $('tAnalisi').onclick=()=>scheda(true);
 $('bAgg').onclick=aggiorna;
 $('bImp').onclick=()=>{ const c=$('cImp'); c.hidden=!c.hidden; if(!c.hidden){ $('iCons').value=ls.get('adm_cons'); $('iTok').value=ls.get('adm_tok'); } };
-$('bSalva').onclick=()=>{ ls.set('adm_cons',$('iCons').value.trim()); ls.set('adm_tok',$('iTok').value.trim()); $('cImp').hidden=true; aggiorna(); };
+// si accetta anche l'indirizzo copiato con più account Google aperti (…/macros/u/1/s/…): quel pezzo si toglie da soli
+$('bSalva').onclick=()=>{ ls.set('adm_cons',$('iCons').value.trim().replace(/\s+/g,'').replace(/\/macros\/u\/\d+\/s\//,'/macros/s/')); ls.set('adm_tok',$('iTok').value.trim()); $('cImp').hidden=true; aggiorna(); };
 $('bCanc').onclick=()=>{ ls.set('adm_cons',''); ls.set('adm_tok',''); $('iCons').value=$('iTok').value=''; aggiorna(); };
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) aggiorna(); });
 aggiorna();
