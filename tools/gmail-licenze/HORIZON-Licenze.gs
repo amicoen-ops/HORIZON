@@ -181,6 +181,9 @@ function doGet(e) {
         oggetto: String(x.getFirstMessageSubject() || '(senza oggetto)').slice(0, 140), quando: x.getLastMessageDate().toISOString(),
         link: 'https://mail.google.com/mail/?authuser=' + posta + '#all/' + x.getId() })) };
     });
+    const rie = GmailApp.search('subject:(HORIZON Riepilogo licenze) from:me', 0, 1)[0];      // numeri delle licenze: la prima riga dell'ultimo riepilogo
+    if (rie) { const m = rie.getMessages().pop(), riga = String(m.getPlainBody() || '').split('\n').map(x => x.trim()).filter(x => /^\d+ licenze/.test(x))[0];
+      if (riga) data.licenze = { testo: riga.slice(0, 200), quando: m.getDate().toISOString() }; }
     data.stato = { ultimoAvvio: p.getProperty('ULTIMO_AVVIO') ? new Date(+p.getProperty('ULTIMO_AVVIO')).toISOString() : null,
       sveglie: ScriptApp.getProjectTriggers().length, token: !!p.getProperty('GITHUB_TOKEN'), scadenzaToken: p.getProperty('SCADENZA_TOKEN') || null };
   }
