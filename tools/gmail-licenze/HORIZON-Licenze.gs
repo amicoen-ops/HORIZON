@@ -176,6 +176,26 @@ function consoleChiave() {
     + '\nPer cambiarla: cancella la proprietà CONSOLE_KEY nelle Impostazioni progetto e rilancia questa funzione.');
 }
 
+// Collegamento senza scrivere niente: manda alla casella di HORIZON una mail con l'indirizzo completo della console, già
+// composto (URL dell'applicazione web + chiave). Sul telefono: apri quella mail, tieni premuto sull'indirizzo, «Copia»,
+// poi in HorizonAdmin tocca «Collega». Va lanciata DOPO aver fatto il deployment come applicazione web.
+function consoleCollega() {
+  const p = PropertiesService.getScriptProperties();
+  if (!p.getProperty('CONSOLE_KEY')) consoleChiave();
+  const k = p.getProperty('CONSOLE_KEY'), url = ScriptApp.getService().getUrl();
+  if (!url || !/\/exec$/.test(url)) {
+    console.log('Non trovo l\'URL dell\'applicazione web' + (url ? ' (Google mi dà quello di prova, che finisce con /dev)' : '') + '. Fai prima: Esegui il deployment › Nuovo deployment › '
+      + 'Applicazione web › Esegui come: Me › Chi ha accesso: Chiunque. Se l\'hai già fatto, copia l\'URL da «Gestisci deployment» e in HorizonAdmin metti quello nella prima casella e questa chiave nella seconda:  ' + k);
+    return;
+  }
+  const indirizzo = url.replace(/\/macros\/u\/\d+\/s\//, '/macros/s/') + '?k=' + k, io = Session.getEffectiveUser().getEmail();
+  GmailApp.sendEmail(io, 'HorizonAdmin · indirizzo per collegare la console',
+    'Copia la riga qui sotto (tienila premuta › Copia), poi apri HorizonAdmin e tocca «Collega».\n\n' + indirizzo
+    + '\n\nNon inoltrare questa mail: con questo indirizzo si leggono le code della posta' + (String(p.getProperty('CONSOLE_PIN') || '').toLowerCase() === 'no' ? ' e si premono i tasti.' : '.')
+    + '\nDopo aver collegato l\'app puoi cancellarla.');
+  console.log('Mandata a ' + io + ' la mail «HorizonAdmin · indirizzo per collegare la console». Aprila dal telefono.');
+}
+
 function doGet(e) {
   const p = PropertiesService.getScriptProperties(), k = p.getProperty('CONSOLE_KEY'), data = {};
   const dato = (e && e.parameter && e.parameter.k) || '';

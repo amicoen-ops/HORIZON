@@ -228,7 +228,7 @@ function analisiSeg(casi){
 // code di lavoro: le dà lo script in Gmail (funzione doGet), con la chiave nell'indirizzo
 async function code(){
   const t=$('code'), l=$('codeL'), u=ls.get('adm_cons'); l.innerHTML='';
-  if(!u){ t.innerHTML=''; l.innerHTML='<p class="sub">Per vedere le code della posta scrivi nelle impostazioni (⚙) l\'indirizzo della console di Gmail.</p>'; return; }
+  if(!u){ t.innerHTML=''; l.innerHTML='<p class="sub">Per vedere le code della posta: nello script di Gmail lancia la funzione «consoleCollega», apri sul telefono la mail che ti arriva, copia l\'indirizzo e tocca qui.</p><p><button class="pri" id="bCollega">Collega</button></p><p class="sub" id="collegaE"></p>'; $('bCollega').onclick=collega; return; }
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ t.innerHTML=''; l.innerHTML='<p class="sub">L\'indirizzo della console non ha la forma giusta. Deve essere: https://script.google.com/macros/s/…/exec?k=… — '+(/\?k=/.test(u)?'':'manca ?k= con la chiave in fondo. ')+(/\/exec/.test(u)?'':'manca /exec. ')+(/…|\.\.\./.test(u)?'ci sono dei puntini: serve l\'identificativo vero, copiato da «Gestisci deployment». ':'')+'Apri ⚙, tocca «Cancella tutto» e incolla di nuovo URL e chiave: ora la casella della chiave mostra quello che c\'è dentro.</p>'; return; }
   t.innerHTML='<p class="sub">Carico…</p>';
   let d=null, nota='';
@@ -275,6 +275,13 @@ async function premi(){ const a=ATTESA; if(!a) return; const u=ls.get('adm_cons'
 $('vSi').onclick=premi; $('vNo').onclick=()=>{ $('velo').hidden=true; ATTESA=null; };
 $('codeL').addEventListener('click',e=>{ const b=e.target.closest('button[data-az]'); if(b) chiedi(b.dataset.az,b.dataset.id||''); });
 document.addEventListener('visibilitychange',()=>{ if(document.hidden){ PIN=''; } });
+// un tocco: prende l'indirizzo dagli appunti, lo prova e, se risponde, lo salva
+async function collega(){ const e=$('collegaE'); e.style.color=''; e.textContent='Leggo gli appunti…';
+  let t=''; try{ t=(await navigator.clipboard.readText()).trim(); }catch(x){ e.style.color='var(--bad)'; e.textContent='Non riesco a leggere gli appunti: apri ⚙ e incolla l\'indirizzo nella prima casella.'; return; }
+  const m=t.match(/https:\/\/script\.google\.com\/macros\/(?:u\/\d+\/)?s\/[\w-]+\/exec\?k=[\w-]{16,}/);
+  if(!m){ e.style.color='var(--bad)'; e.textContent='Negli appunti non c\'è l\'indirizzo della console. Copialo dalla mail «HorizonAdmin · indirizzo per collegare la console» e riprova.'; return; }
+  const u=m[0].replace(/\/macros\/u\/\d+\/s\//,'/macros/s/'); e.textContent='Provo il collegamento…';
+  try{ await leggiConsole(u); ls.set('adm_cons',u); aggiorna(true); }catch(x){ e.style.color='var(--bad)'; e.textContent='Non funziona: '+x.message+'.'; } }
 let inCorso=false, FORZA=false, ULTIMO=0;
 const MIA=+((document.querySelector('meta[name="horizonadmin-versione"]')||{}).content||'').split('.').pop()||0;
 function nuovaVersione(){ if(!MIA||!RILASCI) return; const r=RILASCI.find(x=>x.tag_name.startsWith('admin-')); const n=r?+r.tag_name.slice(6):0;
