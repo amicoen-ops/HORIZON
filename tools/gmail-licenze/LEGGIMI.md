@@ -53,3 +53,17 @@
 
 - **stato:** quante mail ci sono da lavorare, l'ultimo avvio, la sveglia e se il token c'è.
 - **riepilogoOra:** il riepilogo delle licenze subito.
+
+## Console HorizonAdmin (sola lettura)
+
+L'app **HorizonAdmin** (APK a parte, nelle Release del progetto con il nome `admin-…`) mostra in una schermata le code della posta, la salute dei lavori automatici, cosa ha fatto l'agente delle segnalazioni e le ultime versioni. Non cambia niente: per agire si usano ancora le etichette di Gmail.
+
+Per farle leggere le code della posta, una volta sola:
+
+1. Nello script scegli la funzione **consoleChiave** e tocca **Esegui**: nel registro compare `?k=…` (la chiave).
+2. In alto a destra **Esegui il deployment** › **Nuovo deployment** › tipo **Applicazione web** › *Esegui come*: **Me** › *Chi ha accesso*: **Chiunque** › **Esegui il deployment**.
+3. Copia l'**URL dell'applicazione web**, aggiungi in fondo `?k=` e la chiave, e incolla tutto in HorizonAdmin › **⚙**.
+
+«Chiunque» serve perché l'app non entra con Google: senza la chiave l'indirizzo risponde solo «chiave sbagliata». Con la chiave si leggono oggetto e data delle mail in coda, mai gli indirizzi. Se il telefono va perso: cancella la proprietà `CONSOLE_KEY` nelle Impostazioni progetto e rilancia **consoleChiave**.
+
+Ogni volta che reincolli lo script con modifiche alla console: **Esegui il deployment** › **Gestisci deployment** › matita › *Versione*: **Nuova versione** › **Esegui il deployment** (l'indirizzo resta lo stesso).

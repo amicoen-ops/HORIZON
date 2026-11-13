@@ -145,3 +145,44 @@ function stato() {
   console.log('Da lavorare: ' + daLavorare_() + ' · ultimo avvio: ' + (p.getProperty('ULTIMO_AVVIO') ? new Date(+p.getProperty('ULTIMO_AVVIO')) : 'mai')
     + ' · sveglie attive: ' + ScriptApp.getProjectTriggers().length + ' · token: ' + (p.getProperty('GITHUB_TOKEN') ? 'presente' : 'MANCA'));
 }
+
+// ---------- console (app HorizonAdmin): SOLA LETTURA ----------
+// L'app chiede a questo indirizzo le code di lavoro. Non cambia niente nella casella. Risponde solo a chi ha la chiave
+// (proprietà CONSOLE_KEY, creata dalla funzione «consoleChiave»); negli elenchi ci sono oggetto e data, mai indirizzi.
+// Attivazione, una volta: lancia «consoleChiave» › poi in alto a destra Esegui il deployment › Nuovo deployment › tipo
+// «Applicazione web» › Esegui come: Me › Chi ha accesso: Chiunque › Esegui il deployment › copia l'URL dell'applicazione web,
+// aggiungi in fondo ?k= e la chiave scritta nel registro, e incolla tutto in HorizonAdmin › ⚙.
+const CODE_CONSOLE = [
+  ['Licenze: il pilota ha scritto', 'label:da-gestire in:inbox', true, true],
+  ['Licenze da vedere', 'label:da-vedere in:inbox', true, true],
+  ['Segnalazioni da vedere', 'label:segnalazioni-da-vedere in:inbox', true, true],
+  ['Licenze in attesa di pagamento', 'label:da-gestire -in:inbox newer_than:30d', false, true],
+  ['Risposte automatiche, 7 giorni', 'label:segnalazioni-analizzate newer_than:7d', false, false],
+  ['Segnalazioni chiuse da te, 7 giorni', 'label:segnalazioni-gestite newer_than:7d', false, false]
+];
+
+function consoleChiave() {
+  const p = PropertiesService.getScriptProperties();
+  let k = p.getProperty('CONSOLE_KEY');
+  if (!k) { k = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ''); p.setProperty('CONSOLE_KEY', k); }
+  console.log('Chiave della console (da aggiungere in fondo all\'URL dell\'applicazione web):  ?k=' + k
+    + '\nPer cambiarla: cancella la proprietà CONSOLE_KEY nelle Impostazioni progetto e rilancia questa funzione.');
+}
+
+function doGet(e) {
+  const p = PropertiesService.getScriptProperties(), k = p.getProperty('CONSOLE_KEY'), data = {};
+  const dato = (e && e.parameter && e.parameter.k) || '';
+  if (!k || dato.length !== k.length || dato !== k) data.errore = 'chiave della console sbagliata';
+  else {
+    const posta = encodeURIComponent(Session.getEffectiveUser().getEmail());
+    data.code = CODE_CONSOLE.map(c => {
+      const t = GmailApp.search(c[1], 0, 50);
+      return { nome: c[0], n: t.length, urgente: c[2], info: !c[3], voci: !c[3] ? [] : t.slice(0, 10).map(x => ({
+        oggetto: String(x.getFirstMessageSubject() || '(senza oggetto)').slice(0, 140), quando: x.getLastMessageDate().toISOString(),
+        link: 'https://mail.google.com/mail/?authuser=' + posta + '#all/' + x.getId() })) };
+    });
+    data.stato = { ultimoAvvio: p.getProperty('ULTIMO_AVVIO') ? new Date(+p.getProperty('ULTIMO_AVVIO')).toISOString() : null,
+      sveglie: ScriptApp.getProjectTriggers().length, token: !!p.getProperty('GITHUB_TOKEN'), scadenzaToken: p.getProperty('SCADENZA_TOKEN') || null };
+  }
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
