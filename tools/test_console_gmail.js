@@ -46,4 +46,10 @@ ctx.GmailApp.search = q => q.includes('Registrazione sensori') ? [thread('G1')] 
 vero('segnalazione gestita: niente da lavorare', vm.runInContext('daLavorare_()', ctx) === 0 && /-label:segnalazioni-gestite/.test(vm.runInContext('SEGNALAZIONI', ctx)));
 ctx.GmailApp.search = q => q.includes('Registrazione sensori') ? [thread('N1')] : [];
 vero('segnalazione nuova: da lavorare', vm.runInContext('daLavorare_()', ctx) === 1);
+// consoleCollega: manda a sé stessa l'indirizzo completo; senza deployment (o con l'URL di prova) non manda niente
+const mandate = []; ctx.GmailApp.sendEmail = (a, o, t) => mandate.push({ a, o, t });
+ctx.ScriptApp.getService = () => ({ getUrl: () => 'https://script.google.com/macros/s/AKfycb_dev/dev' }); ctx.consoleCollega();
+vero('collega: con l\'URL di prova non manda niente', mandate.length === 0);
+ctx.ScriptApp.getService = () => ({ getUrl: () => 'https://script.google.com/macros/u/1/s/AKfycb_ok-1/exec' }); ctx.consoleCollega();
+vero('collega: mail a sé stessa con l\'indirizzo completo e pulito', mandate.length === 1 && mandate[0].a === 'h@gmail.com' && mandate[0].t.includes('https://script.google.com/macros/s/AKfycb_ok-1/exec?k=' + K));
 console.log('Tutte le ' + n + ' prove della console di Gmail passano.');
