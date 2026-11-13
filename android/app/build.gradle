@@ -3,12 +3,14 @@ apply plugin: 'com.android.application'
 // HORIZON 2 (prova): ./gradlew -Ph2 … compila un'app a parte (it.amicoen.horizon2) con il collegamento all'orologio Garmin.
 // Senza -Ph2 la compilazione è quella di sempre (APK, Play Store): niente codice né librerie Garmin.
 def H2 = project.hasProperty('h2')
+// HorizonAdmin: ./gradlew -Padmin … compila la console dell'autore (it.amicoen.horizonadmin), con le pagine di admin/www.
+def ADMIN = project.hasProperty('admin')
 
 android {
     namespace = "it.amicoen.horizon"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId H2 ? "it.amicoen.horizon2" : "it.amicoen.horizon"
+        applicationId ADMIN ? "it.amicoen.horizonadmin" : (H2 ? "it.amicoen.horizon2" : "it.amicoen.horizon")
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode = Integer.parseInt(System.getenv("VERSION_CODE") ?: "1")

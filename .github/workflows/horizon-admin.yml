@@ -1,0 +1,79 @@
+name: Compila HorizonAdmin
+
+# HorizonAdmin: console dell'autore, SOLA LETTURA (pagine in admin/www). App a parte (it.amicoen.horizonadmin), non va sul
+# Play Store e non arriva ai piloti: su main pubblica una Release «HorizonAdmin …» (pre-release) con l'APK.
+# Dentro non ci sono chiavi: l'indirizzo della console di Gmail e l'eventuale token si scrivono nell'app.
+on:
+  push:
+    branches: [main]
+    paths: ['admin/**', '.github/workflows/horizon-admin.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Dipendenze
+        run: npm ci --no-audit --no-fund
+
+      - name: Nome dell'app
+        run: |
+          sed -i 's#<string name="app_name">HORIZON</string>#<string name="app_name">HorizonAdmin</string>#' android/app/src/main/res/values/strings.xml
+          sed -i 's#<string name="title_activity_main">HORIZON</string>#<string name="title_activity_main">HorizonAdmin</string>#' android/app/src/main/res/values/strings.xml
+
+      # stesso guscio Android di HORIZON, ma dentro ci vanno solo le pagine della console
+      - name: Pagine della console dentro l'app
+        run: |
+          npx cap sync android
+          rm -rf android/app/src/main/assets/public
+          mkdir -p android/app/src/main/assets/public
+          cp -r admin/www/. android/app/src/main/assets/public/
+          sed -i "s#</title>#</title><meta name=\"horizonadmin-versione\" content=\"1.0.${{ github.run_number }}\">#" android/app/src/main/assets/public/index.html
+
+      - name: Chiave di firma
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in keystore/strumento.keystore.enc -out keystore/strumento.keystore -pass env:KEYSTORE_PASSWORD
+
+      - name: Compila e firma HorizonAdmin
+        working-directory: android
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          set -o pipefail
+          ./gradlew assembleRelease -Padmin --no-daemon 2>&1 | tee ../build-admin.log
+          cp app/build/outputs/apk/release/app-release.apk ../HorizonAdmin-1.0.${{ github.run_number }}.apk
+
+      - name: Errori di compilazione
+        if: failure()
+        run: |
+          grep -n -E "error:|ERROR|What went wrong|e: " build-admin.log | head -60 || true
+
+      - name: Release HorizonAdmin
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: admin-${{ github.run_number }}
+          name: HorizonAdmin ${{ github.run_number }}
+          prerelease: true
+          body: |
+            Console dell'autore, in sola lettura. Non è sul Play Store e non è per i piloti.
+            Scarica e installa HorizonAdmin-….apk, poi apri ⚙ e incolla l'indirizzo della console di Gmail.
+          files: HorizonAdmin-*.apk
