@@ -144,7 +144,7 @@ def regola_versione(c):
 LIVELLA = ["Aereo fermo, in piano, telefono già fissato nel supporto nella posizione in cui lo userai in volo.",
            "Premi il tastino LIVELLA (bordo giallo e nero, vicino alla riga GPS · ASSETTO · TERRENO).",
            "Compare la domanda «LIVELLA A TERRA? … ASSETTO 11°»: tocca SÌ entro 15 secondi, altrimenti viene ignorata. Nelle versioni "
-           "fino alla 1.0.176 la domanda non si può toccare: si conferma premendo il tasto grande OK sotto lo strumento, oppure si usa "
+           "fino alla 1.0.177 la domanda non si può toccare: si conferma premendo il tasto grande OK sotto lo strumento, oppure si usa "
            "Impostazioni › «Livella a terra», che non chiede conferma.",
            "Deve comparire la scritta «LIVELLATO». Attenzione: da quel momento A TERRA l'orizzonte NON segna zero ma l'assetto vero "
            "dell'aereo fermo (per esempio 11° a cabrare). È giusto così: segna zero in volo livellato."]
