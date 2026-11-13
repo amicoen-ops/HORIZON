@@ -90,6 +90,10 @@ vero('bussola', caso(msg='la bussola segna sbagliato', bus='152° vera · in uso
 vero('terreno', caso(msg='non vedo il terreno', dem='non ancora scaricato')[1]['codici'] == ['terreno'])
 vero('gps', caso(msg='la posizione salta', gps='±85 m · 4 satelliti usati su 12 · adesso')[1]['codici'] == ['gps'])
 vero('sensori lenti', caso(msg='orizzonte a scatti', sens='12 Hz · assi αβγ · schermo 0°')[1]['codici'] == ['sensori-lenti'])
+# 10b. versione web sul computer: i sensori mancano sempre; se il pilota parla d'altro la mail va all'autore
+c, e = caso(msg='non riesco a salvare la rotta', ver='HORIZON 13.11.2026 · web / iPhone', v='13.11.2026', sens='nessun dato')
+vero('web senza sensori, domanda su altro: autore', not e['riconosciuto'])
+vero('web senza sensori, domanda sull\'orizzonte: riconosciuta', caso(msg="l'orizzonte non si muove", ver='HORIZON 13.11.2026 · web / iPhone', v='13.11.2026', sens='nessun dato')[1]['codici'] == ['sensori-assenti'])
 # 11. senza dati tecnici: autore
 c = S.Caso(S.campi('Segnalazione\nProblema\nMessaggio\nla bussola non va\nVersione\nHORIZON 1.0.174 · Google Play\nDati tecnici\nnon allegati'), ULTIMA)
 vero('senza dati: autore', not S.analizza(c)['riconosciuto'])
