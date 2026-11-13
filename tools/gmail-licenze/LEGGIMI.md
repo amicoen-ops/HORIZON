@@ -6,6 +6,10 @@
   - Richiesta nuova: GitHub manda i prezzi al pilota.
   - Mail con l'etichetta **M**, **A** o **P**, messa da te dopo il pagamento: GitHub crea il codice e lo manda.
   - Le etichette si spostano da sole in «Da gestire» e «Gestite».
+  - Segnalazione di un pilota («Problema», «Registrazione sensori»…): GitHub la analizza dai dati tecnici.
+    - Caso noto: parte la risposta con le istruzioni e la mail va in **«Segnalazioni analizzate»**. Se il pilota non ha lasciato l'indirizzo, l'analisi resta scritta nella conversazione, con **«Senza indirizzo»**.
+    - Tutto il resto (casi nuovi, difetti, suggerimenti, dati sbagliati, risposte dei piloti): resta in Posta in arrivo con **«Segnalazioni da vedere»**. Al pilota arriva solo la ricevuta. **Sono le uniche da guardare a mano.**
+    - Le regole stanno in `tools/segnalazioni.py`; per insegnarne una nuova si aggiunge lì il caso (e la prova in `tools/test_segnalazioni.py`).
 - **Ogni mattina dalle 7** parte il riepilogo, che va in «Archivio generale licenze».
 - **Nel Calendar di horizonlicenses** mette i promemoria delle scadenze:
   - token GitHub: 14 giorni prima e il giorno stesso, con la data vera letta da GitHub;
