@@ -74,7 +74,12 @@ async function prepara(o,strumenti){
   // quelli non riusciti da meno di 12 ore si lasciano stare: così le corse a pezzi non si fermano sempre sugli stessi
   if(!ind.falliti||typeof ind.falliti!=='object') ind.falliti={};
   if(!o.rifai) lista=lista.filter(k=>ora0-eta(k)>o.freschi*864e5 && ora0-(Date.parse(ind.falliti[k])||0)>12*36e5);
-  lista.sort((a,b)=>eta(a)-eta(b));                                // prima quelli che mancano, poi i più vecchi
+  // prima quelli che mancano, poi i più vecchi; a parità, dal centro della zona verso i bordi (dove si vola di più:
+  // i bordi sono mare, Francia e Svizzera, e possono aspettare)
+  const cLat=(o.zona.sud+o.zona.nord)/2, cLon=(o.zona.ovest+o.zona.est)/2, cc=Math.cos(cLat*Math.PI/180);
+  const lontano=k=>{ const [a,b]=k.split('_').map(Number); return Math.hypot((a+0.5)*PD.CELLA-cLat,((b+0.5)*PD.CELLA-cLon)*cc); };
+  const giorno=k=>Math.floor(eta(k)/864e5);                        // l'età conta a giorni: dentro lo stesso giorno decide la distanza
+  lista.sort((a,b)=>(giorno(a)-giorno(b))||(lontano(a)-lontano(b)));
   const daFare=lista.length; let fatti=0, falliti=0, giro=0, ultima=0; const riposo=PD.SERVIZI.map(()=>0), errori=PD.SERVIZI.map(()=>0);
   const salva=()=>{ ind.fatto=new Date().toISOString(); ind.zona=o.zona; ind.fonte='© contributori OpenStreetMap (ODbL), via Overpass';
     const r={}; for(const k of Object.keys(ind.riquadri).sort()) r[k]=ind.riquadri[k]; ind.riquadri=r; scrivi(fInd,JSON.stringify(ind)); };
