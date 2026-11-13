@@ -180,6 +180,10 @@ def regola_livella(c):
 def regola_sensori(c):
     s = c.riga('Sensori di movimento')
     hz = re.match(r'(\d+)\s*Hz', s)
+    # in un «Problema» scritto a parole i sensori contano solo se il pilota parla di orizzonte o sensori: sul computer
+    # (versione web) mancano sempre, e rispondere «mancano i sensori» a chi chiedeva altro sarebbe una risposta sbagliata
+    if c.tipo == 'Problema' and not c.dice('orizzont', 'assetto', 'sensor', 'giroscop', 'inclinat', 'a scatti', 'virata', 'non si muove', 'fermo'):
+        return None
     if c.con_dati and (s == 'nessun dato' or (c.rec is not None and not c.rec.get('righe'))):
         return ('sensori-assenti', 'I sensori di movimento non arrivano',
                 ["L'app non riceve dati dai sensori di movimento del telefono: senza, l'orizzonte non può funzionare.",
