@@ -278,10 +278,13 @@ document.addEventListener('visibilitychange',()=>{ if(document.hidden){ PIN=''; 
 // un tocco: prende l'indirizzo dagli appunti, lo prova e, se risponde, lo salva
 async function collega(){ const e=$('collegaE'); e.style.color=''; e.textContent='Leggo gli appunti…';
   let t=''; try{ t=(await navigator.clipboard.readText()).trim(); }catch(x){ e.style.color='var(--bad)'; e.textContent='Non riesco a leggere gli appunti: apri ⚙ e incolla l\'indirizzo nella prima casella.'; return; }
-  const m=t.match(/https:\/\/script\.google\.com\/macros\/(?:u\/\d+\/)?s\/[\w-]+\/exec\?k=[\w-]{16,}/);
+  // negli appunti possono esserci più indirizzi (varianti dello stesso, quando una lettera è incerta): si provano uno dopo l'altro
+  const m=t.match(/https:\/\/script\.google\.com\/macros\/(?:u\/\d+\/)?s\/[\w-]+\/exec\?k=[\w-]{16,}/g);
   if(!m){ e.style.color='var(--bad)'; e.textContent='Negli appunti non c\'è l\'indirizzo della console. Copialo dalla mail «HorizonAdmin · indirizzo per collegare la console» e riprova.'; return; }
-  const u=m[0].replace(/\/macros\/u\/\d+\/s\//,'/macros/s/'); e.textContent='Provo il collegamento…';
-  try{ await leggiConsole(u); ls.set('adm_cons',u); aggiorna(true); }catch(x){ e.style.color='var(--bad)'; e.textContent='Non funziona: '+x.message+'.'; } }
+  const lista=[...new Set(m.map(x=>x.replace(/\/macros\/u\/\d+\/s\//,'/macros/s/')))].slice(0,40); let ultimo='';
+  for(let i=0;i<lista.length;i++){ e.textContent='Provo il collegamento…'+(lista.length>1?' ('+(i+1)+' di '+lista.length+')':'');
+    try{ await leggiConsole(lista[i]); ls.set('adm_cons',lista[i]); aggiorna(true); return; }catch(x){ ultimo=x.message; if(/chiave è sbagliata|accedere a Google|versione vecchia/.test(ultimo)) break; } }
+  e.style.color='var(--bad)'; e.textContent='Non funziona: '+ultimo+'.'; }
 let inCorso=false, FORZA=false, ULTIMO=0;
 const MIA=+((document.querySelector('meta[name="horizonadmin-versione"]')||{}).content||'').split('.').pop()||0;
 function nuovaVersione(){ if(!MIA||!RILASCI) return; const r=RILASCI.find(x=>x.tag_name.startsWith('admin-')); const n=r?+r.tag_name.slice(6):0;
