@@ -3,3 +3,4 @@
 2026-11-13 | Registrazione sensori | 1.0.175 | Google Play | 24117RN76E | riconosciuto | livella
 2026-11-13 | Problema | 12.11.2026 | web | browser | riconosciuto | sensori-assenti,gps
 2026-11-13 | Problema | 13.11.2026 | web | browser | riconosciuto | sensori-assenti
+2026-11-13 | Problema | 13.11.2026 | web | browser | autore: nessuna regola | -
