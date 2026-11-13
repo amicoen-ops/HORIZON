@@ -11,7 +11,8 @@ name: Licenze per posta
 #    cartella piste/ del ramo «licenze» (le legge il lavoro settimanale con tools/piste_piloti.py), la mail in «Piste lette»;
 #  · segnalazioni dei piloti («Problema», «Registrazione sensori»…): tools/segnalazioni.py le analizza dai dati tecnici;
 #    i casi riconosciuti hanno risposta automatica e vanno in «Segnalazioni analizzate», gli altri restano in arrivo con
-#    «Segnalazioni da vedere». Una riga anonima per caso va in segnalazioni/ del ramo «licenze».
+#    «Segnalazioni da vedere». Una riga anonima per caso va in segnalazioni/ del ramo «licenze». Quelle da vedere a cui
+#    l'autore ha risposto a mano, o con l'etichetta «Chiusa», passano in «Segnalazioni gestite».
 # Serve il segreto GMAIL_LICENZE (password per le app di horizonlicenses); senza, la corsa non fa niente.
 # Progetto pubblico: nei log solo conteggi.
 on:
