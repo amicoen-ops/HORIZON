@@ -67,7 +67,8 @@ nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
   <input id="iCons" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec">
   <label for="iKey">Chiave della console (quella scritta dalla funzione «consoleChiave», senza ?k=)</label>
   <input id="iKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
-  <p style="margin:10px 0 0"><button id="bProva">Prova il collegamento</button></p>
+  <p style="margin:10px 0 0"><button id="bIncolla">Incolla dagli appunti</button> <button id="bProva">Prova il collegamento</button></p>
+  <p class="sub" style="margin:8px 0 0">Dal computer: copia l'indirizzo intero (URL + ?k= + chiave), mandalo al telefono come preferisci, copialo qui e tocca «Incolla dagli appunti»: riempie da sola le due caselle.</p>
   <p class="sub" id="provaE" style="margin:8px 0 0"></p>
   <label for="iTok">Token GitHub (facoltativo: senza, GitHub risponde a 60 domande l'ora)</label>
   <input id="iTok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -140,16 +141,16 @@ const avvisa=(testo,grave)=>avvisi.push(`<div class="msg${grave?' bad':''}">${es
 
 // GitHub senza token risponde a 60 domande l'ora: la stessa domanda non si ripete prima di 3 minuti, e se GitHub non
 // risponde si usano gli ultimi dati buoni (segnando che sono vecchi)
-let GH_VECCHI=false;
+let GH_VECCHI=false, GH_MOTIVO='';
 async function gh(percorso){
-  const c=cache.get('gh'+percorso); if(c&&Date.now()-c.t<180000&&!FORZA) return c.d;
+  const c=cache.get('gh'+percorso); if(c&&Date.now()-c.t<(FORZA?45000:180000)) return c.d;      // anche col tasto Aggiorna, non prima di 45 secondi
   const h={Accept:'application/vnd.github+json'}, t=ls.get('adm_tok'); if(t) h.Authorization='Bearer '+t;
   try{ const r=await chiediRete(API+percorso,{headers:h});
-    if(r.status===403||r.status===429) throw new Error('GitHub: troppe domande in un\'ora, riprova più tardi (o metti il token nelle impostazioni)');
+    if(r.status===403||r.status===429) throw new Error('GitHub ha raggiunto il limite di 60 domande l\'ora senza token: riprende da solo entro un\'ora (con il token GitHub nelle impostazioni il limite sale a 5000)');
     if(r.status===401) throw new Error('GitHub: token non valido o scaduto: correggilo o cancellalo nelle impostazioni');
     if(r.status<200||r.status>299) throw new Error('GitHub ha risposto '+r.status);
     const d=JSON.parse(r.testo); cache.set('gh'+percorso,d); return d;
-  }catch(e){ if(c){ GH_VECCHI=c.t; return c.d; } throw e; }
+  }catch(e){ if(c){ GH_VECCHI=c.t; GH_MOTIVO=e.message; return c.d; } throw e; }
 }
 
 async function salute(){
@@ -278,10 +279,10 @@ const MIA=+((document.querySelector('meta[name="horizonadmin-versione"]')||{}).c
 function nuovaVersione(){ if(!MIA||!RILASCI) return; const r=RILASCI.find(x=>x.tag_name.startsWith('admin-')); const n=r?+r.tag_name.slice(6):0;
   if(n>MIA) avvisi.unshift(`<div class="msg">È uscita HorizonAdmin ${n} (tu hai la ${MIA}): <a href="${esc(solohttps(r.html_url))}" target="_blank" rel="noopener">scaricala</a>.</div>`); }
 async function aggiorna(forza){
-  if(inCorso) return; inCorso=true; FORZA=!!forza; GH_VECCHI=false; $('bAgg').disabled=true; $('bAgg').textContent='Aggiorno…'; avvisi=[]; $('avvisi').innerHTML='';
+  if(inCorso) return; inCorso=true; FORZA=!!forza; GH_VECCHI=false; GH_MOTIVO=''; $('bAgg').disabled=true; $('bAgg').textContent='Aggiorno…'; avvisi=[]; $('avvisi').innerHTML='';
   try{ await Promise.all([code(),salute(),segnalazioni(),versioni()].map(p=>p.catch(e=>avvisa('Una parte della pagina non si è caricata: '+(e&&e.message||e),false))));
     nuovaVersione();
-    if(GH_VECCHI) avvisa('GitHub non risponde: salute e versioni sono quelle delle '+new Date(GH_VECCHI).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+'.',false);
+    if(GH_VECCHI) avvisa((GH_MOTIVO||'GitHub non risponde')+'. Salute e versioni sono quelle delle '+new Date(GH_VECCHI).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+'.',false);
     if(!navigator.onLine) avvisa('Il telefono è senza rete: vedi gli ultimi dati salvati.',false);
   }finally{ $('avvisi').innerHTML=avvisi.join(''); ULTIMO=Date.now(); FORZA=false;
     $('quando').textContent='Aggiornato alle '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+(MIA?' · versione '+MIA:'');
@@ -299,6 +300,11 @@ const componi=()=>{ let u=$('iCons').value.trim().replace(/\s+/g,'').replace(/\/
   u=u.replace(/\/(dev|exec)\/?$/,'/exec'); if(u&&!/\/exec$/.test(u)) u=u.replace(/\/+$/,'')+'/exec';
   return u&&k?u+'?k='+k:''; };
 $('bImp').onclick=()=>{ const c=$('cImp'); c.hidden=!c.hidden; if(!c.hidden){ const u=ls.get('adm_cons'), i=u.indexOf('?k='); $('iCons').value=i>0?u.slice(0,i):u; $('iKey').value=i>0?u.slice(i+3):''; $('iTok').value=ls.get('adm_tok'); $('provaE').textContent=''; } };
+$('bIncolla').onclick=async()=>{ const e=$('provaE'); e.style.color='';
+  try{ const t=(await navigator.clipboard.readText()).trim(); if(!/script\.google\.com\/macros\//.test(t)){ e.style.color='var(--bad)'; e.textContent='Negli appunti non c\'è un indirizzo della console (deve contenere script.google.com/macros/).'; return; }
+    $('iCons').value=t; $('iKey').value=''; const u=componi(), i=u.indexOf('?k='); if(i>0){ $('iCons').value=u.slice(0,i); $('iKey').value=u.slice(i+3); e.textContent='Incollato. Ora tocca «Prova il collegamento».'; }
+    else { $('iCons').value=t.split('?')[0]; e.textContent='Incollato l\'URL; manca la chiave: scrivila nella seconda casella.'; }
+  }catch(x){ e.style.color='var(--bad)'; e.textContent='Non riesco a leggere gli appunti: tieni premuto nella casella e scegli «Incolla».'; } };
 $('bProva').onclick=async()=>{ const e=$('provaE'), u=componi(); e.style.color='';
   if(!u){ e.style.color='var(--bad)'; e.textContent='Scrivi sia l\'URL dell\'applicazione web sia la chiave.'; return; }
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ e.style.color='var(--bad)'; e.textContent='La forma non è giusta: l\'URL deve cominciare con https://script.google.com/macros/s/ e la chiave è lunga almeno 16 caratteri'+(/…|\.\.\./.test($('iCons').value)?' (nell\'URL ci sono dei puntini: serve quello vero)':'')+'.'; return; }
