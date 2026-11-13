@@ -31,8 +31,9 @@ jobs:
       - name: Dipendenze
         run: npm ci --no-audit --no-fund
 
-      - name: Nome dell'app
+      - name: Nome e icona dell'app (logo di HORIZON con una A al centro)
         run: |
+          cp -r admin/android-res/. android/app/src/main/res/
           sed -i 's#<string name="app_name">HORIZON</string>#<string name="app_name">HorizonAdmin</string>#' android/app/src/main/res/values/strings.xml
           sed -i 's#<string name="title_activity_main">HORIZON</string>#<string name="title_activity_main">HorizonAdmin</string>#' android/app/src/main/res/values/strings.xml
 
