@@ -230,7 +230,7 @@ function analisiSeg(casi){
 // code di lavoro: le dà lo script in Gmail (funzione doGet), con la chiave nell'indirizzo
 async function code(){
   const t=$('code'), l=$('codeL'), u=ls.get('adm_cons'); l.innerHTML='';
-  if(!u){ t.innerHTML=''; l.innerHTML='<p class="sub">Per vedere le code della posta serve l\'indirizzo della console.</p>'+AREA_COLLEGA; $('bCollega').onclick=collega; return; }
+  if(!u){ t.innerHTML=''; l.innerHTML='<p class="sub">'+(ls.get('adm_url')?'L\'indirizzo della console è già salvato: manca solo la chiave. Incollala qui sotto (quella scritta da «consoleChiave» nello script di Gmail).':'Per vedere le code della posta serve l\'indirizzo della console.')+'</p>'+AREA_COLLEGA; $('bCollega').onclick=collega; return; }
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ t.innerHTML=''; l.innerHTML='<p class="sub">L\'indirizzo della console non ha la forma giusta. Deve essere: https://script.google.com/macros/s/…/exec?k=… — '+(/\?k=/.test(u)?'':'manca ?k= con la chiave in fondo. ')+(/\/exec/.test(u)?'':'manca /exec. ')+(/…|\.\.\./.test(u)?'ci sono dei puntini: serve l\'identificativo vero, copiato da «Gestisci deployment». ':'')+'Apri ⚙, tocca «Cancella tutto» e incolla di nuovo URL e chiave: ora la casella della chiave mostra quello che c\'è dentro.</p>'; return; }
   t.innerHTML='<p class="sub">Carico…</p>';
   let d=null, nota='';
@@ -285,11 +285,16 @@ async function collega(){ const e=$('collegaE'); e.style.color='';
   if(!t){ try{ t=(await navigator.clipboard.readText()).trim(); }catch(x){} }
   if(!t){ e.style.color='var(--bad)'; e.textContent='Il riquadro è vuoto: tienilo premuto, scegli «Incolla» e poi tocca «Collega».'; return; }
   // negli appunti possono esserci più indirizzi (varianti dello stesso, quando una lettera è incerta): si provano uno dopo l'altro
-  const m=t.match(/https:\/\/script\.google\.com\/macros\/(?:u\/\d+\/)?s\/[\w-]+\/exec\?k=[\w-]{16,}/g);
+  let m=t.match(/https:\/\/script\.google\.com\/macros\/(?:u\/\d+\/)?s\/[\w-]+\/exec\?k=[\w-]{16,}/g);
+  // l'indirizzo giusto è già stato trovato (rispondeva, ma con la chiave vecchia): ora basta incollare la sola chiave
+  if(!m&&ls.get('adm_url')){ const k=(t.replace(/^.*[?&]k=/s,'').match(/[\w-]{16,}/g)||[]).filter(x=>!/^AKfyc/.test(x)).pop(); if(k) m=[ls.get('adm_url')+'?k='+k]; }
   if(!m){ e.style.color='var(--bad)'; e.textContent='In quello che hai incollato non c\'è un indirizzo della console (deve cominciare con https://script.google.com/macros/ e finire con ?k= e la chiave).'; return; }
   const lista=[...new Set(m.map(x=>x.replace(/\/macros\/u\/\d+\/s\//,'/macros/s/')))].slice(0,40); let ultimo='';
   for(let i=0;i<lista.length;i++){ e.textContent='Provo il collegamento…'+(lista.length>1?' ('+(i+1)+' di '+lista.length+')':'');
-    try{ await leggiConsole(lista[i]); ls.set('adm_cons',lista[i]); aggiorna(true); return; }catch(x){ ultimo=x.message; if(/chiave è sbagliata|accedere a Google|versione vecchia/.test(ultimo)) break; } }
+    try{ await leggiConsole(lista[i]); ls.set('adm_cons',lista[i]); ls.set('adm_url',lista[i].split('?')[0]); aggiorna(true); return; }
+    catch(x){ ultimo=x.message; if(/chiave è sbagliata/.test(ultimo)){ ls.set('adm_url',lista[i].split('?')[0]); if($('tCollega')) $('tCollega').value='';
+        e.style.color='var(--warn)'; e.textContent='Indirizzo giusto trovato e salvato'+(lista.length>1?' (era il '+(i+1)+'° di '+lista.length+')':'')+'. Manca solo la chiave: quella che hai incollato non vale più. Nello script di Gmail lancia «consoleChiave», copia la chiave che scrive nel registro, incollala qui sopra da sola e tocca «Collega».'; return; }
+      if(/accedere a Google|versione vecchia/.test(ultimo)) break; } }
   e.style.color='var(--bad)'; e.textContent='Non funziona'+(lista.length>1?' con nessuno dei '+lista.length+' indirizzi':'')+': '+ultimo+'.'; }
 let inCorso=false, FORZA=false, ULTIMO=0;
 const MIA=+((document.querySelector('meta[name="horizonadmin-versione"]')||{}).content||'').split('.').pop()||0;
@@ -338,7 +343,7 @@ $('bProva').onclick=async()=>{ const e=$('provaE'), u=componi(); e.style.color='
 $('bSalva').onclick=()=>{ const u=componi(); if(!u&&($('iCons').value.trim()||$('iKey').value.trim())){ $('provaE').style.color='var(--bad)'; $('provaE').textContent='Manca '+($('iCons').value.trim()?'la chiave (seconda casella)':'l\'URL dell\'applicazione web (prima casella)')+'.'; return; }
   if(u&&!FORMA.test(u)){ $('provaE').style.color='var(--bad)'; $('provaE').textContent='Così non va: l\'URL deve cominciare con https://script.google.com/macros/s/ e finire con /exec, e la chiave è fatta solo di lettere e cifre. Tocca «Cancella tutto» e incolla di nuovo.'; return; }
   ls.set('adm_cons',u); ls.set('adm_tok',$('iTok').value.trim()); $('cImp').hidden=true; aggiorna(true); };
-$('bCanc').onclick=()=>{ ls.set('adm_cons',''); ls.set('adm_tok',''); cache.via(); $('iCons').value=$('iKey').value=$('iTok').value=''; aggiorna(true); };
+$('bCanc').onclick=()=>{ ls.set('adm_cons',''); ls.set('adm_url',''); ls.set('adm_tok',''); cache.via(); $('iCons').value=$('iKey').value=$('iTok').value=''; aggiorna(true); };
 // tornando sull'app si riaggiorna da sola, ma non più di una volta ogni 2 minuti
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&Date.now()-ULTIMO>120000) aggiorna(); });
 aggiorna();
