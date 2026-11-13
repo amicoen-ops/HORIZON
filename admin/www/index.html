@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>HorizonAdmin</title>
+<script src="capacitor.js" onerror="void 0"></script>
 <!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
      HorizonAdmin: console dell'autore. Legge, e con il PIN preme i «tasti» (etichette di Gmail e avvio dei giri). Non contiene chiavi né indirizzi: l'indirizzo della console di Gmail
      (con la sua chiave) e l'eventuale token GitHub si scrivono nell'app e restano solo su questo telefono. -->
@@ -62,8 +63,12 @@ nav button[aria-pressed=true]{background:#0f5e78;border-color:var(--acc)}
 <section class="card" id="cImp" hidden>
   <h2>Impostazioni</h2>
   <p class="sub">Restano solo su questo telefono. Il PIN dei tasti non viene mai salvato: lo chiede a ogni uso e lo dimentica dopo 10 minuti.</p>
-  <label for="iCons">Indirizzo della console di Gmail: l'URL dell'applicazione web dello script, con in fondo ?k= e la chiave</label>
-  <input id="iCons" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec?k=…">
+  <label for="iCons">URL dell'applicazione web (script di Gmail › Esegui il deployment › Gestisci deployment › Copia)</label>
+  <input id="iCons" type="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec">
+  <label for="iKey">Chiave della console (quella scritta dalla funzione «consoleChiave», senza ?k=)</label>
+  <input id="iKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <p style="margin:10px 0 0"><button id="bProva">Prova il collegamento</button></p>
+  <p class="sub" id="provaE" style="margin:8px 0 0"></p>
   <label for="iTok">Token GitHub (facoltativo: senza, GitHub risponde a 60 domande l'ora)</label>
   <input id="iTok" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
   <p style="margin:12px 0 0"><button id="bSalva" class="pri">Salva e aggiorna</button> <button id="bCanc">Cancella tutto</button></p>
@@ -101,15 +106,50 @@ const fa=t=>{ if(!t) return '—'; const m=Math.round((Date.now()-new Date(t).ge
 const giorno=t=>new Date(t).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const solohttps=u=>/^https:\/\//i.test(u)?u:'#';
 let avvisi=[];
+// ---- rete che non si arrende: tempo massimo, due riprove, e in caso di guasto gli ultimi dati buoni salvati sul telefono ----
+const NAT=(()=>{ try{ const C=window.Capacitor; if(!C||!C.isNativePlatform||!C.isNativePlatform()) return null; return (C.Plugins&&C.Plugins.CapacitorHttp)||C.registerPlugin('CapacitorHttp'); }catch(e){ return null; } })();
+const pausa=ms=>new Promise(r=>setTimeout(r,ms));
+async function chiedi1(url,opz){ const c=new AbortController(), t=setTimeout(()=>c.abort(),20000);
+  try{ const r=await fetch(url,Object.assign({cache:'no-store',redirect:'follow',signal:c.signal},opz||{})); return {status:r.status,testo:await r.text()}; } finally{ clearTimeout(t); } }
+async function chiediRete(url,opz,riprove){ let ultimo;
+  for(let i=0;i<=(riprove??2);i++){ try{ const r=await chiedi1(url,opz); if(r.status<500) return r; ultimo=new Error('il servizio ha risposto '+r.status); }catch(e){ ultimo=e.name==='AbortError'?new Error('nessuna risposta in 20 secondi'):new Error('rete assente o servizio non raggiungibile'); }
+    if(i<(riprove??2)) await pausa(1200*(i+1)); }
+  throw ultimo; }
+// quando fetch non passa (pagina d'errore senza permesso di lettura) nell'app si rilegge col modulo nativo, per capire il motivo
+async function leggiNativo(url){ if(!NAT) return null; try{ const r=await NAT.get({url,connectTimeout:15000,readTimeout:20000}); return {status:r.status,testo:typeof r.data==='string'?r.data:JSON.stringify(r.data)}; }catch(e){ return null; } }
+const cache={ get:k=>{ try{ return JSON.parse(localStorage.getItem('adm_c_'+k)||'null'); }catch(e){ return null; } },
+  set:(k,d)=>{ try{ localStorage.setItem('adm_c_'+k,JSON.stringify({t:Date.now(),d})); }catch(e){} },
+  via:()=>{ try{ Object.keys(localStorage).filter(k=>k.startsWith('adm_c_')).forEach(k=>localStorage.removeItem(k)); }catch(e){} } };
+const vecchi=c=>`<p class="sub" style="color:var(--warn)">Non aggiornato: mostro i dati delle ${new Date(c.t).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}.</p>`;
+// la console di Gmail ha risposto con una pagina invece che con i dati: si dice in chiaro che cosa non va
+function diagnosi(testo,status){ const t=String(testo||'');
+  if(/non esiste|does not exist|not found|Assicurati che l.URL/i.test(t)||status===404) return 'l\'URL dell\'applicazione web è sbagliato (identificativo non riconosciuto): ricopialo da «Gestisci deployment» con il tasto Copia';
+  if(/Impossibile aprire il file|unable to open the file/i.test(t)) return 'nell\'URL c\'è un pezzo /u/1/ di troppo, oppure Google è momentaneamente occupato: riprova';
+  if(/accounts\.google\.com|ServiceLogin|Accedi|Sign in|autorizzazion|permission/i.test(t)||status===401||status===403) return 'la console chiede di accedere a Google: nel deployment «Chi ha accesso» deve essere «Chiunque»';
+  if(/doGet|doPost|funzione di script|script function/i.test(t)) return 'il deployment è di una versione vecchia dello script: Gestisci deployment › matita › Versione «Nuova versione» › Esegui il deployment';
+  if(/<html|<!doctype/i.test(t)) return 'la console ha risposto con una pagina invece che con i dati (codice '+status+')';
+  return 'risposta non leggibile (codice '+status+')'; }
+async function leggiConsole(u){
+  let r=null, err=null; try{ r=await chiediRete(u,null,1); }catch(e){ err=e; }
+  let d=null; if(r){ try{ d=JSON.parse(r.testo); }catch(e){} }
+  if(!d){ const n=await leggiNativo(u); if(n){ try{ d=JSON.parse(n.testo); }catch(e){} if(!d) throw new Error(diagnosi(n.testo,n.status)); }
+    else if(r) throw new Error(diagnosi(r.testo,r.status)); else throw err; }
+  if(d.errore) throw new Error(d.errore==='chiave della console sbagliata'?'la console risponde ma la chiave è sbagliata: rilancia «consoleChiave» e ricopiala':d.errore);
+  return d; }
 const avvisa=(testo,grave)=>avvisi.push(`<div class="msg${grave?' bad':''}">${esc(testo)}</div>`);
 
+// GitHub senza token risponde a 60 domande l'ora: la stessa domanda non si ripete prima di 3 minuti, e se GitHub non
+// risponde si usano gli ultimi dati buoni (segnando che sono vecchi)
+let GH_VECCHI=false;
 async function gh(percorso){
+  const c=cache.get('gh'+percorso); if(c&&Date.now()-c.t<180000&&!FORZA) return c.d;
   const h={Accept:'application/vnd.github+json'}, t=ls.get('adm_tok'); if(t) h.Authorization='Bearer '+t;
-  const r=await fetch(API+percorso,{headers:h,cache:'no-store'});
-  if(r.status===403||r.status===429) throw new Error('GitHub: troppe domande, riprova tra un po\' (o metti il token nelle impostazioni)');
-  if(r.status===401) throw new Error('GitHub: token non valido o scaduto');
-  if(!r.ok) throw new Error('GitHub ha risposto '+r.status);
-  return r.json();
+  try{ const r=await chiediRete(API+percorso,{headers:h});
+    if(r.status===403||r.status===429) throw new Error('GitHub: troppe domande in un\'ora, riprova più tardi (o metti il token nelle impostazioni)');
+    if(r.status===401) throw new Error('GitHub: token non valido o scaduto: correggilo o cancellalo nelle impostazioni');
+    if(r.status<200||r.status>299) throw new Error('GitHub ha risposto '+r.status);
+    const d=JSON.parse(r.testo); cache.set('gh'+percorso,d); return d;
+  }catch(e){ if(c){ GH_VECCHI=c.t; return c.d; } throw e; }
 }
 
 async function salute(){
@@ -153,7 +193,10 @@ async function segnalazioni(){
   const el=$('seg'); el.innerHTML='<p class="sub">Carico…</p>';
   const mesi=[0,1,2,3,4,5].map(i=>{ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i); return d.toISOString().slice(0,7); });
   let righe=[];
-  for(const m of mesi){ try{ const r=await fetch(RAW+'segnalazioni/'+m+'.txt',{cache:'no-store'}); if(r.ok) righe=righe.concat((await r.text()).split('\n').filter(x=>x.trim())); }catch(e){} }
+  let guasto=false;
+  for(const m of mesi){ try{ const r=await chiediRete(RAW+'segnalazioni/'+m+'.txt',null,1); if(r.status===200) righe=righe.concat(r.testo.split('\n').filter(x=>x.trim())); }catch(e){ guasto=true; } }
+  const cs=cache.get('seg'); let nota='';
+  if(guasto&&!righe.length&&cs){ righe=cs.d; nota=vecchi(cs); } else if(!guasto) cache.set('seg',righe);
   const casi=righe.map(x=>x.split('|').map(y=>y.trim())).filter(c=>c.length>=7).map(c=>({d:c[0],tipo:c[1],ver:c[2],canale:c[3],tel:c[4],esito:c[5],regole:c[6]}));
   analisiSeg(casi);
   const da=new Date(Date.now()-14*864e5).toISOString().slice(0,10), rec=casi.filter(c=>c.d>=da).sort((a,b)=>a.d<b.d?1:-1);
@@ -161,7 +204,7 @@ async function segnalazioni(){
   const ric=rec.filter(c=>c.esito==='riconosciuto').length, sb=rec.filter(c=>/SBAGLIATA/.test(c.esito)).length;
   const conta={}; rec.forEach(c=>(c.esito==='riconosciuto'?c.regole.split(','):['a te: '+c.esito.replace(/^autore:\s*/,'')]).forEach(k=>{ k=k.trim(); if(k&&k!=='-') conta[k]=(conta[k]||0)+1; }));
   if(sb) avvisa((sb===1?'Una risposta automatica segnata come sbagliata':sb+' risposte automatiche segnate come sbagliate')+' negli ultimi 14 giorni: c\'è una regola da correggere.',false);
-  el.innerHTML=`<div class="tiles"><div class="tile ok"><b>${ric}</b><span>risposte automatiche</span></div><div class="tile ${rec.length-ric?'warn':''}"><b>${rec.length-ric}</b><span>rimaste a te</span></div></div>
+  el.innerHTML=nota+`<div class="tiles"><div class="tile ok"><b>${ric}</b><span>risposte automatiche</span></div><div class="tile ${rec.length-ric?'warn':''}"><b>${rec.length-ric}</b><span>rimaste a te</span></div></div>
     <p class="sub" style="margin:10px 0 4px">Ultimi 14 giorni, per regola:</p><p style="margin:0 0 6px">${Object.entries(conta).sort((a,b)=>b[1]-a[1]).map(([k,n])=>`<span class="tag">${esc(k)} · ${n}</span>`).join('')}</p>
     ${rec.slice(0,25).map(c=>`<div class="row"><span class="dot ${c.esito==='riconosciuto'?'ok':/SBAGLIATA/.test(c.esito)?'bad':'warn'}"></span><span class="t">${esc(c.tipo)} · ${esc(c.ver)} · ${esc(c.tel)}<br><span class="sub">${esc(c.esito==='riconosciuto'?c.regole:c.esito)}</span></span><small>${esc(c.d.slice(8,10)+'/'+c.d.slice(5,7))}</small></div>`).join('')}`;
 }
@@ -186,8 +229,12 @@ async function code(){
   if(!u){ t.innerHTML=''; l.innerHTML='<p class="sub">Per vedere le code della posta scrivi nelle impostazioni (⚙) l\'indirizzo della console di Gmail.</p>'; return; }
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ t.innerHTML=''; l.innerHTML='<p class="sub">L\'indirizzo della console non ha la forma giusta. Deve essere: https://script.google.com/macros/s/…/exec?k=… — '+(/\?k=/.test(u)?'':'manca ?k= con la chiave in fondo. ')+(/\/exec/.test(u)?'':'manca /exec. ')+(/…|\.\.\./.test(u)?'ci sono dei puntini: serve l\'identificativo vero, copiato da «Gestisci deployment».':'')+'</p>'; return; }
   t.innerHTML='<p class="sub">Carico…</p>';
-  try{ const r=await fetch(u,{cache:'no-store',redirect:'follow'}); if(!r.ok) throw new Error('la console ha risposto '+r.status);
-    const d=await r.json(); if(d.errore) throw new Error(d.errore);
+  let d=null, nota='';
+  try{ d=await leggiConsole(u); cache.set('code',d); }
+  catch(e){ const c=cache.get('code'); avvisa('Code della posta non lette: '+e.message+'.',!c);
+    if(!c){ t.innerHTML=''; l.innerHTML=`<p class="sub">Code non lette: ${esc(e.message)}.</p><p class="sub">Intanto puoi aprire <a href="https://mail.google.com/" target="_blank" rel="noopener">Gmail</a> e usare le etichette come sempre.</p>`; return; }
+    d=c.d; d.tasti=false; nota=vecchi(c); }
+  try{
     const c=d.code||[];
     t.innerHTML=c.map(q=>`<div class="tile ${q.info?'':q.n?(q.urgente?'bad':'warn'):'ok'}"><b>${+q.n||0}</b><span>${esc(q.nome)}</span></div>`).join('');
     TASTI=!!d.tasti; VOCI={};
@@ -195,10 +242,10 @@ async function code(){
       const fatto=FATTI[v.id]; if(fatto) return `<div class="fatto">${esc(fatto)}</div>`;
       return q.tipo==='licenza'?`<div class="az">${b('M','Mensile')}${b('A','Annuale')}${b('P','Perenne')}</div>`:q.tipo==='segnalazione'?`<div class="az">${b('chiusa','Chiusa')}</div>`
         :q.tipo==='analizzata'?`<div class="az">${b('sbagliata','Risposta sbagliata')}</div>`:''; };
-    l.innerHTML=c.filter(q=>q.voci&&q.voci.length).map(q=>`<p class="sub" style="margin:12px 0 2px">${esc(q.nome)}</p>`+q.voci.map(v=>
+    l.innerHTML=nota+c.filter(q=>q.voci&&q.voci.length).map(q=>`<p class="sub" style="margin:12px 0 2px">${esc(q.nome)}</p>`+q.voci.map(v=>
       `<div class="row"><div class="t"><a href="${esc(solohttps(v.link))}" target="_blank" rel="noopener">${esc(v.oggetto)}</a>${az(q,v)}</div><small>${esc(v.quando?giorno(v.quando):'')}</small></div>`).join('')).join('')
       +(TASTI?'<div class="az" style="margin-top:14px"><button data-az="giro">Avvia il giro della posta</button><button data-az="riepilogo">Riepilogo subito</button></div>'
-             :'<p class="sub" style="margin-top:12px">Tasti spenti: per accenderli scrivi nello script la proprietà CONSOLE_PIN (almeno 6 cifre).</p>');
+             :nota?'<p class="sub" style="margin-top:12px">Tasti spenti finché la console non risponde.</p>':'<p class="sub" style="margin-top:12px">Tasti spenti: per accenderli scrivi nello script la proprietà CONSOLE_PIN (almeno 6 cifre), oppure lancia «consoleSblocca» se si sono bloccati.</p>');
     const s=d.stato||{};
     $('aLic').innerHTML=d.licenze?`<p style="margin:0">${esc(d.licenze.testo)}</p><p class="sub">Dal riepilogo del ${esc(d.licenze.quando?giorno(d.licenze.quando):'?')}. L'elenco completo è nella mail «Riepilogo licenze».</p>`:'<p class="sub">Nessun riepilogo delle licenze trovato nella casella.</p>';
     if(s.token===false) avvisa('Nello script di Gmail manca il token GitHub: la sveglia non può far partire i lavori.',true);
@@ -218,29 +265,51 @@ function chiedi(az,id){ ATTESA={az,id}; const lic='MAP'.includes(az)&&az.length=
 async function premi(){ const a=ATTESA; if(!a) return; const u=ls.get('adm_cons'), i=u.indexOf('?k=');
   const pin=$('vPinB').hidden?PIN:$('vPin').value.trim(); if(pin.length<6){ $('vE').textContent='Il PIN ha almeno 6 cifre.'; return; }
   $('vSi').disabled=true; $('vE').textContent='';
-  try{ const r=await fetch(u.slice(0,i),{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k:u.slice(i+3),pin,azione:a.az,id:a.id||''})});
-    if(!r.ok) throw new Error('la console ha risposto '+r.status); const d=await r.json();
+  try{ const r=await chiediRete(u.slice(0,i),{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k:u.slice(i+3),pin,azione:a.az,id:a.id||''})},0);
+    let d=null; try{ d=JSON.parse(r.testo); }catch(e){ throw new Error(diagnosi(r.testo,r.status)+'. Non so se il tasto è arrivato: aggiorna l\'elenco prima di riprovare'); }
     if(d.errore){ if(d.pin===false){ PIN=''; $('vPinB').hidden=false; } throw new Error(d.errore); }
     PIN=pin; PIN_T=Date.now(); if(a.id) FATTI[a.id]=DOPO[a.az]||'Fatto'; $('velo').hidden=true; ATTESA=null; aggiorna();
-  }catch(e){ $('vE').textContent=e.message; } finally{ $('vSi').disabled=false; } }
+  }catch(e){ $('vE').textContent=/rete assente|nessuna risposta/.test(e.message)?e.message+'. Non so se il tasto è arrivato: aggiorna l\'elenco prima di riprovare.':e.message; } finally{ $('vSi').disabled=false; } }
 $('vSi').onclick=premi; $('vNo').onclick=()=>{ $('velo').hidden=true; ATTESA=null; };
 $('codeL').addEventListener('click',e=>{ const b=e.target.closest('button[data-az]'); if(b) chiedi(b.dataset.az,b.dataset.id||''); });
 document.addEventListener('visibilitychange',()=>{ if(document.hidden){ PIN=''; } });
-let inCorso=false;
-async function aggiorna(){
-  if(inCorso) return; inCorso=true; $('bAgg').disabled=true; avvisi=[]; $('avvisi').innerHTML='';
-  await Promise.all([code(),salute(),segnalazioni(),versioni()].map(p=>p.catch(()=>{})));
-  $('avvisi').innerHTML=avvisi.join(''); $('quando').textContent='Aggiornato alle '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
-  inCorso=false; $('bAgg').disabled=false;
+let inCorso=false, FORZA=false, ULTIMO=0;
+const MIA=+((document.querySelector('meta[name="horizonadmin-versione"]')||{}).content||'').split('.').pop()||0;
+function nuovaVersione(){ if(!MIA||!RILASCI) return; const r=RILASCI.find(x=>x.tag_name.startsWith('admin-')); const n=r?+r.tag_name.slice(6):0;
+  if(n>MIA) avvisi.unshift(`<div class="msg">È uscita HorizonAdmin ${n} (tu hai la ${MIA}): <a href="${esc(solohttps(r.html_url))}" target="_blank" rel="noopener">scaricala</a>.</div>`); }
+async function aggiorna(forza){
+  if(inCorso) return; inCorso=true; FORZA=!!forza; GH_VECCHI=false; $('bAgg').disabled=true; $('bAgg').textContent='Aggiorno…'; avvisi=[]; $('avvisi').innerHTML='';
+  try{ await Promise.all([code(),salute(),segnalazioni(),versioni()].map(p=>p.catch(e=>avvisa('Una parte della pagina non si è caricata: '+(e&&e.message||e),false))));
+    nuovaVersione();
+    if(GH_VECCHI) avvisa('GitHub non risponde: salute e versioni sono quelle delle '+new Date(GH_VECCHI).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+'.',false);
+    if(!navigator.onLine) avvisa('Il telefono è senza rete: vedi gli ultimi dati salvati.',false);
+  }finally{ $('avvisi').innerHTML=avvisi.join(''); ULTIMO=Date.now(); FORZA=false;
+    $('quando').textContent='Aggiornato alle '+new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})+(MIA?' · versione '+MIA:'');
+    inCorso=false; $('bAgg').disabled=false; $('bAgg').textContent='Aggiorna'; }
 }
+addEventListener('error',e=>{ try{ $('avvisi').insertAdjacentHTML('beforeend',`<div class="msg bad">Errore nell'app: ${esc(e.message||'sconosciuto')}. Tocca Aggiorna; se resta, dillo a Claude.</div>`); }catch(x){} });
+addEventListener('unhandledrejection',e=>{ try{ $('avvisi').insertAdjacentHTML('beforeend',`<div class="msg bad">Errore nell'app: ${esc(e.reason&&e.reason.message||e.reason||'sconosciuto')}.</div>`); }catch(x){} });
+addEventListener('online',()=>aggiorna(true));
 const scheda=a=>{ $('pStato').hidden=a; $('pAnalisi').hidden=!a; $('tStato').setAttribute('aria-pressed',String(!a)); $('tAnalisi').setAttribute('aria-pressed',String(a)); };
 $('tStato').onclick=()=>scheda(false); $('tAnalisi').onclick=()=>scheda(true);
-$('bAgg').onclick=aggiorna;
-$('bImp').onclick=()=>{ const c=$('cImp'); c.hidden=!c.hidden; if(!c.hidden){ $('iCons').value=ls.get('adm_cons'); $('iTok').value=ls.get('adm_tok'); } };
-// si accetta anche l'indirizzo copiato con più account Google aperti (…/macros/u/1/s/…): quel pezzo si toglie da soli
-$('bSalva').onclick=()=>{ ls.set('adm_cons',$('iCons').value.trim().replace(/\s+/g,'').replace(/\/macros\/u\/\d+\/s\//,'/macros/s/')); ls.set('adm_tok',$('iTok').value.trim()); $('cImp').hidden=true; aggiorna(); };
-$('bCanc').onclick=()=>{ ls.set('adm_cons',''); ls.set('adm_tok',''); $('iCons').value=$('iTok').value=''; aggiorna(); };
-document.addEventListener('visibilitychange',()=>{ if(!document.hidden) aggiorna(); });
+$('bAgg').onclick=()=>aggiorna(true);
+// indirizzo e chiave in due caselle (ma si accetta anche l'indirizzo intero con ?k= incollato nella prima)
+const componi=()=>{ let u=$('iCons').value.trim().replace(/\s+/g,'').replace(/\/macros\/u\/\d+\/s\//,'/macros/s/'), k=$('iKey').value.trim().replace(/^\?k=/,'');
+  const i=u.indexOf('?'); if(i>=0){ const m=u.slice(i).match(/[?&]k=([\w-]+)/); if(m&&!k) k=m[1]; u=u.slice(0,i); }
+  u=u.replace(/\/(dev|exec)\/?$/,'/exec'); if(u&&!/\/exec$/.test(u)) u=u.replace(/\/+$/,'')+'/exec';
+  return u&&k?u+'?k='+k:''; };
+$('bImp').onclick=()=>{ const c=$('cImp'); c.hidden=!c.hidden; if(!c.hidden){ const u=ls.get('adm_cons'), i=u.indexOf('?k='); $('iCons').value=i>0?u.slice(0,i):u; $('iKey').value=i>0?u.slice(i+3):''; $('iTok').value=ls.get('adm_tok'); $('provaE').textContent=''; } };
+$('bProva').onclick=async()=>{ const e=$('provaE'), u=componi(); e.style.color='';
+  if(!u){ e.style.color='var(--bad)'; e.textContent='Scrivi sia l\'URL dell\'applicazione web sia la chiave.'; return; }
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\?k=[\w-]{16,}$/.test(u)){ e.style.color='var(--bad)'; e.textContent='La forma non è giusta: l\'URL deve cominciare con https://script.google.com/macros/s/ e la chiave è lunga almeno 16 caratteri'+(/…|\.\.\./.test($('iCons').value)?' (nell\'URL ci sono dei puntini: serve quello vero)':'')+'.'; return; }
+  e.textContent='Provo…'; $('bProva').disabled=true;
+  try{ const d=await leggiConsole(u); e.style.color='var(--ok)'; e.textContent='Funziona: '+(d.code||[]).length+' code lette, tasti '+(d.tasti?'accesi':'spenti (manca CONSOLE_PIN o sono bloccati)')+'. Ora tocca «Salva e aggiorna».'; }
+  catch(x){ e.style.color='var(--bad)'; e.textContent='Non funziona: '+x.message+'.'; } finally{ $('bProva').disabled=false; } };
+$('bSalva').onclick=()=>{ const u=componi(); if(!u&&($('iCons').value.trim()||$('iKey').value.trim())){ $('provaE').style.color='var(--bad)'; $('provaE').textContent='Servono tutti e due: URL dell\'applicazione web e chiave.'; return; }
+  ls.set('adm_cons',u); ls.set('adm_tok',$('iTok').value.trim()); $('cImp').hidden=true; aggiorna(true); };
+$('bCanc').onclick=()=>{ ls.set('adm_cons',''); ls.set('adm_tok',''); cache.via(); $('iCons').value=$('iKey').value=$('iTok').value=''; aggiorna(true); };
+// tornando sull'app si riaggiorna da sola, ma non più di una volta ogni 2 minuti
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&Date.now()-ULTIMO>120000) aggiorna(); });
 aggiorna();
 </script>
 </body>

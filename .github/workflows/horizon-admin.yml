@@ -44,6 +44,7 @@ jobs:
           rm -rf android/app/src/main/assets/public
           mkdir -p android/app/src/main/assets/public
           cp -r admin/www/. android/app/src/main/assets/public/
+          cp www/capacitor.js android/app/src/main/assets/public/capacitor.js    # per il modulo di rete nativo (diagnosi degli errori)
           sed -i "s#</title>#</title><meta name=\"horizonadmin-versione\" content=\"1.0.${{ github.run_number }}\">#" android/app/src/main/assets/public/index.html
 
       - name: Chiave di firma
