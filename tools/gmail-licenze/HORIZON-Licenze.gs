@@ -152,14 +152,21 @@ function stato() {
 // Attivazione, una volta: lancia «consoleChiave» › poi in alto a destra Esegui il deployment › Nuovo deployment › tipo
 // «Applicazione web» › Esegui come: Me › Chi ha accesso: Chiunque › Esegui il deployment › copia l'URL dell'applicazione web,
 // aggiungi in fondo ?k= e la chiave scritta nel registro, e incolla tutto in HorizonAdmin › ⚙.
+// nome, ricerca, urgente, tipo delle voci ('licenza': tasti M/A/P · 'segnalazione': tasto Chiusa · 'analizzata': tasto
+// Risposta sbagliata · '' : solo elenco · null: solo il numero)
 const CODE_CONSOLE = [
-  ['Licenze: il pilota ha scritto', 'label:da-gestire in:inbox', true, true],
-  ['Licenze da vedere', 'label:da-vedere in:inbox', true, true],
-  ['Segnalazioni da vedere', 'label:segnalazioni-da-vedere in:inbox', true, true],
-  ['Licenze in attesa di pagamento', 'label:da-gestire -in:inbox newer_than:30d', false, true],
-  ['Risposte automatiche, 7 giorni', 'label:segnalazioni-analizzate newer_than:7d', false, false],
-  ['Segnalazioni chiuse da te, 7 giorni', 'label:segnalazioni-gestite newer_than:7d', false, false]
+  ['Licenze: il pilota ha scritto', 'label:da-gestire in:inbox', true, 'licenza'],
+  ['Licenze da vedere', 'label:da-vedere in:inbox', true, ''],
+  ['Segnalazioni da vedere', 'label:segnalazioni-da-vedere in:inbox', true, 'segnalazione'],
+  ['Licenze in attesa di pagamento', 'label:da-gestire -in:inbox newer_than:30d', false, 'licenza'],
+  ['Risposte automatiche, 7 giorni', 'label:segnalazioni-analizzate newer_than:7d', false, 'analizzata'],
+  ['Segnalazioni chiuse da te, 7 giorni', 'label:segnalazioni-gestite newer_than:7d', false, null]
 ];
+// i tasti della console: mettono un'etichetta (come faresti tu in Gmail) o avviano un giro; il lavoro lo fa GitHub.
+// Ogni tasto vale solo sulle conversazioni che hanno già l'etichetta giusta.
+const TASTI_CONSOLE = { M: ['M', 'Da gestire'], A: ['A', 'Da gestire'], P: ['P', 'Da gestire'],
+  chiusa: ['Chiusa', 'Segnalazioni da vedere'], sbagliata: ['Risposta sbagliata', 'Segnalazioni analizzate'] };
+const MAX_PIN_SBAGLIATI = 5;
 
 function consoleChiave() {
   const p = PropertiesService.getScriptProperties();
@@ -177,15 +184,54 @@ function doGet(e) {
     const posta = encodeURIComponent(Session.getEffectiveUser().getEmail());
     data.code = CODE_CONSOLE.map(c => {
       const t = GmailApp.search(c[1], 0, 50);
-      return { nome: c[0], n: t.length, urgente: c[2], info: !c[3], voci: !c[3] ? [] : t.slice(0, 10).map(x => ({
-        oggetto: String(x.getFirstMessageSubject() || '(senza oggetto)').slice(0, 140), quando: x.getLastMessageDate().toISOString(),
+      return { nome: c[0], n: t.length, urgente: c[2], info: !c[2] && c[3] !== 'licenza', tipo: c[3] || '', voci: c[3] === null ? [] : t.slice(0, 10).map(x => ({
+        id: x.getId(), oggetto: String(x.getFirstMessageSubject() || '(senza oggetto)').slice(0, 140), quando: x.getLastMessageDate().toISOString(),
         link: 'https://mail.google.com/mail/?authuser=' + posta + '#all/' + x.getId() })) };
     });
     const rie = GmailApp.search('subject:(HORIZON Riepilogo licenze) from:me', 0, 1)[0];      // numeri delle licenze: la prima riga dell'ultimo riepilogo
     if (rie) { const m = rie.getMessages().pop(), riga = String(m.getPlainBody() || '').split('\n').map(x => x.trim()).filter(x => /^\d+ licenze/.test(x))[0];
       if (riga) data.licenze = { testo: riga.slice(0, 200), quando: m.getDate().toISOString() }; }
+    data.tasti = !!p.getProperty('CONSOLE_PIN') && +(p.getProperty('CONSOLE_PIN_SBAGLIATI') || 0) < MAX_PIN_SBAGLIATI;
     data.stato = { ultimoAvvio: p.getProperty('ULTIMO_AVVIO') ? new Date(+p.getProperty('ULTIMO_AVVIO')).toISOString() : null,
       sveglie: ScriptApp.getProjectTriggers().length, token: !!p.getProperty('GITHUB_TOKEN'), scadenzaToken: p.getProperty('SCADENZA_TOKEN') || null };
   }
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
+
+// I tasti: servono la chiave (sul telefono) E il PIN (proprietà CONSOLE_PIN, almeno 6 cifre, che scrivi tu nelle
+// Impostazioni progetto e che l'app non salva). Dopo 5 PIN sbagliati i tasti si bloccano: per sbloccarli lancia
+// «consoleSblocca». Senza la proprietà CONSOLE_PIN i tasti restano spenti e la console è in sola lettura.
+function consoleSblocca() { PropertiesService.getScriptProperties().deleteProperty('CONSOLE_PIN_SBAGLIATI'); console.log('Tasti della console sbloccati.'); }
+
+function doPost(e) {
+  const p = PropertiesService.getScriptProperties(), out = x => ContentService.createTextOutput(JSON.stringify(x)).setMimeType(ContentService.MimeType.JSON);
+  let d = {}; try { d = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (err) {}
+  const k = p.getProperty('CONSOLE_KEY'), pin = p.getProperty('CONSOLE_PIN') || '';
+  if (!k || String(d.k || '') !== k) return out({ errore: 'chiave della console sbagliata' });
+  if (pin.length < 6) return out({ errore: 'i tasti sono spenti: manca la proprietà CONSOLE_PIN (almeno 6 cifre) nello script' });
+  const blocco = LockService.getScriptLock(); blocco.waitLock(10000);
+  try {
+    const sbagli = +(p.getProperty('CONSOLE_PIN_SBAGLIATI') || 0);
+    if (sbagli >= MAX_PIN_SBAGLIATI) return out({ errore: 'tasti bloccati dopo troppi PIN sbagliati: lancia «consoleSblocca» nello script' });
+    if (String(d.pin || '') !== pin) { p.setProperty('CONSOLE_PIN_SBAGLIATI', String(sbagli + 1)); return out({ errore: 'PIN sbagliato (' + (MAX_PIN_SBAGLIATI - sbagli - 1) + ' tentativi rimasti)', pin: false }); }
+    if (sbagli) p.deleteProperty('CONSOLE_PIN_SBAGLIATI');
+  } finally { blocco.releaseLock(); }
+  if (d.azione === 'prova') return out({ ok: true });
+  if (d.azione === 'riepilogo' || d.azione === 'giro') {
+    const err = avviaGiro_(d.azione === 'riepilogo');
+    if (!err) p.setProperty('ULTIMO_AVVIO', String(Date.now()));
+    console.log('console: ' + d.azione + (err ? ' → ' + err : ''));
+    return out(err ? { errore: err } : { ok: true });
+  }
+  const tasto = TASTI_CONSOLE[d.azione];
+  if (!tasto) return out({ errore: 'tasto sconosciuto' });
+  let t = null; try { t = GmailApp.getThreadById(String(d.id || '')); } catch (err) {}
+  if (!t) return out({ errore: 'conversazione non trovata' });
+  const nomi = t.getLabels().map(l => l.getName());
+  if (!nomi.includes(tasto[1])) return out({ errore: 'questa conversazione non è più in «' + tasto[1] + '»: aggiorna l\'elenco' });
+  if (['M', 'A', 'P'].some(x => nomi.includes(x))) return out({ errore: 'ha già un\'etichetta M, A o P in lavorazione' });
+  t.addLabel(GmailApp.getUserLabelByName(tasto[0]) || GmailApp.createLabel(tasto[0]));
+  console.log('console: etichetta ' + tasto[0] + ' su una conversazione');
+  return out({ ok: true });
+}
+

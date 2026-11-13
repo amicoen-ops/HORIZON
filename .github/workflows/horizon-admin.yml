@@ -1,6 +1,6 @@
 name: Compila HorizonAdmin
 
-# HorizonAdmin: console dell'autore, SOLA LETTURA (pagine in admin/www). App a parte (it.amicoen.horizonadmin), non va sul
+# HorizonAdmin: console dell'autore (pagine in admin/www): legge e, con il PIN, preme i tasti. App a parte (it.amicoen.horizonadmin), non va sul
 # Play Store e non arriva ai piloti: su main pubblica una Release «HorizonAdmin …» (pre-release) con l'APK.
 # Dentro non ci sono chiavi: l'indirizzo della console di Gmail e l'eventuale token si scrivono nell'app.
 on:
@@ -75,6 +75,6 @@ jobs:
           name: HorizonAdmin ${{ github.run_number }}
           prerelease: true
           body: |
-            Console dell'autore, in sola lettura. Non è sul Play Store e non è per i piloti.
+            Console dell'autore. Non è sul Play Store e non è per i piloti.
             Scarica e installa HorizonAdmin-….apk, poi apri ⚙ e incolla l'indirizzo della console di Gmail.
           files: HorizonAdmin-*.apk
