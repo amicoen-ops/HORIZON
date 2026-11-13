@@ -11,6 +11,7 @@
 //   non la attiva): DIRECT TO sul campo migliore, voce, barra rossa sullo strumento con margine e distanza aggiornati,
 //   pagina con gli altri campi raggiungibili, MAYDAY già compilato, 7700 e 121.500, check list d'emergenza.
 // · Prati raggiungibili (atterraggi.js, dati OpenStreetMap): sotto i campi, mai prima di un campo vero raggiungibile.
+//   I prati segnati dal pilota (ALTRO › SEGNA PRATO QUI) portano la scritta «SEGNATO DA TE»: passano gli stessi controlli degli altri.
 // La planata è una stima: vale sempre il giudizio del pilota e il manuale del velivolo.
 (function(){
 'use strict';
@@ -96,7 +97,7 @@ function arrivoDi(f){
 }
 // prati raggiungibili (atterraggi.js); niente dati o niente modulo: elenco vuoto
 function prati(n){ try{ return PH.pratiList?PH.pratiList(n)||[]:[]; }catch(e){ return []; } }
-const pratoTx=p=>`${String(Math.round(p.brg)).padStart(3,'0')}° · ${(p.d/1000).toFixed(1).replace('.',',')} km · striscia ${Math.round(p.L/10)*10} m`;
+const pratoTx=p=>`${p.mio?'SEGNATO DA TE · ':''}${String(Math.round(p.brg)).padStart(3,'0')}° · ${(p.d/1000).toFixed(1).replace('.',',')} km · striscia ${Math.round(p.L/10)*10} m`;
 
 // ---- zona di planata sulla mappa (al posto del cerchio fisso) ----
 PH.glideRing=function(toS){
@@ -155,7 +156,7 @@ PH.emergOpen=function(){
     e.list=PH.glideFields(12); const cur=e.f&&e.list.find(x=>x.f===e.f)||e.a;
     const fq=e.f&&PH.freqOf?PH.freqOf(e.f):[], fi=fis(), chk=(PH.acChkPh?PH.acChkPh(PH.ac):[]).findIndex(x=>/emergen|piantata|avaria|motore in volo/i.test(x.t));
     const pr=prati(5), cOk=e.list.some(a=>a.ok);
-    const rigaP=p=>`<div class="hz-emp"><b>Prato ${String(Math.round(p.brg)).padStart(3,'0')}° · ${(p.d/1000).toFixed(1).replace('.',',')} km</b><span>striscia ${Math.round(p.L/10)*10} m per ${String(Math.round(p.dir/10)*10%360||360).padStart(3,'0')}° · arrivi con +${Math.round(p.marg/10)*10} ft${p.note?' · '+esc(p.note):''}</span></div>`;
+    const rigaP=p=>`<div class="hz-emp${p.mio?' mio':''}"><b>${p.mio?'⚑ SEGNATO DA TE · ':''}Prato ${String(Math.round(p.brg)).padStart(3,'0')}° · ${(p.d/1000).toFixed(1).replace('.',',')} km</b><span>striscia ${Math.round(p.L/10)*10} m per ${String(Math.round(p.dir/10)*10%360||360).padStart(3,'0')}° · arrivi con +${Math.round(p.marg/10)*10} ft${p.mio===2?' · non è sulle mappe: striscia lungo la direzione segnata':''}${p.note?' · '+esc(p.note):''}</span></div>`;
     const riga=a=>`<button type="button" class="hz-emf${a.f===e.f?' sel':''}${a.ok?'':' no'}" data-id="${esc(a.f.id)}"><b>${esc(a.f.name)}</b><span>${String(Math.round(a.brg)).padStart(3,'0')}° · ${(a.d/1000).toFixed(1).replace('.',',')} km · ${a.ok?'arrivi con +'+Math.round(a.marg/10)*10+' ft':'NON raggiungibile'}${a.rw?' · pista '+a.rw+' m':''}</span></button>`;
     d.innerHTML=`<div class="ph-sheet-h hz-emh"><button type="button" id="hzEmB">◀ Strumento</button><b>⚠ EMERGENZA</b></div>
     <div class="ph-imp">
@@ -218,6 +219,7 @@ function tieni(btn,ms,fn){
   .hz-emf b{font:800 18px "Oxanium",system-ui,sans-serif} .hz-emf span{font:600 14px system-ui,sans-serif;color:#9aa4b0}
   .hz-emf.sel{border-color:#ff4d4d} .hz-emf.no b{color:#9aa4b0}
   .hz-emp{display:flex;flex-direction:column;gap:2px;padding:8px 12px;margin-bottom:8px;border-radius:12px;border:2px dashed #3d6a4c;background:#16221b;color:#eef3f8}
+  .hz-emp.mio{border-style:solid;border-color:#c8ff78}
   .hz-emp b{font:800 17px "Oxanium",system-ui,sans-serif;color:#bfe8cc} .hz-emp span{font:600 14px system-ui,sans-serif;color:#9aa4b0}
   .hz-emb{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 10px} .hz-emb .ph-btn{min-height:60px;font-size:16px;font-weight:700}`;
   document.head.appendChild(s); }

@@ -3,9 +3,9 @@ name: Prove dell'assetto
 # Banco di prova del filtro di assetto (tools/test_assetto.js): pochi secondi, a ogni modifica della pagina strumento.
 on:
   push:
-    paths: ['www/index.html', 'tools/test_assetto.js', 'tools/segnalazioni.py', 'tools/test_segnalazioni.py', 'tools/gmail-licenze/**', 'tools/test_console_gmail.js', '.github/workflows/test-assetto.yml']
+    paths: ['www/index.html', 'tools/test_assetto.js', 'tools/segnalazioni.py', 'tools/test_segnalazioni.py', 'tools/gmail-licenze/**', 'tools/test_console_gmail.js', 'www/prati-dati.js', 'www/atterraggi.js', 'tools/prati_prepara.js', 'tools/test_prati.js', '.github/workflows/test-assetto.yml']
   pull_request:
-    paths: ['www/index.html', 'tools/test_assetto.js', 'tools/segnalazioni.py', 'tools/test_segnalazioni.py', 'tools/gmail-licenze/**', 'tools/test_console_gmail.js']
+    paths: ['www/index.html', 'tools/test_assetto.js', 'tools/segnalazioni.py', 'tools/test_segnalazioni.py', 'tools/gmail-licenze/**', 'tools/test_console_gmail.js', 'www/prati-dati.js', 'www/atterraggi.js', 'tools/prati_prepara.js', 'tools/test_prati.js']
   workflow_dispatch:
 
 permissions:
@@ -26,3 +26,5 @@ jobs:
         run: python3 tools/test_segnalazioni.py
       - name: Console di Gmail (chiave, PIN, tasti)
         run: node tools/test_console_gmail.js
+      - name: Prati (conversione comune all'app e a GitHub, script che prepara i riquadri)
+        run: node tools/test_prati.js

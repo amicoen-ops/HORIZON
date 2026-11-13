@@ -4519,6 +4519,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.184","Prati per l'atterraggio fuori campo: ora si scaricano subito. Per il Nord-Ovest (Piemonte, Valle d'Aosta e dintorni) i riquadri sono già pronti nel nostro archivio e arrivano in un attimo; altrove, o se l'archivio non risponde, si usa il servizio pubblico di prima, lento e spesso in errore. Nuovo «SEGNA PRATO QUI» nel menu ALTRO: hai visto dall'alto un prato buono che sulle mappe non c'è? Un tocco mentre ci passi sopra, nella direzione in cui atterreresti, e resta segnato sul telefono (per qualche secondo puoi annullare). In planata viene preferito e porta la scritta «SEGNATO DA TE», ma deve passare tutti gli altri controlli: pendenza, paesi, boschi, acqua, linee elettriche e quota per arrivarci. L'elenco, da vedere e cancellare, è in Impostazioni › Volare senza internet."],
   ["1.0.178","Le domande a schermo (LIVELLA, rotta ricevuta…) ora hanno due tasti da toccare, SÌ e NO: prima si rispondeva solo con la manopola e toccando lo schermo la livella non partiva. Dopo la livella a terra l'app dice chiaro che a terra l'orizzonte segna l'assetto dell'aereo fermo (per esempio 11° a cabrare) e in volo livellato segna zero."],
   ["1.0.175","Segnalazioni con risposta: l'app ricorda la tua email (resta sul telefono) e la usa anche per le registrazioni dei sensori. I casi già noti (versione vecchia, telefono non livellato, quota non tarata, terreno non scaricato…) ricevono in pochi minuti una risposta automatica con le istruzioni; agli altri risponde il nostro team."],
   ["1.0.174","Tutti gli scarichi mostrano una barretta di avanzamento e i MB: terreno, mappa della zona, prati, carta VFR, scarico automatico (nell'etichetta ⬇ della riga di stato e in Impostazioni), spazi aerei nel Briefing, terreno di Calcola rotta e aggiornamento dell'app. Dove il peso totale si sa prima leggi «12 di 60 MB», altrimenti «12 MB · 34 di 120 riquadri»; «circa» quando è una stima. A scarico finito resta scritto «fatto» con i MB; se qualcosa va storto la barretta si ferma, diventa gialla e dice il motivo. In volo non compare niente di nuovo."],
@@ -5599,6 +5600,7 @@ requestAnimationFrame(frame);
 <script src="stimati.js"></script>
 <script src="impostazioni.js"></script>
 <script src="emergenza.js"></script>
+<script src="prati-dati.js"></script>
 <script src="atterraggi.js"></script>
 <script src="anticipo.js"></script>
 <script src="livelli.js"></script>

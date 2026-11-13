@@ -1,0 +1,59 @@
+name: Prepara i prati (Nord-Ovest)
+
+# Prepara in anticipo i riquadri dei prati per l'atterraggio fuori campo e li mette sul ramo «prati-dati», da dove l'app
+# li scarica già pronti (www/atterraggi.js). Prima ogni telefono li chiedeva ai servizi Overpass pubblici, lenti e spesso
+# in errore: ora Overpass resta all'app solo come riserva.
+#  · tools/prati_prepara.js chiede a Overpass un riquadro di 0,1° alla volta (pausa di almeno 2 s, tre servizi a turno) e
+#    scrive v1/<chiave>.json e v1/indice.json; la zona (Nord-Ovest, prima prova) è la costante ZONA in cima allo script;
+#  · il ramo «prati-dati» non ha storia: ogni salvataggio è UN commit solo, spinto sopra il precedente. Si parte però dai
+#    file che ci sono già, così i riquadri non rifatti (o non riusciti) restano quelli di prima;
+#  · si salva ogni 40 riquadri: se la corsa si interrompe il lavoro fatto è già sul ramo, e la corsa dopo riprende dai
+#    riquadri che mancano e poi dai più vecchi (quelli preparati da meno di 6 giorni si saltano);
+#  · a mano («Run workflow») si può dare un limite di riquadri, per una prova breve.
+# Dati © contributori OpenStreetMap (ODbL). Repo pubblico: nei log solo le chiavi dei riquadri e i conteggi.
+on:
+  schedule:
+    - cron: "17 1 * * 2"          # ogni martedì notte (su questo repo i cron partono con ore di ritardo: non importa)
+  workflow_dispatch:
+    inputs:
+      limite:
+        description: "Limite di riquadri in questa corsa (vuoto = tutti quelli da fare)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prati-prepara
+  cancel-in-progress: false
+
+jobs:
+  prati:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350            # 780 riquadri con le pause: alcune ore. Quello che non entra si fa alla corsa dopo
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Prove dei prati
+        run: node tools/test_prati.js
+      - name: Riquadri già sul ramo «prati-dati»
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init -q dati
+          git -C dati remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          # si parte dai file di prima: i riquadri che questa corsa non rifà restano
+          if git -C dati fetch -q --depth 1 origin prati-dati; then
+            git -C dati checkout -q FETCH_HEAD -- .
+            echo "Sul ramo: $(ls dati/v1 2>/dev/null | grep -c -v '^indice.json$' || true) riquadri"
+          else
+            echo "Il ramo prati-dati non c'è ancora: si parte da zero"
+          fi
+      - name: Prepara e salva ogni 40 riquadri
+        env:
+          LIMITE: ${{ github.event.inputs.limite }}
+        run: |
+          bash tools/prati_pubblica.sh dati "$LIMITE"
