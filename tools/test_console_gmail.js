@@ -34,4 +34,10 @@ vero('riepilogo avvia il giro giusto', post({ k: K, pin: '246810', azione: 'riep
 for (let i = 0; i < 5; i++) post({ k: K, pin: '111111', azione: 'M', id: 'T1' });
 vero('dopo 5 PIN sbagliati: bloccati anche col PIN giusto', /bloccati/.test(post({ k: K, pin: '246810', azione: 'chiusa', id: 'T2' }).errore) && ctx.doGet({ parameter: { k: K } }).tasti === false);
 ctx.consoleSblocca(); vero('sblocco', post({ k: K, pin: '246810', azione: 'prova' }).ok);
+// la sveglia non deve ripartire per una segnalazione già chiusa dall'autore («Segnalazioni gestite»)
+etichette.G1 = ['Segnalazioni gestite']; etichette.N1 = [];
+ctx.GmailApp.search = q => q.includes('Registrazione sensori') ? [thread('G1')] : [];
+vero('segnalazione gestita: niente da lavorare', vm.runInContext('daLavorare_()', ctx) === 0 && /-label:segnalazioni-gestite/.test(vm.runInContext('SEGNALAZIONI', ctx)));
+ctx.GmailApp.search = q => q.includes('Registrazione sensori') ? [thread('N1')] : [];
+vero('segnalazione nuova: da lavorare', vm.runInContext('daLavorare_()', ctx) === 1);
 console.log('Tutte le ' + n + ' prove della console di Gmail passano.');
