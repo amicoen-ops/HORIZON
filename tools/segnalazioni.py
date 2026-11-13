@@ -143,9 +143,11 @@ def regola_versione(c):
 
 LIVELLA = ["Aereo fermo, in piano, telefono già fissato nel supporto nella posizione in cui lo userai in volo.",
            "Premi il tastino LIVELLA (bordo giallo e nero, vicino alla riga GPS · ASSETTO · TERRENO).",
-           "Compare la domanda «LIVELLA A TERRA? … ASSETTO 11°»: confermala entro 15 secondi, altrimenti viene ignorata.",
-           "Deve comparire «ASSETTO LIVELLATO · A TERRA 11°». Da quel momento a terra l'orizzonte segna l'assetto vero "
-           "dell'aereo fermo e in volo livellato segna zero."]
+           "Compare la domanda «LIVELLA A TERRA? … ASSETTO 11°»: tocca SÌ entro 15 secondi, altrimenti viene ignorata. Nelle versioni "
+           "fino alla 1.0.176 la domanda non si può toccare: si conferma premendo il tasto grande OK sotto lo strumento, oppure si usa "
+           "Impostazioni › «Livella a terra», che non chiede conferma.",
+           "Deve comparire la scritta «LIVELLATO». Attenzione: da quel momento A TERRA l'orizzonte NON segna zero ma l'assetto vero "
+           "dell'aereo fermo (per esempio 11° a cabrare). È giusto così: segna zero in volo livellato."]
 LIVELLA_DOPO = ["Se il tuo aereo a terra non è cabrato di 11° (triciclo: 0°; biciclo: di solito 10–12°), metti il valore giusto in "
                 "Impostazioni, campo «Assetto a terra (°)», e poi premi «Livella a terra».",
                 "In alternativa, in volo rettilineo con ali livellate e quota costante: premi LIVELLA e conferma. È il modo più preciso.",
@@ -156,7 +158,9 @@ def regola_livella(c):
     mont = c.riga('Montaggio')
     non_livellato = mont.startswith('telefono verticale')
     r = c.rec
-    storto = bool(r and r.get('righe') and (r.get('gs') or 0) < 5 and (abs(r['beccheggio']) > 4 or abs(r['rollio']) > 3))
+    # dopo una «livella a terra» di N gradi l'orizzonte da fermo DEVE segnare N a cabrare: storto è solo lo scarto da lì
+    atteso = (r.get('a_terra') or 0) if r else 0
+    storto = bool(r and r.get('righe') and (r.get('gs') or 0) < 5 and (abs(r['beccheggio'] - atteso) > 4 or abs(r['rollio']) > 3))
     if c.tipo == 'Registrazione sensori':
         if not storto: return None
     elif not (non_livellato and c.dice('orizzont', 'assetto', 'inclinat', 'storto', 'storta', 'beccheggi', 'rollio', 'livella', 'cabra', 'picchia')):
@@ -253,10 +257,13 @@ def regola_terreno(c):
 def regola_sensori_ok(c):
     r = c.rec
     if c.tipo != 'Registrazione sensori' or not r or not r.get('righe'): return None
+    terra = r.get('a_terra') or 0
+    giusto = ([f"La livella a terra risulta fatta con {terra:.0f}°: a terra l'orizzonte segna apposta circa {terra:.0f}° a cabrare, "
+               "cioè l'assetto dell'aereo fermo. È giusto così: in volo livellato segnerà zero."] if terra and (r.get('gs') or 0) < 5 else [])
     return ('sensori-ok', 'Sensori regolari',
             [f"Abbiamo ricevuto la registrazione ({r['righe']} letture). I sensori del telefono risultano regolari: "
-             f"{c.riga('Sensori di movimento').split(' · ')[0] or 'frequenza regolare'}, assetto da fermo entro pochi gradi "
-             f"(inclinazione {r['rollio']:+.0f}°, beccheggio {r['beccheggio']:+.0f}°).",
+             f"{c.riga('Sensori di movimento').split(' · ')[0] or 'frequenza regolare'} "
+             f"(inclinazione {r['rollio']:+.0f}°, beccheggio {r['beccheggio']:+.0f}°)."] + giusto + [
              "Se in volo avevi notato qualcosa di strano, mandaci una segnalazione di tipo «Problema» descrivendo cosa hai visto e "
              "quando: con la registrazione da sola non possiamo saperlo."])
 
