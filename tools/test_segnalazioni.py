@@ -62,6 +62,9 @@ vero('ai piloti si parla del team, mai dell\'autore', 'autore' not in t and 'aut
 # 2. registrazione regolare
 c, e = caso('Registrazione sensori', 'Registrazione di 20 s', coda=rec(0.4, -1.1))
 vero('registrazione regolare: riconosciuta come sensori-ok', e['riconosciuto'] and e['codici'] == ['sensori-ok'])
+# 2b. livella a terra fatta con 11°: da fermo 11° a cabrare è GIUSTO, niente consiglio di rilivellare
+c, e = caso('Registrazione sensori', 'Registrazione di 20 s', coda=rec(0.5, 11.3, terra='11'))
+vero('a terra 11° dopo la livella: sensori-ok', e['codici'] == ['sensori-ok'] and 'È giusto così' in S.risposta(c, e)[0])
 # 3. registrazione in volo: l'assetto non a zero è normale, niente consiglio di livellare
 c, e = caso('Registrazione sensori', 'Registrazione di 20 s', coda=rec(-20, 8, gs='130'))
 vero('registrazione in volo: niente livella', 'livella' not in e['codici'])

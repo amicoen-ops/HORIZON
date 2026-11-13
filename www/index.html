@@ -80,6 +80,10 @@
   .toast.show{opacity:1}
   .prompt{position:absolute;left:50%;top:15%;transform:translateX(-50%);width:62%;background:rgba(7,10,15,.95);
     border:2px solid var(--mag);border-radius:12px;padding:8px 12px;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.55)}
+  .prompt{z-index:8;pointer-events:auto}
+  .prompt-b{display:flex;gap:10px;justify-content:center;margin-top:8px}
+  .prompt-b button{all:unset;box-sizing:border-box;flex:1;max-width:46%;min-height:44px;border-radius:10px;font-weight:800;font-size:clamp(14px,3.4vw,18px);letter-spacing:.08em;text-align:center;cursor:pointer;color:#fff;border:2px solid #7d8794;touch-action:manipulation}
+  .prompt-b #promptYes{background:#1f7a3a;border-color:#35c066}
   .prompt b{display:block;color:#fff;font-size:clamp(11px,2.5vw,15px);letter-spacing:.04em;line-height:1.25}
   .prompt span{display:block;color:var(--mag);font-weight:700;font-size:clamp(10px,2.1vw,13px);margin-top:4px;letter-spacing:.06em}
 
@@ -308,7 +312,7 @@
     <span>Consenti la posizione quando il telefono lo chiede. All'aperto il primo fix arriva in pochi secondi.</span>
     <div><button type="button" id="phWaitDemo">Volo dimostrativo</button><button type="button" id="phWaitClose">Chiudi</button></div>
   </div>
-  <div class="prompt" id="prompt" hidden><b id="promptT"></b><span>OK: SÌ · ◀ ▶: NO</span></div>
+  <div class="prompt" id="prompt" hidden><b id="promptT"></b><div class="prompt-b"><button type="button" id="promptYes">SÌ</button><button type="button" id="promptNo">NO</button></div><span>TOCCA SÌ O NO · MANOPOLA: OK SÌ, ◀ ▶ NO</span></div>
 </div>
 
 <!-- HORIZON · strumento di volo · © 2026 Enrico D'Amico · Tutti i diritti riservati.
@@ -1895,6 +1899,11 @@ function restoreNav(st,local){
 // ---------------- conferme con la manopola ----------------
 let PROMPT=null;
 function askShow(text,yes,secs,no){ PROMPT={text,yes,no,until:performance.now()+(secs||25)*1000}; el('promptT').textContent=text; el('prompt').hidden=false; }
+// la domanda si può toccare: SÌ e NO sono tasti veri (prima si rispondeva solo con la manopola, e chi toccava lo schermo
+// non otteneva niente: la livella sembrava «non prendere»)
+addEventListener('DOMContentLoaded',()=>{ [['promptYes',true],['promptNo',false]].forEach(([id,ok])=>{ const b=el(id); if(!b) return;
+  ['pointerdown','pointerup','touchstart'].forEach(t=>b.addEventListener(t,e=>e.stopPropagation()));
+  b.addEventListener('click',e=>{ e.stopPropagation(); e.preventDefault(); if(PROMPT) promptAnswer(ok); }); }); });
 function promptAnswer(ok){ const p=PROMPT; PROMPT=null; el('prompt').hidden=true;
   if(p && ok){ try{ p.yes(); }catch(e){ console.error(e); toast('OPERAZIONE NON RIUSCITA'); } } else if(p){ try{ p.no&&p.no(); }catch(e){} toast('IGNORATO'); } }
 function offerRoute(r,src){
@@ -2486,7 +2495,8 @@ PH.level=function(groundPitchDeg){
   PH.M=[fwd,right,down]; PH.mountCal=true; PH.attF=null; PH.groundPitch=groundPitchDeg||0;
   lsSet('ia517p_mount',PH.M); lsSet('ia517p_gpitch',PH.groundPitch);
   const fb=PH.toBody(a).map(x=>x/9.80665); PH.ahrs.levelFrom(fb[0],fb[1],fb[2]);   // forza specifica in g
-  toast('ASSETTO LIVELLATO'+(PH.groundPitch?` · A TERRA ${PH.groundPitch}°`:''));
+  toast((PH.groundPitch?'LIVELLATO':'ASSETTO LIVELLATO')+(PH.groundPitch?`: A TERRA ${PH.groundPitch}° SU, IN VOLO 0°`:''));
+  PH.act&&PH.act('livellato'+(PH.groundPitch?' a terra '+PH.groundPitch:''));
   return true;
 };
 // ---- bussola del telefono (orientamento assoluto: magnetometro + giroscopio + accelerometro di Android) ----
@@ -4509,6 +4519,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.177","Le domande a schermo (LIVELLA, rotta ricevuta…) ora hanno due tasti da toccare, SÌ e NO: prima si rispondeva solo con la manopola e toccando lo schermo la livella non partiva. Dopo la livella a terra l'app dice chiaro che a terra l'orizzonte segna l'assetto dell'aereo fermo (per esempio 11° a cabrare) e in volo livellato segna zero."],
   ["1.0.175","Segnalazioni con risposta: l'app ricorda la tua email (resta sul telefono) e la usa anche per le registrazioni dei sensori. I casi già noti (versione vecchia, telefono non livellato, quota non tarata, terreno non scaricato…) ricevono in pochi minuti una risposta automatica con le istruzioni; agli altri risponde il nostro team."],
   ["1.0.174","Tutti gli scarichi mostrano una barretta di avanzamento e i MB: terreno, mappa della zona, prati, carta VFR, scarico automatico (nell'etichetta ⬇ della riga di stato e in Impostazioni), spazi aerei nel Briefing, terreno di Calcola rotta e aggiornamento dell'app. Dove il peso totale si sa prima leggi «12 di 60 MB», altrimenti «12 MB · 34 di 120 riquadri»; «circa» quando è una stima. A scarico finito resta scritto «fatto» con i MB; se qualcosa va storto la barretta si ferma, diventa gialla e dice il motivo. In volo non compare niente di nuovo."],
   ["1.0.168","Trasmetti la tua posizione su OGN (solo app Android, in prova, spenta di serie): chi non ha FLARM né trasponder può farsi vedere sulla Open Glider Network dagli altri piloti HORIZON e da chi guarda OGN. Si accende a terra da Impostazioni › Trasmetti la posizione (OGN), dopo aver letto cosa esce dal telefono; trasmette solo in volo, ogni 5 secondi, anonimo o con le marche. In volo la riga di stato dice OGN ↑ (visibile) o NO OGN, e la pagina Traffico «VISIBILE / NON VISIBILE SU OGN». Non è un anticollisione. L'app guarda avanti: in volo stima dove sarai tra 20–60 secondi (traccia, velocità, virata, rotta attiva) e prepara prima terreno e mappa di quella zona, così entrando in una zona nuova non ci sono attese né scatti; in memoria tiene quello che hai sotto e davanti e butta per primo quello che hai alle spalle. Nuovo «Scarico automatico» (Impostazioni): a terra, senza chiedere niente, quando salvi una rotta o fai un DIRECT TO scarica terreno, mappa di base e prati lungo la rotta (10 km per lato) e attorno a partenza e arrivo; all'avvio la zona attorno a dove sei e la carta VFR se è uscito un ciclo AIRAC nuovo. Due scelte, «Sempre / Solo Wi-Fi / Mai»: rotta e zona (di serie Sempre, al massimo 60 MB per volta) e carta VFR intera (di serie Solo Wi-Fi). Una riga dice cosa scarica e quanti MB. Mai in volo: se decolli si ferma subito."],
