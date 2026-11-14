@@ -96,6 +96,62 @@ function divisore(A,vh){ if(!A){ dv.hidden=true; return; } dv.hidden=false; dv.s
   #hzDiv[hidden]{display:none} #hzDiv i{display:block;width:6px;height:72px;border-radius:3px;background:#3a4a5a;box-shadow:0 0 0 1px #0a0f14}
   #hzDiv.on i,#hzDiv:hover i{background:#33e1ff;height:120px}
   body.ph-simple #hzDiv{display:none!important}`; document.head.appendChild(s); }
+// ---- SOLO ORIZZONTE a schermo pieno ----
+// Per chi vuole soltanto l'orizzonte: lo strumento prende tutto lo schermo (nastri ai bordi, prua in fondo), senza caselle, tasti e menu.
+// Si appoggia all'interfaccia semplice (niente mappa né rotta). Avvisi e bandierine restano; il tasto SOS resta in alto a sinistra.
+// Si esce tenendo premuto 0,8 s sullo schermo: un tocco per sbaglio in turbolenza non fa niente.
+PH.pieno=false;
+{ const s=document.createElement('style'); s.textContent=`
+  body.hz-pieno{overflow:hidden!important}
+  body.hz-pieno #unit{position:fixed!important;inset:0!important;width:auto!important;height:auto!important;max-width:none!important;aspect-ratio:auto!important;border-radius:0!important;border:0!important;margin:0!important;z-index:12;background:#05070a}
+  body.hz-pieno #unit canvas{left:env(safe-area-inset-left,0px)!important;top:env(safe-area-inset-top,0px)!important;width:calc(100% - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px))!important;height:calc(100% - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))!important}
+  body.hz-pieno .ph-side,body.hz-pieno #unit2,body.hz-pieno #hzP2,body.hz-pieno #hzDiv{display:none!important}
+  #hzPnSos,#hzPnEsci{display:none}
+  body.hz-pieno #hzPnSos{display:block;position:absolute;left:calc(8px + env(safe-area-inset-left,0px));top:calc(8px + env(safe-area-inset-top,0px));z-index:7;margin:0;min-height:46px;min-width:72px}
+  body.ph-land.hz-pieno #hzPnSos{left:calc(23vh + env(safe-area-inset-left,0px))} body.ph-land.hz-pieno #hzPnEsci{right:calc(27vh + env(safe-area-inset-right,0px))}
+  body.hz-pieno .menu{display:none!important}
+  body.hz-pieno #hzPnEsci{display:block;position:absolute;right:calc(8px + env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));z-index:6;pointer-events:none;font:700 11px system-ui,sans-serif;letter-spacing:.04em;color:#e9eef2;background:rgba(7,10,15,.55);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:5px 8px;overflow:hidden}
+  #hzPnEsci::before{content:'';position:absolute;inset:0;background:#33e1ff;opacity:.45;transform:scaleX(0);transform-origin:left}
+  #hzPnEsci.hold::before{transform:scaleX(1);transition:transform 800ms linear}
+  #hzPnBtn{display:none;flex:none;min-height:40px;min-width:44px;margin-left:6px;border-radius:10px;border:2px solid #3a4a5a;background:#121c25;color:#e9eef2;font:800 18px system-ui,sans-serif;cursor:pointer}
+  body.ph-simple #hzPnBtn{display:inline-block}
+  #hzPnGo{width:100%;min-height:54px;margin:8px 0 2px}`; document.head.appendChild(s); }
+{ const sos=document.createElement('button'); sos.type='button'; sos.id='hzPnSos'; sos.className='hz-sos'; sos.textContent='SOS'; sos.setAttribute('aria-label','Emergenza: tieni premuto');
+  const esci=document.createElement('div'); esci.id='hzPnEsci'; esci.textContent='TIENI PREMUTO PER USCIRE'; un.appendChild(sos); un.appendChild(esci);
+  // pressione lunga: parte dopo ms, si annulla se il dito si alza o si sposta
+  // Sullo schermo pieno i tocchi non arrivano allo strumento (niente menu né manopola per sbaglio): contano solo SOS, avvisi e domande.
+  const libero=t=>!!(t&&t.closest&&t.closest('.prompt,.ph-flags,.ph-alert,.ph-wait'));
+  let t=0, p=null, chi=null;
+  const via=()=>{ if(t){ clearTimeout(t); t=0; } p=null; if(chi) chi.classList.remove('hold'); chi=null; };
+  un.addEventListener('pointerdown',e=>{ if(!PH.pieno||libero(e.target)) return; e.stopPropagation(); via();
+    const suSos=e.target===sos; chi=suSos?sos:esci; p={x:e.clientX,y:e.clientY}; chi.classList.add('hold');
+    t=setTimeout(()=>{ via(); PH.pienoSet(false); if(suSos){ try{ PH.emerg?PH.emergOpen():PH.emergStart(); }catch(x){} } },800); },true);
+  un.addEventListener('pointermove',e=>{ if(!PH.pieno||libero(e.target)) return; e.stopPropagation(); if(p&&Math.abs(e.clientX-p.x)+Math.abs(e.clientY-p.y)>18) via(); },true);
+  for(const n of ['pointerup','pointercancel']) un.addEventListener(n,e=>{ if(!PH.pieno&&!p) return; via(); if(PH.pieno&&!libero(e.target)) e.stopPropagation(); },true);
+  for(const n of ['click','wheel','keydown']) un.addEventListener(n,e=>{ if(PH.pieno&&!libero(e.target)) e.stopPropagation(); },true); }
+PH.pienoSet=function(v,zitto){ v=!!v; if(v===PH.pieno) return;
+  if(v){ try{ closeMenu(); }catch(e){} lsSet('ia517p_pieno_prima',PH.ui); if(PH.ui!=='simple') PH.setUi('simple'); try{ PH.moreOpen&&PH.moreOpen(false); }catch(e){} PH.pieno=true; PH.show('volo'); }
+  else PH.pieno=false;
+  lsSet('ia517p_pieno',PH.pieno); document.body.classList.toggle('hz-pieno',PH.pieno);
+  try{ const d=document, r=d.documentElement;                      // via anche le barre del browser, dove si può (serve un tocco: all'avvio non riesce, e va bene)
+    if(PH.pieno){ if(!d.fullscreenElement&&r.requestFullscreen){ const q=r.requestFullscreen(); if(q&&q.catch) q.catch(()=>{}); } }
+    else if(d.fullscreenElement&&d.exitFullscreen){ const q=d.exitFullscreen(); if(q&&q.catch) q.catch(()=>{}); } }catch(e){}
+  if(!PH.pieno && !zitto && lsGet('ia517p_pieno_prima','simple')==='full') PH.setUi('full');
+  try{ window.phPieno(PH.pieno); }catch(e){}
+  PH.layout(); PH.act&&PH.act('solo orizzonte '+(PH.pieno?'acceso':'spento'));
+  if(!zitto) toastShow(PH.pieno?'SOLO ORIZZONTE · TIENI PREMUTO PER USCIRE':'SCHERMO NORMALE'); };
+// se qualcosa porta a un'altra pagina o all'interfaccia completa, lo schermo pieno si toglie da solo
+{ const su=PH.setUi; PH.setUi=function(u){ if(PH.pieno&&u!=='simple') PH.pienoSet(false,true); return su.apply(this,arguments); };
+  const sh=PH.show; PH.show=function(v){ if(PH.pieno&&v!=='volo') PH.pienoSet(false,true); return sh.apply(this,arguments); }; }
+// tasto ⛶ accanto a SOS (solo nell'interfaccia semplice) e tasto in Impostazioni › Interfaccia
+{ const dopo=document.getElementById('hzSos')||document.getElementById('phLvl');
+  if(dopo){ const b=document.createElement('button'); b.type='button'; b.id='hzPnBtn'; b.textContent='⛶'; b.title='Solo orizzonte a schermo pieno'; b.setAttribute('aria-label','Solo orizzonte a schermo pieno'); b.onclick=()=>PH.pienoSet(true); dopo.after(b); }
+  const ri=PH.renderImp; PH.renderImp=function(){ ri.apply(this,arguments);
+    const ui=document.getElementById('phUi'); if(!ui||document.getElementById('hzPnGo')) return;
+    const b=document.createElement('button'); b.type='button'; b.className='ph-btn'; b.id='hzPnGo'; b.textContent='⛶ SOLO ORIZZONTE A SCHERMO PIENO'; b.onclick=()=>PH.pienoSet(true);
+    const p=document.createElement('p'); p.className='ph-sub'; p.innerHTML='<b>Solo orizzonte</b>: lo strumento prende tutto lo schermo, con velocità, quota, vario e prua. Niente caselle, tasti e menu. Avvisi e tasto SOS restano. Per uscire tieni premuto lo schermo per un secondo.';
+    const sec=ui.closest('section')||ui.parentNode; sec.appendChild(b); sec.appendChild(p); }; }
+if(lsGet('ia517p_pieno',false)) setTimeout(()=>{ try{ PH.pienoSet(true,true); }catch(e){ console.error('pieno',e); } },0);
 setInterval(()=>{ try{ riempi(); }catch(e){} },5000);
 try{ PH.layout(); PH.zoomBtns&&PH.zoomBtns(); }catch(e){}
 // la colonna dei dati cambia altezza in volo (riga degli spazi, avvisi, banner radio): si ridispone se esce dallo schermo
