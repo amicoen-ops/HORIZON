@@ -6,3 +6,4 @@
 2026-11-13 | Problema | 13.11.2026 | web | browser | autore: nessuna regola | -
 2026-11-13 | Dato sbagliato | 1.0.180 | Google Play | SM-S711B | autore: dato sbagliato | -
 2026-11-13 | Problema | 13.11.2026 | web | browser | autore: errori di oggi nel registro | gps
+2026-11-14 | Suggerimento | 1.0.189 | Google Play | SM-S711B | autore: suggerimento | -
