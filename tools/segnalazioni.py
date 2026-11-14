@@ -22,6 +22,10 @@ TIPI = ('Problema', 'Suggerimento', 'Dato sbagliato', 'Registrazione sensori')
 CAMPI = ('Segnalazione', 'Messaggio', 'Rispondere a', 'Velivolo', 'Versione', 'Telefono', 'Inviata il', 'Dati tecnici')
 VECCHIA_DI = 30           # versioni di ritardo oltre le quali «aggiorna» è già la risposta
 AVVISO = 'HORIZON è un aiuto al volo e non sostituisce gli strumenti di bordo.'
+# collegamenti verificati: il canale dei test interni del Play Store (vale solo per chi è nell'elenco dei tester) e la versione web
+LINK_TEST = 'https://play.google.com/apps/internaltest/4700859637762820327'
+LINK_WEB = 'https://amicoen-ops.github.io/HORIZON/'
+WEB = 'La versione web, sempre aggiornata, si apre da qualsiasi browser senza installare niente: ' + LINK_WEB
 
 
 def testo_da_html(s):
@@ -130,15 +134,25 @@ def difetto(c):
 # ───────────── regole: ognuna torna None o (codice, titolo, [paragrafi]) ─────────────
 def regola_versione(c):
     if c.ritardo < 5: return None
-    come = ("Apri il Play Store, cerca HORIZON e tocca «Aggiorna». Se il Play Store non propone l'aggiornamento, "
-            "rispondi a questa mail e ti rimettiamo tra i tester del canale giusto."
-            if c.canale == 'Google Play' else
-            "In HORIZON apri Info e tocca «Controlla aggiornamenti», oppure scarica l'ultima versione dalla pagina del progetto."
-            if c.canale == 'APK' else "Chiudi e riapri la pagina: la versione web si aggiorna da sola.")
+    if c.canale == 'Google Play':
+        # chi resta fermo a una versione vecchia sul Play Store di solito è iscritto al canale di test di prima: le versioni
+        # nuove escono sul canale dei test interni, e ci si passa una volta sola
+        come = ["Sul Play Store le versioni nuove escono sul canale dei test: se non ti arriva l'aggiornamento, ci passi così, una volta sola.",
+                ('·', ["Nel Play Store, in alto a destra, controlla di essere entrato con l'account Google con cui ti sei iscritto come tester.",
+                       "Dal telefono (non dal computer) apri " + LINK_TEST + " e tocca «Diventa un tester».",
+                       "Nella stessa pagina tocca «Download test app»: si apre il Play Store su HORIZON. Se c'è «Aggiorna», toccalo: i tuoi dati restano.",
+                       "Se c'è solo «Apri»: Impostazioni del telefono › App › Google Play Store › Memoria › «Svuota cache», aspetta 15–30 minuti e riprova dal passo 3.",
+                       "Se resta ancora la versione vecchia: disinstalla HORIZON, riapri il collegamento del passo 2 e tocca «Download test app» › «Installa». "
+                       "Attenzione: così si perdono rotte e velivoli salvati sul telefono, che vanno reinseriti."]),
+                "Se al passo 2 compare «app non disponibile», rispondi a questa mail con il tuo indirizzo Google: ti aggiungiamo ai tester."]
+    elif c.canale == 'APK':
+        come = ["In HORIZON apri Info e tocca «Controlla ora» negli aggiornamenti: scarica e installa la versione nuova sopra quella che hai, senza perdere niente."]
+    else:
+        come = ["Chiudi e riapri la pagina: la versione web si aggiorna da sola. Se compare «Nuova versione disponibile», tocca «Aggiorna ora»."]
     return ('versione-vecchia', 'Aggiorna HORIZON',
             [f"Stai usando la versione {v_txt(c.ver)}; l'ultima è la {v_txt(c.ultima)} ({c.ritardo} versioni dopo). "
-             "Nel frattempo sono stati corretti molti difetti, soprattutto su orizzonte, bussola, terreno e velocità dell'app.",
-             come, "Se dopo l'aggiornamento il problema c'è ancora, manda una nuova segnalazione: la guardiamo subito."])
+             "Nel frattempo sono stati corretti molti difetti, soprattutto su orizzonte, bussola, terreno e velocità dell'app."]
+            + come + ["Se dopo l'aggiornamento il problema c'è ancora, manda una nuova segnalazione: la guardiamo subito."])
 
 
 LIVELLA = ["Aereo fermo, in piano, telefono già fissato nel supporto nella posizione in cui lo userai in volo.",
@@ -290,6 +304,11 @@ def analizza(c):
     return {'riconosciuto': not motivo, 'motivo': motivo, 'codici': codici, 'sezioni': trovate}
 
 
+def _ricco(x):
+    """Testo sicuro per la pagina, con i collegamenti https cliccabili."""
+    return re.sub(r'(https://[A-Za-z0-9._~/?=&%-]*[A-Za-z0-9/])', r'<a href="\1">\1</a>', H.escape(x))
+
+
 def _fmt(sezioni, saluto, chiusa):
     t, h = [saluto, ''], [f'<p>{H.escape(saluto)}</p>']
     for _, titolo, paragrafi in sezioni:
@@ -297,25 +316,25 @@ def _fmt(sezioni, saluto, chiusa):
         for p in paragrafi:
             if isinstance(p, tuple):                       # ('·', [passi]) → elenco numerato
                 t += [f'  {i}. {x}' for i, x in enumerate(p[1], 1)]
-                h.append('<ol>' + ''.join(f'<li>{H.escape(x)}</li>' for x in p[1]) + '</ol>')
+                h.append('<ol>' + ''.join(f'<li>{_ricco(x)}</li>' for x in p[1]) + '</ol>')
             else:
-                t.append(p); h.append(f'<p>{H.escape(p)}</p>')
+                t.append(p); h.append(f'<p>{_ricco(p)}</p>')
         t.append('')
     t += chiusa + ['', 'HORIZON · strumento di volo']
-    h += [f'<p>{H.escape(x)}</p>' for x in chiusa]
+    h += [f'<p>{_ricco(x)}</p>' for x in chiusa]
     return '\n'.join(t) + '\n', ''.join(h)
 
 
 def risposta(c, esito):
     """Testo e HTML della risposta al pilota per un caso riconosciuto."""
     return _fmt(esito['sezioni'], f"Ciao, abbiamo ricevuto la tua segnalazione dalla versione {v_txt(c.ver)} e l'abbiamo analizzata in automatico dai dati tecnici allegati.",
-                ["Questa risposta è preparata in automatico. Se non risolve, rispondi a questa mail: la legge il nostro team.", AVVISO, 'Buoni voli!'])
+                ["Questa risposta è preparata in automatico. Se non risolve, rispondi a questa mail: la legge il nostro team.", WEB, AVVISO, 'Buoni voli!'])
 
 
 def ricevuta(c):
     """Testo e HTML per i casi che guarda l'autore: solo «ricevuta», nessun consiglio."""
     return _fmt([], "Ciao, abbiamo ricevuto la tua segnalazione" + (f" dalla versione {v_txt(c.ver)}" if c.ver else '') + ". Grazie!",
-                ["Il nostro team è al lavoro per darti la risposta: ti scriviamo a questo indirizzo.", AVVISO])
+                ["Il nostro team è al lavoro per darti la risposta: ti scriviamo a questo indirizzo.", WEB, AVVISO])
 
 
 def riga_anonima(c, esito, giorno):
