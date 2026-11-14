@@ -8,3 +8,6 @@
 2026-11-13 | Problema | 13.11.2026 | web | browser | autore: errori di oggi nel registro | gps
 2026-11-14 | Suggerimento | 1.0.189 | Google Play | SM-S711B | autore: suggerimento | -
 2026-11-14 | Problema | 14.11.2026 | web | K | autore: nessuna regola | -
+2026-11-14 | Problema | 14.11.2026 | web | browser | autore: blocchi del disegno | -
+2026-11-14 | Problema | 14.11.2026 | web | browser | autore: blocchi del disegno | -
+2026-11-14 | Problema | 14.11.2026 | web | browser | autore: blocchi del disegno | -
