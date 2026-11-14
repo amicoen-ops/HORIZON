@@ -2541,6 +2541,8 @@ PH.magFromR=function(Rm,src){
   PH.mag.raw=PH.mag.hdg==null?h:wrap360(PH.mag.raw+angDiff(h,PH.mag.raw)*Math.min(kf,0.25*(tau>0?1:4)));
   PH.mag.hdg=PH.mag.raw; PH.mag.t=now; PH.mag.src=src;
 };
+// una correzione automatica oltre 30° salvata dalle versioni precedenti (presa in macchina, non su una pista) si toglie da sola
+try{ if(Math.abs(+PH.magDev||0)>30 && PH.magAutoLast && Math.abs(angDiff(+PH.magAutoLast.dev,+PH.magDev))<=5){ PH.magDev=0; lsSet('ia517p_magdev',0); PH.magAutoLast=null; lsSet('ia517p_magauto_last',null); } }catch(e){}
 // bussola corretta da sola alla corsa di decollo: sulle ruote l'aereo va dritto sull'asse, quindi la traccia GPS è la prua
 // vera. Con 20–55 km/h, traccia stabile (<1,5°/s), bussola fresca e affidabile si raccolgono le differenze; finita la corsa,
 // con almeno 5 campioni coerenti (scarto < 8°) si aggiorna la correzione. Nessuna domanda e nessun avviso: si vede in
@@ -2548,7 +2550,14 @@ PH.magFromR=function(Rm,src){
 PH.magAuto=function(){
   if(!PH.magAutoOn || PH.demo || PH.sim || !S.gpsReal) { PH.magBuf.length=0; return; }
   const now=performance.now(), gs=S.gs||0, fresh=PH.mag.mRaw!=null && now-PH.mag.t<800 && !(PH.mag.acc!=null&&PH.mag.acc<2);
-  const corsa=gs>=20 && gs<=55 && S.trk!=null && Math.abs(PH.trkRate||0)<1.5 && fresh && Math.abs(PH.vario&&PH.vario.v||0)<1.5;
+  let corsa=gs>=20 && gs<=55 && S.trk!=null && Math.abs(PH.trkRate||0)<1.5 && fresh && Math.abs(PH.vario&&PH.vario.v||0)<1.5;
+  // deve essere davvero una corsa su una pista: entro 1,5 km da un campo dell'elenco e con la traccia sull'asse di una sua
+  // pista (±15°). Prima bastava la velocità: andando in macchina col telefono in mano la bussola «imparava» una correzione
+  // sbagliata anche di 90° e la teneva. Il campo vicino si ricerca al massimo ogni 5 secondi.
+  if(corsa){ if(!PH.magPista||now-PH.magPista.t>5000){ let ok=false;
+      try{ for(const f of FIELDS){ if(!f.rw||!f.rw.length||distBrg(S,f).d>1500) continue; if(f.rw.some(r=>isFinite(r.hdg)&&Math.min(Math.abs(angDiff(S.trk,r.hdg)),Math.abs(angDiff(S.trk,r.hdg+180)))<15)){ ok=true; break; } } }catch(e){}
+      PH.magPista={t:now,ok}; }
+    corsa=PH.magPista.ok; }
   if(corsa){ PH.magBuf.push(angDiff(wrap360(S.trk-(+PH.decl||0)),PH.mag.mRaw)); if(PH.magBuf.length>60) PH.magBuf.shift(); return; }
   const b=PH.magBuf; if(!b.length) return; PH.magBuf=[];
   if(b.length<5) return;
@@ -2556,6 +2565,8 @@ PH.magAuto=function(){
   const m=Math.atan2(sy,sx)*R2D, sd=Math.sqrt(b.reduce((a,d)=>a+angDiff(d,m)**2,0)/b.length);
   if(sd>8) return;                                                          // campioni sparsi: corsa non dritta o bussola disturbata
   const dev=Math.round(m), old=+PH.magDev||0;
+  // una deviazione oltre 30° non è la bussola di bordo che sbaglia: è il telefono girato rispetto alla marcia. Non si applica.
+  if(Math.abs(dev)>30){ PH.act&&PH.act(`bussola dal decollo scartata: ${dev}° è troppo`); return; }
   PH.magAutoLast={t:Date.now(),dev,n:b.length,sd:+sd.toFixed(1)}; lsSet('ia517p_magauto_last',PH.magAutoLast);
   if(Math.abs(angDiff(dev,old))>=3){ PH.magDev=dev; lsSet('ia517p_magdev',dev); PH.mag.hdg=null; }
   PH.act&&PH.act(`bussola dal decollo ${dev>0?'+':''}${dev}° (${b.length} campioni, ±${sd.toFixed(1)}°)`);
@@ -4519,6 +4530,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.188","Bussola: la correzione automatica al decollo ora scatta solo su una pista vera (vicino a un campo dell'elenco e con la traccia sull'asse pista) e non accetta più correzioni oltre 30°. Prima bastava andare tra 20 e 55 km/h, anche in macchina col telefono in mano, e la bussola poteva restare sfasata anche di 90°. Una correzione sbagliata già salvata si toglie da sola all'avvio."],
   ["1.0.184","Prati per l'atterraggio fuori campo: ora si scaricano subito. Per il Nord-Ovest (Piemonte, Valle d'Aosta e dintorni) i riquadri li prepariamo noi in anticipo, una volta alla settimana, e arrivano in un attimo; altrove, o se l'archivio non risponde, si usa il servizio pubblico di prima, lento e spesso in errore. Nuovo «SEGNA PRATO QUI» nel menu ALTRO: hai visto dall'alto un prato buono che sulle mappe non c'è? Un tocco mentre ci passi sopra, nella direzione in cui atterreresti, e resta segnato sul telefono (per qualche secondo puoi annullare). In planata viene preferito e porta la scritta «SEGNATO DA TE», ma deve passare tutti gli altri controlli: pendenza, paesi, boschi, acqua, linee elettriche e quota per arrivarci. L'elenco, da vedere e cancellare, è in Impostazioni › Volare senza internet."],
   ["1.0.178","Le domande a schermo (LIVELLA, rotta ricevuta…) ora hanno due tasti da toccare, SÌ e NO: prima si rispondeva solo con la manopola e toccando lo schermo la livella non partiva. Dopo la livella a terra l'app dice chiaro che a terra l'orizzonte segna l'assetto dell'aereo fermo (per esempio 11° a cabrare) e in volo livellato segna zero."],
   ["1.0.175","Segnalazioni con risposta: l'app ricorda la tua email (resta sul telefono) e la usa anche per le registrazioni dei sensori. I casi già noti (versione vecchia, telefono non livellato, quota non tarata, terreno non scaricato…) ricevono in pochi minuti una risposta automatica con le istruzioni; agli altri risponde il nostro team."],
