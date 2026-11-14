@@ -1,5 +1,7 @@
 ext {
-    minSdkVersion = 34
+    // Android 10 in su. Prima era 34 (Android 14): telefoni e tablet con Android 10-13 non potevano installare l'app
+    // («dispositivo non compatibile»). Il codice Java ha già i controlli di versione per i sistemi più vecchi.
+    minSdkVersion = 29
     compileSdkVersion = 36
     targetSdkVersion = 36
     androidxActivityVersion = '1.11.0'
