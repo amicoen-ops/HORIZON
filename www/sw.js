@@ -26,7 +26,9 @@ async function networkFirst(req,name){
 }
 async function staleWhileRevalidate(req){
   const c=await caches.open(V), hit=await c.match(req,{ignoreSearch:true});
-  const net=fetch(req).then(r=>{ if(r.ok) c.put(req,r.clone()); return r; }).catch(()=>null);
+  // «no-cache»: si chiede sempre al sito se il file è cambiato (risposta breve se è uguale). Senza, il browser ridava la sua
+  // copia per 10 minuti e la versione nuova non arrivava mai al primo colpo.
+  const net=fetch(req,{cache:'no-cache'}).then(r=>{ if(r.ok) c.put(req,r.clone()); return r; }).catch(()=>null);
   return hit||(await net)||new Response('offline',{status:503});
 }
 self.addEventListener('fetch',e=>{

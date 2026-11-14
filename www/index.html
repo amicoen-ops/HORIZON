@@ -4536,6 +4536,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.191","Versione web: l'avviso «Nuova versione disponibile» non torna più in cerchio dopo aver aggiornato (la pagina ora si ricarica davvero dal sito), «Più tardi» vale 12 ore, e la versione mostra anche l'ora. Il browser non propone più da solo di installare la pagina come app mentre tocchi lo strumento (capitava sul tasto SOS): c'è un tasto apposta in Info."],
   ["1.0.190","L'app ora si installa anche su telefoni e tablet con Android 10, 11, 12 e 13: prima chiedeva Android 14 e su quei dispositivi risultava «non compatibile». Su un tablet servono comunque GPS e sensori di movimento: senza giroscopio l'orizzonte non è affidabile."],
   ["1.0.189","Bussola: sull'asse di una pista dell'elenco la correzione automatica al decollo si applica sempre, anche se è grande. Se supera 30° vuol dire che la bussola del telefono è scalibrata: dopo l'atterraggio, da fermo, compare una nota che invita a calibrarla (muovere il telefono a otto), e la stessa nota resta in Impostazioni › Bussola."],
   ["1.0.188","Bussola: la correzione automatica al decollo ora scatta solo su una pista vera (vicino a un campo dell'elenco e con la traccia sull'asse pista). Prima bastava andare tra 20 e 55 km/h, anche in macchina col telefono in mano, e la bussola poteva restare sfasata anche di 90°. Una correzione sbagliata già salvata si toglie da sola all'avvio."],
@@ -4701,21 +4702,30 @@ PH.checkUpdate=async function(manual){
 };
 PH.updMoving=()=>!!(PH.flight || PH.sim || (S.gpsReal && S.gs>35));
 // la finestra «Nuova versione»: mai sopra lo strumento in volo, aspetta l'atterraggio
+// Chrome propone da solo di installare la pagina come app, al primo tocco che gli pare: capitava toccando SOS. Si ferma la
+// proposta automatica e la si offre in Info, con un tasto, quando la vuole il pilota.
+addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); PH.installa=e; const b=document.getElementById('phInstalla'); if(b) b.hidden=false; });
+addEventListener('appinstalled',()=>{ PH.installa=null; const b=document.getElementById('phInstalla'); if(b) b.hidden=true; });
 PH.updPrompt=function(u){
   if(!u || u.state!=='nuova' || PH.updLater===u.build || document.getElementById('phUpdAsk')) return;
+  // «Più tardi» vale 12 ore per quella versione, anche riaprendo l'app; e se l'aggiornamento è appena stato tentato ma la
+  // pagina è ancora la vecchia (il browser non l'ha ancora presa), per 20 minuti non si richiede: arriverà da sola
+  { const dopo=lsGet('ia517p_updlater',null), prova=lsGet('ia517p_updtry',null);
+    if(dopo&&dopo.build===u.build&&Date.now()-dopo.t<12*3600e3) return;
+    if(prova&&prova.build===u.build&&Date.now()-prova.t<20*60e3) return; }
   if(PH.updMoving() || document.getElementById('phTerms') || document.getElementById('licWall')){ clearTimeout(PH.updWait); PH.updWait=setTimeout(()=>PH.updPrompt(u),60e3); return; }
   const nag=document.getElementById('phNag'); if(nag) nag.remove();
   const esc=x=>String(x||'').replace(/</g,'&lt;');
   const notes=u.notes?esc(u.notes).split('\n').filter(l=>l.trim()).slice(0,8).join('<br>'):'';
   const d=document.createElement('div'); d.className='ph-sheet ph-terms'; d.id='phUpdAsk';
   d.innerHTML=`<div class="ph-imp"><section><h3>Nuova versione disponibile</h3>
-    <p><b class="ph-new">HORIZON ${esc(u.latest)}</b> · ora hai la ${esc(PH.version().version)}</p>
+    <p><b class="ph-new">HORIZON ${esc(u.latest)}</b> · ora hai la ${esc(PH.version().version)}${u.latest===PH.version().version?' (una versione precedente dello stesso giorno)':''}</p>
     ${notes?`<p class="ph-sub">${notes}</p>`:''}
     <p class="ph-sub">${u.channel==='web'?'Si ricarica la pagina con la versione nuova.':u.channel==='play'?'L\'aggiornamento arriva dal Play Store e si installa qui dentro.':'Si scarica e si installa sopra quella attuale: rotte, campi, velivoli, impostazioni e diario restano.'}</p>
     <div id="phUpdMsg" class="ph-sub"></div>
     <div class="ph-btns" style="justify-content:center"><button class="ph-btn pri" id="phUpdNow">Aggiorna ora</button><button class="ph-btn" id="phUpdLater">Più tardi</button></div></section></div>`;
   document.body.appendChild(d);
-  el('phUpdLater').onclick=()=>{ PH.updLater=u.build; d.remove(); };
+  el('phUpdLater').onclick=()=>{ PH.updLater=u.build; lsSet('ia517p_updlater',{build:u.build,t:Date.now()}); d.remove(); };
   el('phUpdNow').onclick=()=>PH.doUpdate(u,el('phUpdMsg'),el('phUpdNow'));
 };
 PH.doUpdate=async function(u,msg,btn){
@@ -4729,6 +4739,11 @@ PH.doUpdate=async function(u,msg,btn){
       say('Carico la versione nuova…');
       try{ const ks=await caches.keys(); await Promise.all(ks.filter(k=>k.startsWith('ia517-app-')).map(k=>caches.delete(k))); }catch(e){}
       try{ const r=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration(); if(r) await r.update(); }catch(e){}
+      // i file vanno riletti dal sito e non dalla memoria del browser (che li tiene per 10 minuti): senza, la pagina ricaricata
+      // era ancora quella vecchia e l'avviso tornava subito. Si ricorda anche il tentativo, per non chiedere in cerchio.
+      try{ const f=['./','index.html','app.html','version.js',...[...document.scripts].map(s=>s.getAttribute('src')).filter(x=>x&&!/^https?:/.test(x))];
+        await Promise.all([...new Set(f)].map(x=>fetch(x,{cache:'reload'}).catch(()=>null))); }catch(e){}
+      lsSet('ia517p_updtry',{build:u.build,t:Date.now()});
       location.reload(); return; }
     const U=PH.native&&PH.native.upd;
     if(u.channel==='play'){
@@ -4864,7 +4879,7 @@ PH.renderInfo=function(){
   <section><h3>Sul browser, anche iPhone e iPad</h3>
     <p class="ph-sub">La stessa app gira in Chrome o Safari da questo indirizzo. Su iPhone aprilo con Safari, poi Condividi › <b>Aggiungi alla schermata Home</b>: si apre a schermo intero e funziona anche senza internet.</p>
     <div class="ph-row ph-col"><b style="word-break:break-all">${PH_INFO.web}</b></div>
-    <div class="ph-btns"><a class="ph-btn pri" href="${PH_INFO.web}" target="_blank" rel="noopener">Apri</a><button class="ph-btn" id="phWebCopy">Copia il link</button><button class="ph-btn" id="phWebShare">Condividi</button></div>
+    <div class="ph-btns"><a class="ph-btn pri" href="${PH_INFO.web}" target="_blank" rel="noopener">Apri</a><button class="ph-btn" id="phWebCopy">Copia il link</button><button class="ph-btn" id="phWebShare">Condividi</button><button class="ph-btn" id="phInstalla" ${PH.installa?'':'hidden'}>Installa come app</button></div>
   </section>
   <section><h3>Novità della ${PH_CHANGES[0][0]}</h3><div class="ph-row ph-col"><small>${PH_CHANGES[0][1]}</small></div>
     <details class="ph-hist"><summary>Versioni precedenti (${PH_CHANGES.length-1})</summary>${PH_CHANGES.slice(1).map(([v,t])=>`<div class="ph-row ph-col"><b>${v}</b><small>${t}</small></div>`).join('')}</details></section>
@@ -4909,6 +4924,7 @@ PH.renderInfo=function(){
   el('phWebShare').onclick=async()=>{ const d={title:'HORIZON · strumento di volo',text:'HORIZON, strumento di volo per telefono, tablet e browser',url:PH_INFO.web};
     try{ if(PH.native&&PH.native.share){ await PH.native.share.share(d); return; } if(navigator.share){ await navigator.share(d); return; } }catch(e){ return; }
     try{ await navigator.clipboard.writeText(PH_INFO.web); toast('LINK COPIATO'); }catch(e){} };
+  if(el('phInstalla')) el('phInstalla').onclick=async()=>{ const p=PH.installa; if(!p) return; try{ p.prompt(); await p.userChoice; }catch(e){} PH.installa=null; el('phInstalla').hidden=true; };
   let kind='Problema';
   el('phRepKind').querySelectorAll('button').forEach(x=>x.onclick=()=>{ kind=x.dataset.k; el('phRepKind').querySelectorAll('button').forEach(y=>y.setAttribute('aria-pressed',y===x)); });
   el('phRepPre').textContent=PH.diag();
