@@ -426,13 +426,14 @@
 const cv=document.getElementById('pfd'); let ctx=cv.getContext('2d');
 const DPR=Math.min(window.devicePixelRatio||1,2);
 let W=0,H=0,CX=0,CY=0,R=0,F=430,k=1;
-// SOLO ORIZZONTE a schermo pieno: la tela è un rettangolo. FSX/FSY = quanto i nastri si spostano verso i bordi (0 nello strumento tondo).
+// SOLO ORIZZONTE a schermo pieno: la tela è un rettangolo. FSX/FSY = quanto nastri e prua si spostano per stare sui bordi (0 nello strumento tondo; negativi se lo strumento è disegnato più grande dello schermo).
 let PIENO=false, FSX=0, FSY=0;
 function resize(){
   const r=cv.getBoundingClientRect();
   W=Math.max(2,Math.round(r.width*DPR)); H=Math.max(2,Math.round(r.height*DPR));
   cv.width=W; cv.height=H; CX=W/2; CY=H/2; R=Math.min(W,H)/2-2;
-  if(PIENO){ R=Math.min(R,Math.max(W,H)*0.36); FSX=Math.max(0,W/2-2-R); FSY=Math.max(0,H/2-2-R); } else { FSX=0; FSY=0; }
+  // schermo pieno: dove c'è spazio lo strumento si disegna più grande (cifre più leggibili). In orizzontale il limite è l'arco del rollio, che deve restare dentro.
+  if(PIENO){ R=W<H?Math.min(R*1.15,H/2-2):R*1.08; FSX=W/2-2-R; FSY=H/2-2-R; } else { FSX=0; FSY=0; }
   F=R/Math.tan(26*Math.PI/180); k=R/240;
 }
 new ResizeObserver(resize).observe(cv);
@@ -1009,6 +1010,7 @@ function pitchLadder(pitch){
 }
 function tape(side,val,step,majStep,ppu,fmt,unit,arcs,bug){
   const strip=R*0.34, x0=side<0?CX-R*0.96-FSX:CX+R*0.62+FSX, x1=side<0?CX-R*0.62-FSX:CX+R*0.96+FSX;
+  const TS=PIENO&&ctx.canvas===cv?1.14:1;                 // schermo pieno: cifre dei nastri un po' più grandi
   ctx.save(); roundClip();
   ctx.fillStyle='rgba(8,12,18,.55)'; ctx.fillRect(x0,CY-R,strip,2*R);
   ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=1*k;
@@ -1036,7 +1038,7 @@ function tape(side,val,step,majStep,ppu,fmt,unit,arcs,bug){
     ctx.lineWidth=maj?2*k:1.2*k; ctx.beginPath();
     if(side<0){ ctx.moveTo(x1-tk,y); ctx.lineTo(x1,y); } else { ctx.moveTo(x0,y); ctx.lineTo(x0+tk,y); }
     ctx.stroke();
-    if(maj){ ctx.font=font(R*0.075,'600'); ctx.textAlign=side<0?'left':'right';
+    if(maj){ ctx.font=font(R*0.075*TS,'600'); ctx.textAlign=side<0?'left':'right';
       ctx.fillText(Math.abs(Math.round(v)), side<0?x0+R*0.02:x1-R*0.02, y); }
   }
   if(bug!=null){ // bug quota obiettivo (magenta)
@@ -1049,8 +1051,8 @@ function tape(side,val,step,majStep,ppu,fmt,unit,arcs,bug){
   if(side<0){ ctx.moveTo(bx,by); ctx.lineTo(bx+bw,by); ctx.lineTo(bx+bw+R*0.03,CY); ctx.lineTo(bx+bw,by+bh); ctx.lineTo(bx,by+bh); }
   else { ctx.moveTo(bx+bw,by); ctx.lineTo(bx,by); ctx.lineTo(bx-R*0.03,CY); ctx.lineTo(bx,by+bh); ctx.lineTo(bx+bw,by+bh); }
   ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.fillStyle=C.white; ctx.font=font(R*0.115,'700'); ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText(fmt(val), bx+bw/2, CY-R*0.016);
+  ctx.fillStyle=C.white; ctx.font=font(R*0.115*TS,'700'); ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(fmt(val), bx+bw/2, CY-R*0.016, bw*0.94);
   if(unit){ ctx.fillStyle='#9aa4b0'; ctx.font=font(R*0.044); ctx.fillText(unit, bx+bw/2, CY+R*0.058); }
   ctx.restore();
 }
@@ -1183,7 +1185,7 @@ function headingTape(hdg,g){
     ctx.fillText('HDG '+String(Math.round(S.hdgBug)).padStart(3,'0')+'°', lx+sw/2, by+bh/2+R*0.004, sw*0.86);
   }
   destBox(CX+R*0.17,by,sw,bh,g);
-  windBox(CX-R*0.58,CY+R*0.33,R*0.28,R*0.09,hdg);
+  windBox(CX-R*0.58-Math.min(0,FSX),CY+R*0.33,R*0.28,R*0.09,hdg);
   ctx.restore();
 }
 function rollArc(roll){
@@ -1695,20 +1697,21 @@ function drawFailFlags(){
   if(!LIVE.any) return;
   ctx.save(); roundClip();
   if(lost('att')){
-    ctx.fillStyle='rgba(6,6,8,.9)'; ctx.fillRect(CX-R*0.62,CY-R,R*1.24,R*1.62); ctx.fillRect(CX-R,CY-R,R*0.04,R*2); ctx.fillRect(CX+R*0.96,CY-R,R*0.04,R*2);
+    if(PIENO&&ctx.canvas===cv) ctx.fillRect(0,0,W,H); else {
+    ctx.fillStyle='rgba(6,6,8,.9)'; ctx.fillRect(CX-R*0.62,CY-R,R*1.24,R*1.62); ctx.fillRect(CX-R,CY-R,R*0.04,R*2); ctx.fillRect(CX+R*0.96,CY-R,R*0.04,R*2); }
     redX(CX-R*0.45,CY-R*0.45,CX+R*0.45,CY+R*0.45);
     failBox(CX,CY,R*0.66,R*0.17,'ASSETTO NON DISPONIBILE','usa gli strumenti di bordo');
   }
   if(lost('air')){
-    ctx.fillStyle='rgba(0,0,0,.72)'; ctx.fillRect(CX-R*0.96,CY-R*0.5,R*0.34,R);
-    redX(CX-R*0.92,CY-R*0.3,CX-R*0.66,CY+R*0.3); failBox(CX-R*0.79,CY+R*0.42,R*0.28,R*0.1,PH&&!PH.demo?'GS':'IAS');
+    ctx.fillStyle='rgba(0,0,0,.72)'; ctx.fillRect(CX-R*0.96-FSX,CY-R*0.5,R*0.34,R);
+    redX(CX-R*0.92-FSX,CY-R*0.3,CX-R*0.66-FSX,CY+R*0.3); failBox(CX-R*0.79-FSX,CY+R*0.42,R*0.28,R*0.1,PH&&!PH.demo?'GS':'IAS');
   }
   if(lost('baro')){
-    if(!lost('gps') && S.gpsReal) failBox(CX+R*0.79,CY+R*0.42,R*0.28,R*0.1,'ALT GPS',null,'#ffb020');
-    else { ctx.fillStyle='rgba(0,0,0,.72)'; ctx.fillRect(CX+R*0.62,CY-R*0.5,R*0.34,R);
-      redX(CX+R*0.66,CY-R*0.3,CX+R*0.92,CY+R*0.3); failBox(CX+R*0.79,CY+R*0.42,R*0.28,R*0.1,'ALT'); }
+    if(!lost('gps') && S.gpsReal) failBox(CX+R*0.79+FSX,CY+R*0.42,R*0.28,R*0.1,'ALT GPS',null,'#ffb020');
+    else { ctx.fillStyle='rgba(0,0,0,.72)'; ctx.fillRect(CX+R*0.62+FSX,CY-R*0.5,R*0.34,R);
+      redX(CX+R*0.66+FSX,CY-R*0.3,CX+R*0.92+FSX,CY+R*0.3); failBox(CX+R*0.79+FSX,CY+R*0.42,R*0.28,R*0.1,'ALT'); }
   }
-  if(lost('gps')) failBox(CX,CY+R*0.74,R*0.42,R*0.1,'GPS PERSO');
+  if(lost('gps')) failBox(CX,CY+R*0.74+Math.min(0,FSY),R*0.42,R*0.1,'GPS PERSO');
   ctx.restore();
 }
 
@@ -4540,7 +4543,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
-  ["1.0.192","Solo orizzonte a schermo pieno: lo strumento prende tutto lo schermo, con i nastri di velocità e quota ai bordi, il vario e la prua in fondo. Niente caselle, tasti e menu, e i tocchi per sbaglio non fanno niente. Avvisi e tasto SOS restano. Si accende dal tasto ⛶ accanto a SOS nell'interfaccia semplice o da Impostazioni › Interfaccia; si esce tenendo premuto lo schermo per un secondo."],
+  ["1.0.192","Solo orizzonte: lo strumento da solo, senza caselle, tasti e menu. Due forme a scelta: SCHERMO PIENO (orizzonte su tutto lo schermo, velocità e quota ai bordi, prua in fondo, cifre più grandi) o TONDO (lo strumento classico più grande possibile, con i dati in cifre grandi accanto). Segue il telefono in verticale e in orizzontale. Un tocco sullo schermo fa comparire i tasti (EXIT, tondo o pieno, pieno sole), che spariscono da soli; il tasto EXIT è sempre in un angolo. Avvisi e SOS restano. Si accende dal tasto ⛶ accanto a SOS nell'interfaccia semplice o da Impostazioni › Interfaccia."],
   ["1.0.191","Versione web: l'avviso «Nuova versione disponibile» non torna più in cerchio dopo aver aggiornato (la pagina ora si ricarica davvero dal sito), «Più tardi» vale 12 ore, e la versione mostra anche l'ora. Il browser non propone più da solo di installare la pagina come app mentre tocchi lo strumento (capitava sul tasto SOS): c'è un tasto apposta in Info."],
   ["1.0.190","L'app ora si installa anche su telefoni e tablet con Android 10, 11, 12 e 13: prima chiedeva Android 14 e su quei dispositivi risultava «non compatibile». Su un tablet servono comunque GPS e sensori di movimento: senza giroscopio l'orizzonte non è affidabile."],
   ["1.0.189","Bussola: sull'asse di una pista dell'elenco la correzione automatica al decollo si applica sempre, anche se è grande. Se supera 30° vuol dire che la bussola del telefono è scalibrata: dopo l'atterraggio, da fermo, compare una nota che invita a calibrarla (muovere il telefono a otto), e la stessa nota resta in Impostazioni › Bussola."],
