@@ -2489,6 +2489,9 @@ PH.voiceToast=function(m){
 
 // ---- montaggio del telefono: da coordinate del telefono ad aereo (avanti, destra, giù) ----
 PH.toBody=function(v){ const M=PH.M; return [M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2], M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2], M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]]; };
+// Assetto dell'aereo fermo a terra, in gradi a cabrare, per la LIVELLA a terra. Vale quello salvato nella scheda del velivolo
+// (lo scrive «Livella a terra» in Impostazioni); senza, 0 = aereo in piano (triciclo). Gli 11° sono solo dell'Avid, che è un biciclo.
+PH.gpDef=function(){ const a=PH.ac||{}, v=+a.gpitch; if(a.gpitch!=null&&a.gpitch!==''&&v===v) return Math.max(0,Math.min(25,v)); return a.id==='ac-ia517'||/avid/i.test(a.model||'')?11:0; };
 PH.level=function(groundPitchDeg){
   const a=PH.aAvg, g=Math.hypot(a[0],a[1],a[2]); if(g<7||g>12.5){ toast('TIENI FERMO IL TELEFONO E RIPROVA'); return false; }
   const dn=[-a[0]/g,-a[1]/g,-a[2]/g];                  // "giù" visto dal telefono
@@ -3728,9 +3731,9 @@ PH.renderImp=function(){
     <p class="ph-sub" id="phGloMsg">${('serial' in navigator)||(PH.native&&PH.native.glo)?'':'Questo browser non legge GPS Bluetooth: aggiorna Chrome, oppure usa l\'app Garmin GLO come posizione fittizia di Android (Opzioni sviluppatore › App di posizione fittizia): così il GLO 2 arriva come se fosse il GPS del telefono.'}</p>
   </section>
   <section><h3>Montaggio del telefono</h3>
-    <p class="ph-sub">Di serie il telefono è verticale, schermo verso di te, in verticale o orizzontale. Se è montato in un altro modo, o per togliere l'errore di beccheggio, livella: in volo rettilineo e livellato, oppure a terra indicando di quanto è cabrato l'aereo fermo (biciclo come l'Avid: circa 10–12°).</p>
+    <p class="ph-sub">Di serie il telefono è verticale, schermo verso di te, in verticale o orizzontale. Se è montato in un altro modo, o per togliere l'errore di beccheggio, livella: in volo rettilineo e livellato, oppure a terra indicando di quanto è cabrato l'aereo fermo: 0° per un triciclo, che sta in piano; circa 10–12° per un biciclo come l'Avid. Il valore resta nella scheda del velivolo e lo usa anche il tasto LIVELLA.</p>
     <div class="ph-btns"><button class="ph-btn pri" id="phLevelAir">Livella ora (in volo, ali livellate)</button></div>
-    <div class="ph-btns"><label class="ph-fld">Assetto a terra (°)<input id="phGp" type="number" step="0.5" value="${PH.groundPitch||11}"></label><button class="ph-btn" id="phLevelGnd">Livella a terra</button><button class="ph-btn" id="phMountReset">Telefono verticale</button></div>
+    <div class="ph-btns"><label class="ph-fld">Assetto a terra (°)<input id="phGp" type="number" step="0.5" value="${PH.gpDef()}"></label><button class="ph-btn" id="phLevelGnd">Livella a terra</button><button class="ph-btn" id="phMountReset">Telefono verticale</button></div>
     <label class="ph-fld ph-range"><span>Orizzonte più morbido: <b id="phSmV">${PH.smoothTxt()}</b></span><input id="phSm" type="range" min="0" max="10" step="1" value="${PH.smooth}"></label>
     <div class="ph-row"><span>Fotogrammi al secondo</span></div>
     <div class="ph-seg" id="phFps">${[[30,'30 · consuma meno'],[60,'60 · più fluido']].map(([v,l])=>`<button data-f="${v}" aria-pressed="${PH.fps===v}">${l}</button>`).join('')}</div>
@@ -3818,7 +3821,7 @@ PH.renderImp=function(){
   el('phFps').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.fps=+b.dataset.f; lsSet('ia517p_fps',PH.fps); el('phFps').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
   el('phSm').oninput=e=>{ PH.smooth=+e.target.value; lsSet('ia517p_smooth',PH.smooth); el('phSmV').textContent=PH.smoothTxt(); };
   el('phLevelAir').onclick=()=>{ if(PH.level(0)) stat(); };
-  el('phLevelGnd').onclick=()=>{ if(PH.level(+el('phGp').value||0)) stat(); };
+  el('phLevelGnd').onclick=()=>{ const v=Math.max(0,Math.min(25,+el('phGp').value||0)); if(PH.level(v)){ try{ if(PH.ac){ PH.ac.gpitch=v; PH.acSave&&PH.acSave(); } }catch(e){} stat(); } };
   el('phMountReset').onclick=()=>{ PH.resetMount(); stat(); };
   el('phBaro').onchange=()=>{ PH.baro.on=el('phBaro').checked; lsSet('ia517p_baro',PH.baro.on); PH.baro.ofs=null; PH.vario.h=NaN; el('phBaroTxt').innerHTML=PH.baroTxt(); };
   el('phGeo').onchange=()=>{ const v=+el('phGeo').value; if(v>-110&&v<90){ PH.geoid=v; lsSet('ia517p_geoid',v); PH.vario.h=NaN; } };
@@ -4218,9 +4221,9 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
   { const st=el('phStat'), row=document.createElement('div'); row.className='ph-statrow'; st.parentNode.insertBefore(row,st); row.appendChild(st);
     const b=document.createElement('button'); b.type='button'; b.className='ph-lvl'; b.id='phLvl'; b.textContent='LIVELLA'; b.setAttribute('aria-label','Livella l\'assetto'); row.appendChild(b);
     b.addEventListener('click',ev=>{ ev.stopPropagation(); if(PH.demo||PH.sim){ toast('LIVELLA: NON IN DEMO O SIMULAZIONE'); return; }
-      const air=!!PH.flight||(S.gpsReal&&S.gs>40), gp=air?0:(PH.groundPitch||11);
+      const air=!!PH.flight||(S.gpsReal&&S.gs>40), gp=air?0:PH.gpDef();
       PH.act&&PH.act('livella '+(air?'in volo':'a terra '+gp+'°'));
-      ask(air?'LIVELLA ORA? ALI LIVELLATE, VOLO RETTILINEO':`LIVELLA A TERRA? AEREO FERMO, ASSETTO ${gp}°`,()=>{ PH.level(gp); },15); }); }
+      ask(air?'LIVELLA ORA? ALI LIVELLATE, VOLO RETTILINEO':(gp?`LIVELLA A TERRA? AEREO FERMO, ASSETTO ${gp}°`:'LIVELLA E CENTRA? AEREO FERMO, IN PIANO'),()=>{ PH.level(gp); },15); }); }
   { const ab=document.createElement('div'); ab.className='ph-asp w'; ab.id='phAsp'; ab.textContent='Spazio aereo…'; (el('phStat').closest('.ph-statrow')||el('phStat')).after(ab);
     ab.addEventListener('click',()=>{ PH.show(PH.aspList().length?'prof':'piano'); }); }
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>PH.show('volo')));
@@ -4543,7 +4546,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
-  ["1.0.192","Solo orizzonte: lo strumento da solo, senza caselle, tasti e menu. Due forme a scelta: SCHERMO PIENO (orizzonte su tutto lo schermo, velocità e quota ai bordi, prua in fondo, cifre più grandi) o TONDO (lo strumento classico più grande possibile, con i dati in cifre grandi accanto). Segue il telefono in verticale e in orizzontale. Un tocco sullo schermo fa comparire i tasti (EXIT, tondo o pieno, pieno sole), che spariscono da soli; il tasto EXIT è sempre in un angolo. Avvisi e SOS restano. Si accende dal tasto ⛶ accanto a SOS nell'interfaccia semplice o da Impostazioni › Interfaccia."],
+  ["1.0.192","Solo orizzonte: lo strumento da solo, senza caselle, tasti e menu. Due forme a scelta: SCHERMO PIENO (orizzonte su tutto lo schermo, velocità e quota ai bordi, prua in fondo, cifre più grandi) o TONDO (lo strumento classico più grande possibile, con i dati in cifre grandi accanto). Segue il telefono in verticale e in orizzontale. Un tocco sullo schermo fa comparire i tasti (EXIT, LIVELLA, tondo o pieno, pieno sole), che spariscono da soli; il tasto EXIT è sempre in un angolo. Avvisi e SOS restano. LIVELLA a terra: non usa più 11° per tutti (erano dell'Avid); di serie livella e centra a 0°, e per un biciclo usa i gradi scritti in Impostazioni › Montaggio, che restano nella scheda del velivolo. Si accende dal tasto ⛶ accanto a SOS nell'interfaccia semplice o da Impostazioni › Interfaccia."],
   ["1.0.191","Versione web: l'avviso «Nuova versione disponibile» non torna più in cerchio dopo aver aggiornato (la pagina ora si ricarica davvero dal sito), «Più tardi» vale 12 ore, e la versione mostra anche l'ora. Il browser non propone più da solo di installare la pagina come app mentre tocchi lo strumento (capitava sul tasto SOS): c'è un tasto apposta in Info."],
   ["1.0.190","L'app ora si installa anche su telefoni e tablet con Android 10, 11, 12 e 13: prima chiedeva Android 14 e su quei dispositivi risultava «non compatibile». Su un tablet servono comunque GPS e sensori di movimento: senza giroscopio l'orizzonte non è affidabile."],
   ["1.0.189","Bussola: sull'asse di una pista dell'elenco la correzione automatica al decollo si applica sempre, anche se è grande. Se supera 30° vuol dire che la bussola del telefono è scalibrata: dopo l'atterraggio, da fermo, compare una nota che invita a calibrarla (muovere il telefono a otto), e la stessa nota resta in Impostazioni › Bussola."],

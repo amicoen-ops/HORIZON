@@ -101,7 +101,7 @@ function divisore(A,vh){ if(!A){ dv.hidden=true; return; } dv.hidden=false; dv.s
 // (niente mappa né rotta). Due forme (PH.pienoStile): 'pieno' = orizzonte su tutto lo schermo, nastri ai bordi, prua in fondo;
 // 'tondo' = lo strumento classico grande quanto il lato corto, con le caselle dei dati in cifre grandi nello spazio che resta.
 // I tocchi non arrivano allo strumento (niente menu né manopola per sbaglio): un tocco fa solo comparire i tasti, come ALTRO,
-// che spariscono da soli. EXIT è sempre in un angolo, SOS (da tenere premuto) nell'altro. Avvisi e domande restano.
+// che spariscono da soli (c'è anche LIVELLA). EXIT è sempre in un angolo, SOS (da tenere premuto) nell'altro. Avvisi e domande restano.
 PH.pieno=false; PH.pienoStile=lsGet('ia517p_pieno_stile','pieno')==='tondo'?'tondo':'pieno';
 { const s=document.createElement('style'); s.textContent=`
   body.hz-pieno{overflow:hidden!important}
@@ -123,9 +123,9 @@ PH.pieno=false; PH.pienoStile=lsGet('ia517p_pieno_stile','pieno')==='tondo'?'ton
   body.hz-pieno #hzPnExit{display:block;position:absolute;right:calc(8px + env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));z-index:7;min-height:46px;min-width:72px;padding:0 12px;border-radius:10px;border:2px solid rgba(255,255,255,.7);background:rgba(7,10,15,.72);color:#fff;font:800 15px "Oxanium",system-ui,sans-serif;letter-spacing:.08em;cursor:pointer}
   body.ph-land.hz-pieno:not(.hz-tondo) #hzPnSos{left:calc(23vh + env(safe-area-inset-left,0px))} body.ph-land.hz-pieno:not(.hz-tondo) #hzPnExit{right:calc(27vh + env(safe-area-inset-right,0px))}
   body.hz-pieno #hzPnMenu.on{display:grid;position:absolute;left:50%;bottom:calc(27% + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9;width:min(560px,94%);grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px;box-sizing:border-box;background:rgba(18,26,34,.94);border:2px solid #33e1ff;border-radius:16px}
-  body.ph-land.hz-pieno #hzPnMenu.on{grid-template-columns:repeat(4,minmax(0,1fr));width:min(760px,94%);bottom:30%}
+  body.ph-land.hz-pieno #hzPnMenu.on{grid-template-columns:repeat(5,minmax(0,1fr));width:min(760px,94%);bottom:30%}
   #hzPnMenu button{min-height:64px;min-width:0;padding:0 6px;border-radius:14px;border:2px solid #3a4a5a;background:#1b2530;color:#eef3f8;font:800 16px "Oxanium",system-ui,sans-serif;letter-spacing:.04em;line-height:1.15;cursor:pointer}
-  #hzPnMenu button.x{border-color:#fff;background:#0b1118} #hzPnMenu button.on{border-color:#33e1ff;color:#33e1ff}
+  #hzPnMenu button.x{border-color:#fff;background:#0b1118} #hzPnMenu button.lv{border-color:#ffd21e;color:#ffd21e} #hzPnMenu button.ch{grid-column:1/-1;min-height:50px} body.ph-land #hzPnMenu button.ch{grid-column:auto;min-height:64px} #hzPnMenu button.on{border-color:#33e1ff;color:#33e1ff}
   #hzPnBtn{display:none;flex:none;min-height:40px;min-width:44px;margin-left:6px;border-radius:10px;border:2px solid #3a4a5a;background:#121c25;color:#e9eef2;font:800 18px system-ui,sans-serif;cursor:pointer}
   body.ph-simple #hzPnBtn{display:inline-block}
   #hzPnGo{width:100%;min-height:54px;margin:8px 0 2px}`; document.head.appendChild(s); }
@@ -136,9 +136,9 @@ PH.pieno=false; PH.pienoStile=lsGet('ia517p_pieno_stile','pieno')==='tondo'?'ton
   let tm=0;
   const chiudi=()=>{ clearTimeout(tm); menu.classList.remove('on'); };
   const apri=()=>{ const tondo=PH.pienoStile==='tondo';
-    menu.innerHTML=`<button type="button" class="x" data-k="exit">EXIT</button><button type="button" data-k="stile">${tondo?'▭ SCHERMO PIENO':'◯ TONDO'}</button><button type="button" data-k="sole" class="${PH.sole?'on':''}">☀ PIENO SOLE</button><button type="button" data-k="chiudi">CHIUDI</button>`;
+    menu.innerHTML=`<button type="button" class="x" data-k="exit">EXIT</button><button type="button" class="lv" data-k="livella">LIVELLA</button><button type="button" data-k="stile">${tondo?'▭ SCHERMO PIENO':'◯ TONDO'}</button><button type="button" data-k="sole" class="${PH.sole?'on':''}">☀ PIENO SOLE</button><button type="button" class="ch" data-k="chiudi">CHIUDI</button>`;
     menu.querySelectorAll('button').forEach(b=>b.onclick=()=>{ const k=b.dataset.k; chiudi();
-      if(k==='exit') PH.pienoSet(false); if(k==='stile') PH.pienoStileSet(tondo?'pieno':'tondo'); if(k==='sole') PH.soleSet(!PH.sole); });
+      if(k==='exit') PH.pienoSet(false); if(k==='stile') PH.pienoStileSet(tondo?'pieno':'tondo'); if(k==='sole') PH.soleSet(!PH.sole); if(k==='livella'){ const l=document.getElementById('phLvl'); if(l) l.click(); } });
     menu.classList.add('on'); clearTimeout(tm); tm=setTimeout(chiudi,6000); };
   PH.pienoMenu=v=>v?apri():chiudi();
   // Tocchi: quelli su avvisi, domande, tasti nostri passano; gli altri si fermano qui. Tocco breve = compaiono i tasti. SOS = tenere premuto 0,8 s.
