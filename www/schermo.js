@@ -171,7 +171,9 @@ PH.pienoSet=function(v,zitto){ v=!!v; if(v===PH.pieno) return;
 // se qualcosa porta a un'altra pagina o all'interfaccia completa, il solo orizzonte si toglie da solo
 { const su=PH.setUi; PH.setUi=function(u){ if(PH.pieno&&u!=='simple') PH.pienoSet(false,true); return su.apply(this,arguments); };
   const sh=PH.show; PH.show=function(v){ if(PH.pieno&&v!=='volo') PH.pienoSet(false,true); return sh.apply(this,arguments); }; }
-// tasto ⛶ accanto a SOS (solo nell'interfaccia semplice) e scelta in Impostazioni › Interfaccia
+// tasto in ALTRO (c'è in tutte e due le interfacce), tasto ⛶ accanto a SOS (solo nell'interfaccia semplice) e scelta in Impostazioni › Interfaccia
+{ const g=document.querySelector('#phMore .ph-more-g'), x=g&&g.querySelector('[data-x]');
+  if(g){ const b=document.createElement('button'); b.type='button'; b.id='hzPnAltro'; b.innerHTML='<i>⛶</i>SOLO ORIZZONTE'; b.onclick=()=>{ PH.moreOpen(false); PH.pienoSet(true); }; g.insertBefore(b,x||null); } }
 { const dopo=document.getElementById('hzSos')||document.getElementById('phLvl');
   if(dopo){ const b=document.createElement('button'); b.type='button'; b.id='hzPnBtn'; b.textContent='⛶'; b.title='Solo orizzonte'; b.setAttribute('aria-label','Solo orizzonte'); b.onclick=()=>PH.pienoSet(true); dopo.after(b); }
   const ri=PH.renderImp; PH.renderImp=function(){ ri.apply(this,arguments);
