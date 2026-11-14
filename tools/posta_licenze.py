@@ -156,7 +156,8 @@ def metti_html(r, html, immagini=None):
 
 def html_di(corpo):
     return ('<div style="font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#222;max-width:560px">'
-            + TESTATA + corpo + '<p style="color:#666;font-size:13px;margin-top:24px">HORIZON · strumento di volo</p></div>')
+            + TESTATA + corpo + '<p style="color:#666;font-size:13px;margin-top:24px">HORIZON · strumento di volo · versione web: '
+            f'<a href="{segnalazioni.LINK_WEB}" style="color:#666">{segnalazioni.LINK_WEB}</a></p></div>')
 
 
 def testo_prezzi(tel, paypal):
