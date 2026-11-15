@@ -158,14 +158,15 @@ function pienoApplica(){ const b=document.body, tondo=PH.pieno&&PH.pienoStile===
   try{ window.phPieno(PH.pieno&&!tondo); }catch(e){} }
 PH.pienoStileSet=function(st){ PH.pienoStile=st==='tondo'?'tondo':'pieno'; lsSet('ia517p_pieno_stile',PH.pienoStile); pienoApplica(); PH.layout();
   PH.act&&PH.act('solo orizzonte '+PH.pienoStile); toastShow(PH.pienoStile==='tondo'?'STRUMENTO TONDO':'SCHERMO PIENO'); };
+// L'interfaccia scelta dal pilota resta quella salvata (ia517p_ui): il solo orizzonte la cambia solo finché è aperto.
 PH.pienoSet=function(v,zitto){ v=!!v; if(v===PH.pieno) return;
-  if(v){ try{ closeMenu(); }catch(e){} lsSet('ia517p_pieno_prima',PH.ui); if(PH.ui!=='simple') PH.setUi('simple'); try{ PH.moreOpen&&PH.moreOpen(false); }catch(e){} PH.pieno=true; PH.show('volo'); }
+  if(v){ try{ closeMenu(); }catch(e){} const prima=PH.ui; lsSet('ia517p_pieno_prima',prima); if(prima!=='simple'){ PH.setUi('simple'); lsSet('ia517p_ui',prima); } try{ PH.moreOpen&&PH.moreOpen(false); }catch(e){} PH.pieno=true; PH.show('volo'); }
   else { PH.pieno=false; PH.pienoMenu(false); }
   lsSet('ia517p_pieno',PH.pieno); pienoApplica();
   try{ const d=document, r=d.documentElement;                      // via anche le barre del browser, dove si può (serve un tocco: all'avvio non riesce, e va bene)
     if(PH.pieno){ if(!d.fullscreenElement&&r.requestFullscreen){ const q=r.requestFullscreen(); if(q&&q.catch) q.catch(()=>{}); } }
     else if(d.fullscreenElement&&d.exitFullscreen){ const q=d.exitFullscreen(); if(q&&q.catch) q.catch(()=>{}); } }catch(e){}
-  if(!PH.pieno && !zitto && lsGet('ia517p_pieno_prima','simple')==='full') PH.setUi('full');
+  if(!PH.pieno && lsGet('ia517p_pieno_prima','simple')==='full') PH.setUi('full');
   PH.layout(); PH.act&&PH.act('solo orizzonte '+(PH.pieno?'acceso':'spento'));
   if(!zitto) toastShow(PH.pieno?'SOLO ORIZZONTE · TOCCA PER I TASTI':'SCHERMO NORMALE'); };
 // se qualcosa porta a un'altra pagina o all'interfaccia completa, il solo orizzonte si toglie da solo
@@ -193,6 +194,12 @@ PH.spazi3d=function(){ try{ PH.moreOpen(false); if(PH.ui==='simple') PH.setUi('f
 { const s=document.createElement('style'); s.textContent='body.hz-s3d #phPiano .ph-sheet-h{display:none!important}'; document.head.appendChild(s); }
 if(PH.h2){ const g=document.querySelector('#phMore .ph-more-g'), x=g&&g.querySelector('[data-x]');
   if(g){ const b=document.createElement('button'); b.type='button'; b.id='hzS3Altro'; b.innerHTML='<i>◈</i>SPAZI 3D'; b.onclick=()=>PH.spazi3d(); g.insertBefore(b,x||null); } }
+// Riparazione (una volta sola): con le versioni 1.0.192–1.0.195, chi aveva aperto il solo orizzonte e poi chiuso l'app
+// restava nell'interfaccia semplice senza averla scelta (niente PIANO né SIMULA). Si torna alla completa, e lo si dice.
+if(!lsGet('ia517p_pieno_fix',0)){ lsSet('ia517p_pieno_fix',1);
+  let usato=false; try{ usato=localStorage.getItem('ia517p_pieno_prima')!=null; }catch(e){}
+  if(usato){ lsSet('ia517p_pieno_prima','full');
+    if(!lsGet('ia517p_pieno',false)&&PH.ui==='simple') setTimeout(()=>{ try{ PH.setUi('full'); toastShow('INTERFACCIA COMPLETA RIPRISTINATA'); }catch(e){} },0); } }
 if(lsGet('ia517p_pieno',false)) setTimeout(()=>{ try{ PH.pienoSet(true,true); }catch(e){ console.error('pieno',e); } },0);
 setInterval(()=>{ try{ riempi(); }catch(e){} },5000);
 try{ PH.layout(); PH.zoomBtns&&PH.zoomBtns(); }catch(e){}

@@ -3,13 +3,13 @@
 //
 // IMPOSTAZIONI ORDINATE. In cima «Prima di partire»: tutto quello da sistemare a terra, ognuno con lo stato (✓ / !)
 // e un tasto grande che porta all'azione. In volo (o in simulazione) in cima «In volo»: solo i comandi utili in aria,
-// con tasti molto grandi. Le altre sezioni si chiudono e si aprono toccando il titolo (l'app ricorda quali sono aperte).
+// con tasti molto grandi. Le altre sezioni si chiudono e si aprono toccando il titolo; ogni volta che si apre la pagina partono tutte chiuse.
 // In volo tutti i tasti delle pagine diventano più grandi: in turbolenza è difficile centrarli con il dito.
 (function(){
 'use strict';
 const esc=x=>String(x??'').replace(/[<&>"]/g,c=>({'<':'&lt;','&':'&amp;','>':'&gt;','"':'&quot;'}[c]));
 const KEY='ia517p_imp_open';
-let aperte=new Set(lsGet(KEY,['Prima di partire','In volo','Stato']));
+let aperte=new Set();          // Impostazioni si apre sempre con le sezioni chiuse (richiesta dei piloti: aperte disperdono); in volo si apre da sola «In volo»
 const inVolo=()=>{ try{ return PH_air(); }catch(e){ return false; } };
 const ok='<i class="hz-ok">✓</i>', no='<i class="hz-no">!</i>', wt='<i class="hz-wt">…</i>';
 
@@ -41,7 +41,8 @@ const ok='<i class="hz-ok">✓</i>', no='<i class="hz-no">!</i>', wt='<i class="
 // in volo tasti grandi ovunque
 setInterval(()=>{ document.body.classList.toggle('hz-volo',inVolo()); },1000);
 
-function salva(){ lsSet(KEY,[...aperte]); }
+function salva(){}
+{ const sh=PH.show; PH.show=function(v){ try{ const p=document.getElementById('phImp'); if(v==='imp'&&p&&p.hidden) aperte.clear(); }catch(e){} return sh.apply(this,arguments); }; }
 function apri(s,on,quiet){ s.classList.toggle('hz-open',!!on); if(quiet) return; const t=s.dataset.t; on?aperte.add(t):aperte.delete(t); salva(); }
 function vaiA(titolo){ const box=document.getElementById('phImpBody'); if(!box) return; const s=[...box.querySelectorAll(':scope > section')].find(x=>x.dataset.t===titolo); if(!s) return;
   apri(s,true); s.scrollIntoView({behavior:'smooth',block:'start'}); s.classList.add('hz-lampo'); setTimeout(()=>s.classList.remove('hz-lampo'),1600); }
