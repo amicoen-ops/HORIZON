@@ -232,7 +232,15 @@ window.SP3D_open=async function(opt){
   // il terreno arriva a pezzi: si ricostruisce finché mancano riquadri (al massimo 8 volte)
   const reb=setInterval(()=>{ if(!G||G.box!==box){ clearInterval(reb); return; } if(T.miss>0 && tries++<8) build(); else clearInterval(reb); },1500);
   // aereo (posizione dello strumento: vera, demo o simulazione)
-  const plane=new THREE.Mesh(new THREE.ConeGeometry(Z.half/90,Z.half/28,10),new THREE.MeshBasicMaterial({color:0xffd21e,depthTest:false})); plane.renderOrder=20; plane.rotation.order='YXZ'; plane.rotation.x=-Math.PI/2; plane.visible=false; scene.add(plane); if(DT) plane.scale.set(0.95,0.5,0.1);          // visto da dietro: un'ala a delta piatta, non un cono
+  // aereo stilizzato al posto del cono: fusoliera, ala, piano di coda e deriva. Assi del gruppo: muso verso +y, alto verso +z
+  // (la rotazione di −90° attorno a x li porta a «avanti» e «su» della scena, come faceva il cono).
+  const plane=new THREE.Group(); { const Lp=Z.half/28, pezzo=(w,l,h,x,y,z,col)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,l,h),new THREE.MeshBasicMaterial({color:col,depthTest:false})); m.position.set(x,y,z); m.renderOrder=20; plane.add(m); return m; };
+    pezzo(Lp*0.11,Lp,Lp*0.11,0,0,0,0xffd21e);                              // fusoliera
+    const muso=new THREE.Mesh(new THREE.ConeGeometry(Lp*0.078,Lp*0.2,8),new THREE.MeshBasicMaterial({color:0xffd21e,depthTest:false})); muso.position.set(0,Lp*0.6,0); muso.renderOrder=20; plane.add(muso);
+    pezzo(Lp*1.25,Lp*0.2,Lp*0.035,0,Lp*0.1,Lp*0.06,0xffe98a);             // ala alta
+    pezzo(Lp*0.46,Lp*0.12,Lp*0.03,0,-Lp*0.44,Lp*0.02,0xffe98a);            // piano di coda
+    pezzo(Lp*0.03,Lp*0.16,Lp*0.2,0,-Lp*0.44,Lp*0.12,0xff9a1e); }           // deriva
+  plane.renderOrder=20; plane.rotation.order='YXZ'; plane.rotation.x=-Math.PI/2; plane.visible=false; scene.add(plane); if(DT) plane.scale.setScalar(0.6);
   // vista da dietro: linea gialla dall'aereo al punto dove sarà tra un minuto
   const avG=new THREE.BufferGeometry(); avG.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0,0,0,0],3));
   const avL=new THREE.Line(avG,new THREE.LineBasicMaterial({color:0xffe14a,depthTest:false})); avL.renderOrder=19; avL.visible=false; scene.add(avL);
