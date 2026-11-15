@@ -205,7 +205,7 @@ const G=[
     <p>Impostazioni › Velivoli: più velivoli, uno attivo. Ogni scheda ha velocità (VS0, VS1, VFE, VA, VNO, VNE, Vx, Vy, planata, avvicinamento, circuito, crociera), salita, efficienza, distanze, vento al traverso massimo, carburante, pesi e bracci per il centraggio, equipaggiamento (transponder, radio, ELT, paracadute).</p>
     <p>Puoi esportare e importare i velivoli in un file, oppure partire dal <a href="#" data-g="catalogo">catalogo</a>.</p>`},
   {id:'simula',t:'Simulazione e volo dimostrativo',h:`
-    <p>ALTRO › SIMULA: un volo finto con avvisi veri, utile per provare rotte, circuito, TAWS e spazi aerei a terra. «Direct to un campo» › «Avvia la simulazione». Durante la simulazione LIVELLA è disattivato.</p>`},
+    <p>ALTRO › SIMULA (oppure Impostazioni › Simulazione, che c'è anche nell'interfaccia semplice): un volo finto con avvisi veri, utile per provare rotte, circuito, TAWS e spazi aerei a terra. «Direct to un campo» › «Avvia la simulazione». Durante la simulazione LIVELLA è disattivato.</p>`},
   {id:'gps',t:'GPS esterno, quota e senza internet',h:`
     <p><b>Garmin GLO 2</b> via Bluetooth: Impostazioni › Posizione. Più preciso e più veloce del GPS del telefono.</p>
     <p><b>Quota e vario</b>: dal GPS, tarati da soli su un campo noto (Impostazioni › Quota). Se il telefono ha il <b>barometro</b> (molti Android di fascia media e alta) l'app lo usa insieme al GPS: vario pronto e pulito, quota vera sempre dal GPS, senza bisogno del QNH. In Stato la riga «Barometro» dice se c'è e se è in uso. QNH dal METAR o dal menu.</p>
