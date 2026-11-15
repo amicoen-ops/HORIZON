@@ -11,6 +11,10 @@
 // «Segui la rotta» la percorre da solo). Toccando uno spazio se ne vedono nome, classe, limiti e giudizio.
 // La scena si taglia a una quota massima (di partenza 10.000 ft): gli spazi fino a FL195 finiscono lì, quelli che
 // iniziano più in alto non si disegnano. FL in piedi con l'atmosfera standard. Solo a terra o in simulazione.
+// VISTA DA DIETRO (HORIZON 2, in prova: SP3D_open({dietro:true}), da ALTRO › SPAZI 3D dello strumento): la stessa scena con la
+// camera fissa dietro l'aereo, senza comandi da girare con le dita, quindi usabile anche in volo vero. La zona (30 km per
+// lato attorno all'aereo) si ricostruisce da sola quando l'aereo si avvicina al bordo. Terreno a colori chiari, cielo,
+// linea gialla = dove sarai tra un minuto. Un tocco su uno spazio ne dice nome, limiti e giudizio.
 // Libreria: three.js (MIT), caricata solo quando si apre la vista.
 (function(){
 'use strict';
@@ -75,7 +79,8 @@ function terreno(Z,THREE,grp,veilGrp){
   const geo=new THREE.PlaneGeometry(2*h,2*h,N,N); geo.rotateX(-Math.PI/2);
   const pos=geo.attributes.position, col=new Float32Array(pos.count*3), C=new THREE.Color();
   for(let k=0;k<pos.count;k++){ const m=H[k]; pos.setY(k,m*st.EX);
-    if(m<5) C.setRGB(.05,.09,.14); else if(m<400) C.setRGB(.08,.13,.08); else if(m<1200) C.setRGB(.14,.15,.09); else if(m<2200) C.setRGB(.2,.17,.13); else C.setRGB(.45,.47,.5);   // scuro: gli spazi colorati si leggono meglio
+    if(st.dt){ if(m<5) C.setRGB(.16,.32,.5); else if(m<400) C.setRGB(.27,.42,.2); else if(m<1200) C.setRGB(.36,.42,.22); else if(m<2200) C.setRGB(.45,.4,.3); else C.setRGB(.78,.8,.82); }
+    else if(m<5) C.setRGB(.05,.09,.14); else if(m<400) C.setRGB(.08,.13,.08); else if(m<1200) C.setRGB(.14,.15,.09); else if(m<2200) C.setRGB(.2,.17,.13); else C.setRGB(.45,.47,.5);   // scuro: gli spazi colorati si leggono meglio
     col[k*3]=C.r; col[k*3+1]=C.g; col[k*3+2]=C.b; }
   geo.setAttribute('color',new THREE.BufferAttribute(col,3)); geo.computeVertexNormals();
   grp.add(new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true})));
@@ -105,7 +110,7 @@ function spazi(Z,THREE,grp,T){
     // base e tetto + pareti solo sui confini veri: dove il contorno è stato tagliato al bordo della zona niente parete
     // (prima i grandi CTA e TMA diventavano una scatola che copriva tutto)
     const col=new THREE.Color(typeof clsColor==='function'?clsColor(a.cls):'#8a96a2'), y0=yFt(lo), y1=yFt(hi), n=poly.length;
-    const g=new THREE.Group(), meshes=[], mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.11,depthWrite:false,side:THREE.DoubleSide});
+    const g=new THREE.Group(), meshes=[], mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:st.dt?.2:.11,depthWrite:false,side:THREE.DoubleSide});
     const cap=new THREE.ShapeGeometry(new THREE.Shape(poly.map(p=>new THREE.Vector2(p.x,p.n)))); cap.rotateX(-Math.PI/2);
     const top=new THREE.Mesh(cap,mat); top.position.y=y1; g.add(top); meshes.push(top);
     if(lo>0){ const bot=new THREE.Mesh(cap,mat); bot.position.y=y0; g.add(bot); meshes.push(bot); }
@@ -141,6 +146,11 @@ function rotta(Z,THREE,grp,c,b){
 
 // ---- interfaccia ----
 function html(){
+  if(st.dt) return `<div class="s3-bar"><button type="button" data-k="x">◀ STRUMENTO</button><button type="button" data-k="fil"${st.fil?' class="on"':''}>☰ FILTRI</button><button type="button" data-k="veil"${st.veil?' class="on"':''}>VDS</button><button type="button" data-k="cap">${st.CAP/1000}k ft</button></div>
+  <div class="s3-hud" id="s3Hud"></div><div class="s3-info" id="s3Info" hidden></div>
+  <div class="s3-fil" id="s3Fil"${st.fil?'':' hidden'}>${GRUPPI.map(([k,l])=>`<label><input type="checkbox" data-g="${k}"${st.hid.has(k)?'':' checked'}> ${l}</label>`).join('')}
+    ${st.off.size?`<button type="button" data-k="mostra">Mostra di nuovo i ${st.off.size} nascosti</button>`:''}</div>
+  <div class="s3-leg">Vista da dietro · linea gialla: tra un minuto · Rosso: vietati · Blu: controllati · Viola: E, RMZ, TMZ · Giallo: pericolosi · Arancio: limite VDS · Quote ×${st.EX}</div>`;
   return `<div class="s3-bar">
     <button type="button" data-k="x">✕</button>
     <button type="button" data-k="mode">${st.mode==='orbita'?'🛩 VOLA':'🔄 ORBITA'}</button>
@@ -192,8 +202,9 @@ window.SP3D_replay=async function(f){
   const d=new Date(f.start); return window.SP3D_open({replay:replay(pts,`${d.toLocaleDateString('it-IT')} ${f.from||'?'} → ${f.to||'?'}`)});
 };
 window.SP3D_open=async function(opt){
-  opt=opt||{}; const RP=opt.replay||null; st.rp=RP;
-  if(inVoloVero()){ toast&&toast('Vista 3D: solo a terra o in simulazione'); return; }
+  opt=opt||{}; const RP=opt.replay||null; st.rp=RP; const DT=!!opt.dietro&&!RP; st.dt=DT;
+  if(DT){ st.mode='dietro'; st.follow=false; st.segui=false; st.rotta=false; if(!st.dtInit){ st.dtInit=true; st.veil=false; } try{ parent.document.body.classList.add('hz-s3d'); }catch(e){} } else if(st.mode==='dietro') st.mode='orbita';
+  if(!DT&&inVoloVero()){ toast&&toast('Vista 3D: solo a terra o in simulazione'); return; }
   try{ await carica(); }catch(e){ toast&&toast('Vista 3D non disponibile: '+e.message); return; }
   if(G) try{ G.chiudi(); }catch(e){}
   const THREE=window.THREE;
@@ -204,11 +215,13 @@ window.SP3D_open=async function(opt){
   const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
   box.appendChild(renderer.domElement);
   const ui=document.createElement('div'); box.appendChild(ui);
-  const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0a0f14); scene.fog=null;
+  const scene=new THREE.Scene(); scene.background=new THREE.Color(DT?0x7fb2ea:0x0a0f14); scene.fog=DT?new THREE.Fog(0xa9c9ee,14000,46000):null;
   scene.add(new THREE.HemisphereLight(0xdfe8ff,0x223018,.8)); const sun=new THREE.DirectionalLight(0xffffff,1.1); sun.position.set(-1,2,1); scene.add(sun);
   const cam=new THREE.PerspectiveCamera(55,1,10,1e6);
-  const TR=tratti(c), ti=TR?Math.max(0,Math.min(TR.length-1,opt.tratto|0)):0; st.tr=TR?{i:ti,n:TR.length}:null;
-  const Z=zona(c,TR?TR[ti]:null), world=new THREE.Group(), veilGrp=new THREE.Group(); scene.add(world); scene.add(veilGrp);
+  const TR=DT?null:tratti(c), ti=TR?Math.max(0,Math.min(TR.length-1,opt.tratto|0)):0; st.tr=TR?{i:ti,n:TR.length}:null;
+  const S0=DT?(PS()||{}):null;
+  const Z=zona(c,DT?{lat:S0.lat!=null?S0.lat:45.25,lon:S0.lon!=null?S0.lon:7.9}:(TR?TR[ti]:null)), world=new THREE.Group(), veilGrp=new THREE.Group(); scene.add(world); scene.add(veilGrp);
+  if(DT) Z.half=30000;
   let T=null, L=[], R=null, tries=0;
   let build=()=>{ world.clear(); veilGrp.clear(); T=terreno(Z,THREE,world,veilGrp); L=spazi(Z,THREE,world,T); R=c&&b?rotta(Z,THREE,world,c,b):null; veilGrp.visible=st.veil; };
   // filtri: categorie, solo la rotta, spazi nascosti uno per uno (si spengono e basta: niente ricostruzione)
@@ -219,7 +232,11 @@ window.SP3D_open=async function(opt){
   // il terreno arriva a pezzi: si ricostruisce finché mancano riquadri (al massimo 8 volte)
   const reb=setInterval(()=>{ if(!G||G.box!==box){ clearInterval(reb); return; } if(T.miss>0 && tries++<8) build(); else clearInterval(reb); },1500);
   // aereo (posizione dello strumento: vera, demo o simulazione)
-  const plane=new THREE.Mesh(new THREE.ConeGeometry(Z.half/90,Z.half/28,10),new THREE.MeshBasicMaterial({color:0xffd21e,depthTest:false})); plane.renderOrder=20; plane.rotation.order='YXZ'; plane.rotation.x=-Math.PI/2; plane.visible=false; scene.add(plane);
+  const plane=new THREE.Mesh(new THREE.ConeGeometry(Z.half/90,Z.half/28,10),new THREE.MeshBasicMaterial({color:0xffd21e,depthTest:false})); plane.renderOrder=20; plane.rotation.order='YXZ'; plane.rotation.x=-Math.PI/2; plane.visible=false; scene.add(plane); if(DT) plane.scale.set(0.95,0.5,0.1);          // visto da dietro: un'ala a delta piatta, non un cono
+  // vista da dietro: linea gialla dall'aereo al punto dove sarà tra un minuto
+  const avG=new THREE.BufferGeometry(); avG.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0,0,0,0],3));
+  const avL=new THREE.Line(avG,new THREE.LineBasicMaterial({color:0xffe14a,depthTest:false})); avL.renderOrder=19; avL.visible=false; scene.add(avL);
+  const CD={yaw:null};
   const dropG=new THREE.BufferGeometry(); dropG.setAttribute('position',new THREE.Float32BufferAttribute([0,0,0,0,0,0],3));
   const drop=new THREE.Line(dropG,new THREE.LineDashedMaterial({color:0xffd21e,dashSize:Z.half/200,gapSize:Z.half/200})); scene.add(drop);
   const trail=[], trailG=new THREE.BufferGeometry(), trailL=new THREE.Line(trailG,new THREE.LineBasicMaterial({color:0xffd21e,transparent:true,opacity:.8})); scene.add(trailL);
@@ -235,7 +252,7 @@ window.SP3D_open=async function(opt){
   if(opt.fs!=null){ F.s=opt.fs; st.mode='vola'; st.follow=true; }          // ▶ ROTTA che continua nel tratto nuovo
   function camOrbit(){ cam.position.set(O.tx+O.dist*Math.cos(O.el)*Math.sin(O.az),O.ty+O.dist*Math.sin(O.el),O.tz+O.dist*Math.cos(O.el)*Math.cos(O.az)); cam.lookAt(O.tx,O.ty,O.tz); }
   function camFly(){ cam.position.set(F.x,F.y,F.z); cam.lookAt(F.x-Math.sin(F.yaw)*Math.cos(F.pitch),F.y+Math.sin(F.pitch),F.z-Math.cos(F.yaw)*Math.cos(F.pitch)); }
-  function size(){ const w=box.clientWidth, h=box.clientHeight; renderer.setSize(w,h,false); cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); }
+  function size(){ const w=box.clientWidth, h=box.clientHeight; renderer.setSize(w,h,false); cam.fov=DT&&w<h?74:55; cam.aspect=w/Math.max(1,h); cam.updateProjectionMatrix(); }
   size(); const ro=new ResizeObserver(size); ro.observe(box);
   // dentro quali spazi è la camera (in VOLA): punto nel contorno e quota tra base e tetto
   const pip2=(p,poly)=>{ let ins=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i], q=poly[j]; if(((a.n>p.n)!==(q.n>p.n))&&(p.x<(q.x-a.x)*(p.n-a.n)/(q.n-a.n)+a.x)) ins=!ins; } return ins; };
@@ -260,6 +277,7 @@ window.SP3D_open=async function(opt){
   const cv=renderer.domElement;
   cv.addEventListener('pointerdown',e=>{ cv.setPointerCapture(e.pointerId); ptr.set(e.pointerId,{x:e.clientX,y:e.clientY}); if(ptr.size===1){ t0=performance.now(); moved=0; } pinch=null; });
   cv.addEventListener('pointermove',e=>{ const p=ptr.get(e.pointerId); if(!p) return; const dx=e.clientX-p.x, dy=e.clientY-p.y; moved+=Math.abs(dx)+Math.abs(dy);
+    if(st.mode==='dietro'){ p.x=e.clientX; p.y=e.clientY; return; }
     if(ptr.size===1){ if(st.mode==='orbita'){ O.az-=dx*0.006; O.el=Math.max(0.03,Math.min(1.5,O.el+dy*0.005)); } else { F.yaw-=dx*0.005; F.pitch=Math.max(-1.2,Math.min(1.2,F.pitch-dy*0.004)); } }
     p.x=e.clientX; p.y=e.clientY;
     if(ptr.size===2){ const [a,q]=[...ptr.values()], d=Math.hypot(a.x-q.x,a.y-q.y), mx=(a.x+q.x)/2, my=(a.y+q.y)/2;
@@ -274,11 +292,11 @@ window.SP3D_open=async function(opt){
     if(ptr.size===0 && moved<10 && performance.now()-t0<350){ const r=cv.getBoundingClientRect(), m=new THREE.Vector2((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
       const rc=new THREE.Raycaster(); rc.setFromCamera(m,cam); const hit=rc.intersectObjects(L.filter(s=>s.g.visible).flatMap(s=>s.meshes),false)[0]; info(hit?hit.object.userData.s:null); } };
   cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
-  cv.addEventListener('wheel',e=>{ e.preventDefault(); if(st.mode==='orbita') O.dist=Math.max(800,Math.min(Z.half*5,O.dist*(e.deltaY>0?1.12:0.89))); else F.y=Math.max(yFt(100),F.y+(e.deltaY>0?-1:1)*yFt(200)); },{passive:false});
+  cv.addEventListener('wheel',e=>{ e.preventDefault(); if(st.mode==='dietro') return; if(st.mode==='orbita') O.dist=Math.max(800,Math.min(Z.half*5,O.dist*(e.deltaY>0?1.12:0.89))); else F.y=Math.max(yFt(100),F.y+(e.deltaY>0?-1:1)*yFt(200)); },{passive:false});
   // pulsanti
   const wire=()=>{ ui.innerHTML=html();
     ui.querySelectorAll('[data-k]').forEach(bt=>bt.onclick=()=>{ const k=bt.dataset.k;
-      if(k==='x'){ chiudi(); return; }
+      if(k==='x'){ chiudi(); if(DT){ try{ parent.PH.show('volo'); }catch(e){} } return; }
       if(k==='mode'){ st.mode=st.mode==='orbita'?'vola':'orbita'; if(st.mode==='vola'){ F.x=O.tx+Math.sin(O.az)*Z.half*0.5; F.z=O.tz+Math.cos(O.az)*Z.half*0.5; F.y=yFt(3000); F.yaw=O.az; F.pitch=-0.05; } st.follow=false; }
       if(k==='follow'){ st.follow=!st.follow; if(st.follow){ st.mode='vola'; F.s=0; } }
       if(k==='ex'){ const o=[1,2,3]; st.EX=o[(o.indexOf(st.EX)+1)%o.length]; trail.length=0; build(); rpBuild(); }
@@ -312,6 +330,14 @@ window.SP3D_open=async function(opt){
         if(K.has('sx')) F.yaw+=0.9*dt; if(K.has('dx')) F.yaw-=0.9*dt; if(K.has('su')) F.y+=yFt(1500)*dt; if(K.has('giu')) F.y=Math.max(yFt(100),F.y-yFt(1500)*dt); }
       const g0=T.at(F.x,-F.z)*st.EX+yFt(80); if(F.y<g0) F.y=g0;
       camFly();
+    } else if(st.mode==='dietro'){
+      const S_=src()||{}, yaw=((S_.trk!=null?S_.trk:S_.hdg)||0)*D2R_;
+      if(CD.yaw==null) CD.yaw=yaw; else { let d=yaw-CD.yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); CD.yaw+=d*Math.min(1,dt*2.5); }
+      const dx=Math.sin(CD.yaw), dz=-Math.cos(CD.yaw), P=plane.position, B=3200, cx=P.x-dx*B, cz=P.z-dz*B;
+      const cy=Math.max(P.y+650*st.EX, T.at(cx,-cz)*st.EX+250);
+      cam.position.set(cx,cy,cz); cam.lookAt(P.x+dx*4500,P.y-200*st.EX,P.z+dz*4500);
+      const v=Math.max(2500,((S_.gs!=null?S_.gs:S_.ias)||0)/3.6*60), ap=avG.attributes.position, ty=yFt((S_.alt||0)+(S_.vs||0)*60/FT);
+      ap.setXYZ(0,P.x,P.y,P.z); ap.setXYZ(1,P.x+Math.sin(yaw)*v,ty,P.z-Math.cos(yaw)*v); ap.needsUpdate=true; avL.visible=plane.visible;
     } else { if(st.segui&&plane.visible){ const k2=Math.min(1,dt*3); O.tx+=(plane.position.x-O.tx)*k2; O.ty+=(plane.position.y-O.ty)*k2; O.tz+=(plane.position.z-O.tz)*k2; } camOrbit(); }
     if(RP&&RP.play){ RP.t=Math.min(RP.t1,RP.t+dt*1000*RP.vel); if(RP.t>=RP.t1) RP.play=false; }
     try{ const S_=src(); if(S_&&S_.lat!=null){ const q=Z.E(S_.lat,S_.lon), y=yFt(S_.alt||0); plane.position.set(q.x,y,-q.n); plane.rotation.set(-Math.PI/2,-((S_.trk!=null?S_.trk:S_.hdg)||0)*D2R_,0);
@@ -319,6 +345,8 @@ window.SP3D_open=async function(opt){
       const dp=dropG.attributes.position; dp.setXYZ(0,q.x,y,-q.n); const gz=suolo(S_.lat,S_.lon); dp.setXYZ(1,q.x,(gz===gz?gz:T.at(q.x,q.n))*st.EX,-q.n); dp.needsUpdate=true; drop.computeLineDistances();
       const lp=trail[trail.length-1]; if(plane.visible&&(!lp||Math.hypot(lp.x-q.x,lp.z+q.n)>Z.half/400)){ trail.push(new THREE.Vector3(q.x,y,-q.n)); if(trail.length>1500) trail.shift(); trailG.setFromPoints(trail); } } }catch(e){}
     if(now-hT>300){ hT=now; hud();
+      // vista da dietro: l'aereo si avvicina al bordo della zona → la scena si rifà attorno a lui
+      if(DT){ const S_=src(); if(S_&&S_.lat!=null){ const q=Z.E(S_.lat,S_.lon); if(Math.abs(q.x)>Z.half*0.5||Math.abs(q.n)>Z.half*0.5){ chiudi(); window.SP3D_open(opt); return; } } }
       // seguendo l'aereo (simulazione o volo rivisto) si passa da solo al tratto in cui si trova
       if(TR&&(st.segui||RP)){ const S_=src(); if(S_&&S_.lat!=null){ const q=Z.E(S_.lat,S_.lon); if(Math.abs(q.x)>Z.half*0.92||Math.abs(q.n)>Z.half*0.92){
         let j=ti,bd=1e18; TR.forEach((c2,k)=>{ const d=(c2.lat-S_.lat)**2+((c2.lon-S_.lon)*Math.cos(S_.lat*D2R_))**2; if(d<bd){ bd=d; j=k; } }); if(j!==ti){ vai(j); return; } } } }
@@ -330,9 +358,9 @@ window.SP3D_open=async function(opt){
   raf=requestAnimationFrame(loop);
   // altro tratto: la scena si ricostruisce attorno al nuovo centro (stato dei filtri e del volo rivisto restano)
   function vai(i){ const sg=st.segui; chiudi(); window.SP3D_open(Object.assign({},opt,{tratto:i,fs:st.follow&&st.mode==='vola'?F.s:null})).then(()=>{ st.segui=sg; }); }
-  function chiudi(){ cancelAnimationFrame(raf); clearInterval(reb); ro.disconnect(); renderer.dispose(); scene.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.map) m.map.dispose(); m.dispose(); }); } }); box.remove(); G=null; }
+  function chiudi(){ cancelAnimationFrame(raf); clearInterval(reb); ro.disconnect(); renderer.dispose(); scene.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.map) m.map.dispose(); m.dispose(); }); } }); box.remove(); G=null; try{ parent.document.body.classList.remove('hz-s3d'); }catch(e){} }
   G={box,chiudi};
-  try{ parent.PH&&parent.PH.act&&parent.PH.act('vista 3D spazi aerei'); }catch(e){}
+  try{ parent.PH&&parent.PH.act&&parent.PH.act(DT?'spazi 3D da dietro':'vista 3D spazi aerei'); }catch(e){}
 };
 { const b=document.getElementById('asp3d'); if(b) b.addEventListener('click',()=>window.SP3D_open()); }
 })();

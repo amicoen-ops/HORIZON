@@ -184,6 +184,15 @@ PH.pienoSet=function(v,zitto){ v=!!v; if(v===PH.pieno) return;
     sg.querySelectorAll('button').forEach(x=>x.onclick=()=>{ PH.pienoStile=x.dataset.st; lsSet('ia517p_pieno_stile',PH.pienoStile); sg.querySelectorAll('button').forEach(y=>y.setAttribute('aria-pressed',y===x)); });
     const b=document.createElement('button'); b.type='button'; b.className='ph-btn'; b.id='hzPnGo'; b.textContent='⛶ APRI SOLO ORIZZONTE'; b.onclick=()=>PH.pienoSet(true);
     const sec=ui.closest('section')||ui.parentNode; sec.appendChild(p); sec.appendChild(sg); sec.appendChild(b); }; }
+// ---- HORIZON 2 (in prova): ALTRO › SPAZI 3D ----
+// Pagina a parte: terreno 3D e spazi aerei 3D insieme, visti da dietro l'aereo (spazi3d.js, dentro il Piano). Solo in HORIZON 2
+// (c'è il modulo nativo «Garmin»); nel browser si accende per prova con ia517p_h2prova.
+PH.h2=(()=>{ try{ const C=window.Capacitor; if(C&&C.isPluginAvailable&&C.isPluginAvailable('Garmin')) return true; }catch(e){} return !!lsGet('ia517p_h2prova',false); })();
+PH.spazi3d=function(){ try{ PH.moreOpen(false); if(PH.ui==='simple') PH.setUi('full'); PH.show('piano'); const fr=document.getElementById('phAppFrame').contentWindow; let n=0;
+    const go=()=>{ if(fr.SP3D_open) fr.SP3D_open({dietro:true}); else if(n++<40) setTimeout(go,300); else toastShow('SPAZI 3D NON DISPONIBILI'); }; go(); }catch(e){ toastShow('SPAZI 3D NON DISPONIBILI'); } };
+{ const s=document.createElement('style'); s.textContent='body.hz-s3d #phPiano .ph-sheet-h{display:none!important}'; document.head.appendChild(s); }
+if(PH.h2){ const g=document.querySelector('#phMore .ph-more-g'), x=g&&g.querySelector('[data-x]');
+  if(g){ const b=document.createElement('button'); b.type='button'; b.id='hzS3Altro'; b.innerHTML='<i>◈</i>SPAZI 3D'; b.onclick=()=>PH.spazi3d(); g.insertBefore(b,x||null); } }
 if(lsGet('ia517p_pieno',false)) setTimeout(()=>{ try{ PH.pienoSet(true,true); }catch(e){ console.error('pieno',e); } },0);
 setInterval(()=>{ try{ riempi(); }catch(e){} },5000);
 try{ PH.layout(); PH.zoomBtns&&PH.zoomBtns(); }catch(e){}
