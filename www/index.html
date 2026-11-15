@@ -3723,6 +3723,10 @@ PH.renderImp=function(){
     <div class="ph-seg" id="phUi">${[['full','Completa'],['simple','Semplice']].map(([k2,l])=>`<button data-u="${k2}" aria-pressed="${PH.ui===k2}">${l}</button>`).join('')}</div>
     <p class="ph-sub"><b>Semplice</b>: solo l'orizzonte, come uno strumento di bordo classico, con velocità, quota, vario, prua, vento e tempo di volo. Niente mappa, rotte e simulazione. Gli avvisi di terreno e di spazio aereo restano attivi. <b>Completa</b>: tutto.</p>
   </section>
+  <section><h3>Simulazione</h3>
+    <p class="ph-sub">Un volo finto con gli avvisi veri, per provare lo strumento a terra: direct to un campo, una rotta salvata o un volo libero. Nell'interfaccia completa lo trovi anche in ALTRO › SIMULA; da qui si apre in tutte e due le interfacce.</p>
+    <div class="ph-btns"><button class="ph-btn" id="phSimOpen">▶ Apri SIMULA</button></div>
+  </section>
   <section><h3>Posizione: GPS del telefono e Garmin GLO 2</h3>
     <p class="ph-sub">Il GLO 2 (GPS e GLONASS, 10 posizioni al secondo, quota sul livello del mare) di solito è più preciso del telefono. Abbinalo prima nelle impostazioni Bluetooth di Android, poi collegalo qui: le volte successive si ricollega da solo. <b>La più precisa</b>: tra telefono, GLO 2${PH.fenix?' e orologio':''} si usa quella con la precisione migliore in questo momento; si cambia solo se un'altra è meglio di almeno il 30% per 5 secondi, e subito se quella in uso perde il segnale. Oppure scegli tu.</p>
     <p class="ph-sub" id="phSrcLive"></p>
@@ -3828,6 +3832,7 @@ PH.renderImp=function(){
   PH.acSectionWire&&PH.acSectionWire();
   el('phTq').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.terrQ=b.dataset.q; lsSet('ia517p_terrq',PH.terrQ); el('phTq').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.tqNow(); });
   PH.tqNow();
+  { const so=el('phSimOpen'); if(so) so.onclick=()=>PH.show('sim'); }
   el('phUi').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.setUi(b.dataset.u); el('phUi').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
   el('phFlType').querySelectorAll('button').forEach(b=>b.onclick=()=>{ IA517_RULES.set(b.dataset.p); el('phFlType').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.renderAsp();
     try{ const w=el('phAppFrame').contentWindow; w.IA517_profChanged&&w.IA517_profChanged(); }catch(e){} const pr=IA517_RULES.PROFILES[b.dataset.p]; toast('TIPO DI VOLO: '+(pr?pr.short:b.dataset.p)); });
@@ -4546,6 +4551,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.197","La simulazione si apre anche da Impostazioni › Simulazione, in tutte e due le interfacce: nella semplice il tasto SIMULA di ALTRO non c'è."],
   ["1.0.196","Corretto: dopo aver usato il solo orizzonte e chiuso l'app, si restava nell'interfaccia semplice senza averla scelta, quindi senza il tasto PIANO e senza SIMULA. Ora uscendo dal solo orizzonte torna sempre l'interfaccia di prima; chi era rimasto bloccato ritrova da solo quella completa. Impostazioni: la pagina si apre sempre con le sezioni chiuse, così si trova subito quella che serve."],
   ["1.0.193","Il solo orizzonte si apre anche da ALTRO › SOLO ORIZZONTE, in tutte e due le interfacce: prima il tasto ⛶ c'era solo nell'interfaccia semplice."],
   ["1.0.192","Solo orizzonte: lo strumento da solo, senza caselle, tasti e menu. Due forme a scelta: SCHERMO PIENO (orizzonte su tutto lo schermo, velocità e quota ai bordi, prua in fondo, cifre più grandi) o TONDO (lo strumento classico più grande possibile, con i dati in cifre grandi accanto). Segue il telefono in verticale e in orizzontale. Un tocco sullo schermo fa comparire i tasti (EXIT, LIVELLA, tondo o pieno, pieno sole), che spariscono da soli; il tasto EXIT è sempre in un angolo. Avvisi e SOS restano. LIVELLA a terra: non usa più 11° per tutti (erano dell'Avid); di serie livella e centra a 0°, e per un biciclo usa i gradi scritti in Impostazioni › Montaggio, che restano nella scheda del velivolo. Si accende dal tasto ⛶ accanto a SOS nell'interfaccia semplice o da Impostazioni › Interfaccia."],
