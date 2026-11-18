@@ -23,6 +23,9 @@
 //   --freschi  i riquadri preparati da meno di G giorni si saltano (di serie 6): è la RIPRESA. Si parte sempre da quelli
 //              che mancano, poi dai più vecchi, quindi una corsa interrotta riprende da dove era arrivata
 //   --rifai    rifà tutto, anche i riquadri freschi
+//   --satellite       incrocia ogni riquadro con la copertura del suolo ESA WorldCover (serve GDAL: tools/prati_satellite.js);
+//                     i riquadri già pronti e mai incrociati si incrociano subito, senza Overpass
+//   --solo-satellite  fa solo quell'incrocio dei riquadri già pronti e si ferma
 // Esce con 0 se non resta niente da fare, con 10 se restano riquadri (limite o tempo), con 1 se in questa corsa non ne è
 // riuscito nessuno (Overpass non raggiungibile). I riquadri non riusciti si riprovano dopo 12 ore, non subito.
 'use strict';
@@ -36,7 +39,7 @@ const TENTATIVI=4;                                               // per riquadro
 const ATTESA=90000;                                              // ms di attesa della risposta (la domanda dice 60 s al servizio)
 const UA='HORIZON-prati/1.0 (riquadri settimanali; github.com/amicoen-ops/HORIZON)';   // generico: nessun dato personale
 
-function opzioni(av){ const o={uscita:'prati-dati',zona:ZONA,limite:Infinity,minuti:Infinity,freschi:6,rifai:false,pausa:PAUSA_MIN};
+function opzioni(av){ const o={uscita:'prati-dati',zona:ZONA,limite:Infinity,minuti:Infinity,freschi:6,rifai:false,pausa:PAUSA_MIN,satellite:false,soloSatellite:false};
   for(let i=0;i<av.length;i++){ const a=av[i], v=()=>{ if(i+1>=av.length) throw new Error('manca il valore di '+a); return av[++i]; };
     if(a==='--uscita') o.uscita=v();
     else if(a==='--zona'){ const z=v().split(',').map(Number); if(z.length!==4||!z.every(isFinite)||z[0]>=z[2]||z[1]>=z[3]) throw new Error('--zona vuole SUD,OVEST,NORD,EST'); o.zona={sud:z[0],ovest:z[1],nord:z[2],est:z[3]}; }
@@ -45,6 +48,8 @@ function opzioni(av){ const o={uscita:'prati-dati',zona:ZONA,limite:Infinity,min
     else if(a==='--freschi'){ o.freschi=+v(); if(!(o.freschi>=0)) throw new Error('--freschi vuole un numero di giorni'); }
     else if(a==='--pausa'){ o.pausa=Math.max(PAUSA_MIN,+v()||0); }
     else if(a==='--rifai') o.rifai=true;
+    else if(a==='--satellite') o.satellite=true;
+    else if(a==='--solo-satellite'){ o.satellite=true; o.soloSatellite=true; }
     else throw new Error('opzione sconosciuta: '+a); }
   return o; }
 // chiavi dei riquadri che toccano la zona, da sud a nord e da ovest a est
@@ -63,8 +68,19 @@ async function chiedi(url,k,prendi){
   if(!PD.rispostaBuona(js)) throw new Error('risposta incompleta'+(js&&js.remark?': '+String(js.remark).slice(0,80):''));   // 200 ma tempo scaduto dentro: NON è un riquadro vuoto
   return {rec:PD.converti(js,k,Date.now()),byte:testo.length,elementi:js.elements.length}; }
 
+// Incrocio di un riquadro con il satellite. Ritorna il numero di aree tolte, oppure null se non si è potuto fare
+// (ritaglio non arrivato o risultato dubbio): null vuol dire «da riprovare».
+async function satellite(k,rec,raster,dice){
+  let R=null; try{ R=await raster(k); }catch(e){ dice(`    satellite ${k}: ritaglio non riuscito (${String(e&&e.message||e).slice(0,90)})`); return null; }
+  if(!R){ dice(`    satellite ${k}: nessun ritaglio`); return null; }
+  const prima=rec.ok.length, e=PD.incrocia(rec,R);
+  const conf=`boschi, paesi e acque della mappa confermati dal satellite: ${e.noConfermate} su ${e.noViste}`;
+  if(e.dubbio){ dice(`    satellite ${k}: DUBBIO su ${prima} aree (${conf}): non tolgo niente`); return null; }
+  dice(`    satellite ${k}: ${prima} aree, ${e.viste} giudicate, ${e.tolte} tolte, ${e.nonGiudicate} non giudicate · ${conf}`); return e.tolte; }
+
 async function prepara(o,strumenti){
   const prendi=(strumenti&&strumenti.fetch)||fetch, aspetta=(strumenti&&strumenti.dormi)||dormi, dice=(strumenti&&strumenti.log)||console.log;
+  const raster=o.satellite?((strumenti&&strumenti.raster)||require('./prati_satellite.js').raster):null;
   const dir=path.join(o.uscita,'v'+PD.VERSIONE), fInd=path.join(dir,'indice.json'); fs.mkdirSync(dir,{recursive:true});
   const ind=leggiIndice(fInd), ora0=Date.now(), fine=ora0+o.minuti*60000;
   // un riquadro è nell'elenco solo se il suo file c'è davvero
@@ -81,9 +97,20 @@ async function prepara(o,strumenti){
   const giorno=k=>Math.floor(eta(k)/864e5);                        // l'età conta a giorni: dentro lo stesso giorno decide la distanza
   lista.sort((a,b)=>(giorno(a)-giorno(b))||(lontano(a)-lontano(b)));
   const daFare=lista.length; let fatti=0, falliti=0, giro=0, ultima=0; const riposo=PD.SERVIZI.map(()=>0), errori=PD.SERVIZI.map(()=>0);
-  const salva=()=>{ ind.fatto=new Date().toISOString(); ind.zona=o.zona; ind.fonte='© contributori OpenStreetMap (ODbL), via Overpass';
+  const salva=()=>{ ind.fatto=new Date().toISOString(); ind.zona=o.zona; ind.fonte='© contributori OpenStreetMap (ODbL), via Overpass'+(o.satellite?' · incrocio con © ESA WorldCover project 2021 / contiene dati Copernicus Sentinel modificati (2021), CC BY 4.0':'');
     const r={}; for(const k of Object.keys(ind.riquadri).sort()) r[k]=ind.riquadri[k]; ind.riquadri=r; scrivi(fInd,JSON.stringify(ind)); };
   dice(`Zona ${o.zona.sud}–${o.zona.nord} N, ${o.zona.ovest}–${o.zona.est} E: ${tutti} riquadri, ${daFare} da preparare${isFinite(o.limite)?', al massimo '+o.limite+' in questa corsa':''}.`);
+  // Riquadri già pronti ma mai incrociati con il satellite (preparati prima che l'incrocio esistesse, o con il ritaglio non
+  // arrivato): si incrociano adesso, senza richiedere niente a Overpass. È veloce, quindi si fa prima del resto.
+  let satFatti=0;
+  if(o.satellite){ const mai=Object.keys(ind.riquadri).filter(k=>ind.riquadri[k].sat==null&&chiaviZona(o.zona).includes(k)&&ora0-(Date.parse(ind.riquadri[k].satT)||0)>12*36e5);
+    for(const k of mai){ if(satFatti>=o.limite||Date.now()>fine) break; const f=path.join(dir,k+'.json'); let rec=null; try{ rec=JSON.parse(fs.readFileSync(f,'utf8')); }catch(e){ continue; }
+      if(!PD.riquadroBuono(rec,k)) continue;
+      const sat=await satellite(k,rec,raster,dice); satFatti++; ind.riquadri[k].satT=new Date(Date.now()).toISOString();
+      if(sat!=null){ const testo=JSON.stringify(rec); scrivi(f,testo); Object.assign(ind.riquadri[k],{ok:rec.ok.length,kb:Math.round(testo.length/1024),sat}); }
+      if(satFatti%20===0) salva(); }
+    if(satFatti){ salva(); dice(`Incrociati con il satellite ${satFatti} riquadri già pronti.`); }
+    if(o.soloSatellite) return {fatti:0,falliti:0,restano:Math.max(0,mai.length-satFatti),tutti,elenco:Object.keys(ind.riquadri).length,satFatti}; }
   let i=0;
   for(;i<lista.length;i++){ const k=lista[i];
     if(fatti+falliti>=o.limite||Date.now()>fine) break;
@@ -100,11 +127,12 @@ async function prepara(o,strumenti){
         // attesa che cresce: 5, 15, 45 s; il doppio se il servizio dice «troppe richieste» o «occupato»
         if(t<TENTATIVI-1) await aspetta(5000*3**t*((e&&(e.stato===429||e.stato===504))?2:1)); } }
     if(rec){
-      // ---- QUI si innesterà l'incrocio con le foto satellitari (ESA WorldCover, 10 m): prima di scrivere il riquadro,
-      // per ogni area di rec.rec.ok si guarderà la classe di copertura dentro il contorno (erba e coltivi sì; alberi,
-      // costruito, acqua no) e si toglieranno o si segneranno le aree che il satellite smentisce. Oggi non si fa.
+      // incrocio con il satellite (ESA WorldCover, 10 m), se chiesto: toglie le aree «adatte» che dall'alto risultano bosco,
+      // case o acqua. Se il ritaglio non arriva il riquadro si salva lo stesso, senza incrocio, e si riproverà.
+      const sat=o.satellite?await satellite(k,rec.rec,raster,dice):undefined;
       const testo=JSON.stringify(rec.rec); scrivi(path.join(dir,k+'.json'),testo);
       ind.riquadri[k]={t:new Date(rec.rec.t).toISOString(),ok:rec.rec.ok.length,no:rec.rec.no.length,li:rec.rec.li.length,kb:Math.round(testo.length/1024)};
+      if(sat!==undefined) ind.riquadri[k].sat=sat;
       delete ind.falliti[k]; fatti++; dice(`ok  ${k}  ${rec.rec.ok.length} aree adatte, ${rec.rec.no.length} da evitare, ${rec.rec.li.length} linee · ${Math.round(rec.byte/1024)} KB → ${Math.round(testo.length/1024)} KB${rec.elementi?'':' · VUOTO (risposta intera, nessun elemento)'}`);
     } else { ind.falliti[k]=new Date().toISOString(); falliti++; dice(`NO  ${k}  ${motivo} · resta ${ind.riquadri[k]?'il riquadro del '+ind.riquadri[k].t.slice(0,10):'senza riquadro (l\'app userà Overpass)'}`); }
     if((fatti+falliti)%20===0) salva();                            // l'elenco si salva ogni tanto: una corsa interrotta non perde il lavoro
@@ -114,7 +142,7 @@ async function prepara(o,strumenti){
   dice(`Fatti ${fatti}, falliti ${falliti}, restano ${restano} · nell'elenco ${Object.keys(ind.riquadri).length} riquadri su ${tutti} della zona.`);
   return {fatti,falliti,restano,tutti,elenco:Object.keys(ind.riquadri).length}; }
 
-module.exports={ZONA,opzioni,chiaviZona,prepara,chiedi};
+module.exports={ZONA,opzioni,chiaviZona,prepara,chiedi,satellite};
 if(require.main===module){
   let o; try{ o=opzioni(process.argv.slice(2)); }catch(e){ console.error('Errore: '+e.message); process.exit(2); }
   prepara(o).then(r=>{ process.exit((r.fatti===0&&r.falliti>0)?1:(r.restano>0?10:0)); },e=>{ console.error('Errore: '+(e&&e.message||e)); process.exit(1); });

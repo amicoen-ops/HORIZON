@@ -11,6 +11,11 @@ name: Prepara i prati (Nord-Ovest)
 #    riquadri che mancano (dal centro della zona verso i bordi) e poi dai più vecchi; quelli preparati da meno di 25
 #    giorni si saltano;
 #  · a mano («Run workflow») si può dare un limite di riquadri, per una prova breve.
+#  · INCROCIO CON IL SATELLITE: ogni riquadro si confronta con la copertura del suolo ESA WorldCover (10 m, 2021; CC BY 4.0):
+#    le aree «adatte» che dall'alto risultano per almeno metà bosco, case o acqua si tolgono (tools/prati_satellite.js legge
+#    con GDAL solo il pezzo che serve; la regola è PD.incrocia in www/prati-dati.js). I riquadri già pronti e mai incrociati
+#    si incrociano all'inizio della corsa, senza richieste a Overpass. Con «prova_satellite» si guarda cosa toglierebbe su
+#    alcuni riquadri, senza salvare niente;
 # Dati © contributori OpenStreetMap (ODbL). Repo pubblico: nei log solo le chiavi dei riquadri e i conteggi.
 on:
   schedule:
@@ -22,6 +27,14 @@ on:
     inputs:
       limite:
         description: "Limite di riquadri in questa corsa (vuoto = tutti quelli da fare)"
+        required: false
+        default: ""
+      prova_satellite:
+        description: "PROVA dell'incrocio con il satellite: quanti riquadri guardare, SENZA salvare niente (vuoto = corsa normale)"
+        required: false
+        default: ""
+      prova_zona:
+        description: "Zona della prova: SUD,OVEST,NORD,EST in gradi (vuoto = tutta la zona, dal primo riquadro)"
         required: false
         default: ""
 
@@ -43,6 +56,11 @@ jobs:
           node-version: 22
       - name: Prove dei prati
         run: node tools/test_prati.js
+      - name: GDAL (per leggere la copertura del suolo ESA WorldCover)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q gdal-bin
+          gdal_translate --version
       - name: Riquadri già sul ramo «prati-dati»
         env:
           GH_TOKEN: ${{ github.token }}
@@ -56,10 +74,23 @@ jobs:
           else
             echo "Il ramo prati-dati non c'è ancora: si parte da zero"
           fi
+      - name: PROVA dell'incrocio con il satellite (non salva niente)
+        if: ${{ github.event.inputs.prova_satellite != '' }}
+        env:
+          QUANTI: ${{ github.event.inputs.prova_satellite }}
+          ZONA_PROVA: ${{ github.event.inputs.prova_zona }}
+        run: |
+          case "$QUANTI" in *[!0-9]*) echo "::error::prova_satellite deve essere un numero"; exit 2 ;; esac
+          case "$ZONA_PROVA" in *[!0-9.,-]*) echo "::error::prova_zona vuole SUD,OVEST,NORD,EST"; exit 2 ;; esac
+          node tools/prati_satellite.js 452_78
+          if [ -n "$ZONA_PROVA" ]; then node tools/prati_prepara.js --uscita dati --solo-satellite --limite "$QUANTI" --zona "$ZONA_PROVA" | tee prova.txt
+          else node tools/prati_prepara.js --uscita dati --solo-satellite --limite "$QUANTI" | tee prova.txt; fi
+          { echo "### Prova dell'incrocio con il satellite (niente salvato)"; echo '```'; grep -E 'satellite|Incrociati' prova.txt | head -80; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Prepara e salva ogni 20 riquadri
+        if: ${{ github.event.inputs.prova_satellite == '' }}
         env:
           LIMITE: ${{ github.event.inputs.limite }}
-          PRATI_OPZIONI: "--freschi 25"
+          PRATI_OPZIONI: "--freschi 25 --satellite"
           PRATI_GRUPPO: "20"
         run: |
           bash tools/prati_pubblica.sh dati "$LIMITE"
