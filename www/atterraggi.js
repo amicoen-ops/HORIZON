@@ -125,8 +125,10 @@ async function indice(){ const now=Date.now();
   GH.prova=now;
   try{ const r=await prendi(PD.PRONTI+'indice.json',15000); if(r.status!==200) throw new Error('risposta '+r.status);
     const j=JSON.parse(r.text); if(!j||j.v!==PD.VERSIONE||!j.riquadri||typeof j.riquadri!=='object') throw new Error('elenco non valido');
-    const o={}; for(const k of Object.keys(j.riquadri)) if(PD.chiaveBuona(k)) o[k]=1;
-    IND={t:now,r:o}; lsSet(KEY_G,IND); GH.prova=0; }catch(e){}
+    // per ogni riquadro: quando è stato preparato o corretto l'ultima volta su GitHub (per esempio dopo l'incrocio con il
+    // satellite). Se è più recente della copia sul telefono, la copia si riscarica anche se ha meno di 30 giorni.
+    const o={}; for(const k of Object.keys(j.riquadri)) if(PD.chiaveBuona(k)){ const e=j.riquadri[k]||{}; o[k]=Math.max(1,Date.parse(e.t)||0,e.sat!=null?(Date.parse(e.satT)||0):0); }
+    IND={t:now,r:o,v:(IND.v&&typeof IND.v==='object')?IND.v:{}}; lsSet(KEY_G,IND); GH.prova=0; }catch(e){}
   return IND.r; }
 // il riquadro già pronto, o null se non c'è o GitHub non risponde (allora si va su Overpass, come sempre)
 async function pronto(k){
@@ -138,6 +140,7 @@ async function pronto(k){
     const rec=JSON.parse(r.text); if(!PD.riquadroBuono(rec,k)) throw new Error('riquadro non valido');
     RETE.byte+=r.text.length;
     rec.t=Date.now();                                             // la scadenza parte da quando arriva sul telefono, come per quelli presi da Overpass
+    if(!IND.v||typeof IND.v!=='object') IND.v={}; IND.v[k]=IND.r[k]; lsSet(KEY_G,IND);     // quale preparazione di GitHub ho sul telefono (non si confrontano gli orologi: quello del telefono può essere sbagliato)
     return rec;
   }catch(e){ GH.giu=Date.now(); return null; } }
 async function scarica(k){
@@ -194,6 +197,9 @@ function voluti(){
   }catch(e){}
   return out; }
 const gpsOk=()=>(S.gpsReal||!!PH.sim) && (PH.sim||!lost('gps')) && isFinite(S.lat+S.lon);
+// la copia sul telefono è buona: ha meno di 30 giorni E su GitHub non c'è una preparazione diversa da quella presa
+// (IND.r = quella che c'è su GitHub, IND.v = quella che ho scaricato; i riquadri presi da Overpass non sono su GitHub)
+const fresco=(k,now)=>IDX[k]>now-CFG.giorni*864e5 && !(IND.r[k]>1 && (!IND.v||IND.v[k]!==IND.r[k]));
 function rete(){
   if(RETE.busy||!navigator.onLine||(PH.stato&&PH.stato.internet===false)) return;
   const now=Date.now(), forza=now-RETE.forza<600000;
@@ -206,8 +212,7 @@ function rete(){
     if(IDX[k]||now-RETE.last<CFG.pausaVolo||now-(RETE.male.get(k)||0)<600000) return; scarica(k); return; }
   if(now-RETE.last<CFG.pausa) return;
   if(!forza&&PH.autoDl&&!PH.autoDl.permesso('zona')) return;       // Impostazioni › Scarico automatico: «mai», o «solo Wi-Fi» senza Wi-Fi
-  const vecchio=now-CFG.giorni*864e5;
-  for(const k of voluti()){ if(IDX[k]>vecchio||now-(RETE.male.get(k)||0)<600000) continue; scarica(k); return; }
+  for(const k of voluti()){ if(fresco(k,now)||now-(RETE.male.get(k)||0)<600000) continue; scarica(k); return; }
   RETE.forza=0; }
 setInterval(()=>{ try{ rete(); }catch(e){} },5000);
 
@@ -425,10 +430,12 @@ function disegna(toS){
 
 // ---- Impostazioni › Volare senza internet: stato e scarico a richiesta (solo a terra) ----
 PH.pratiStato=function(){ const now=Date.now(), n=Object.keys(IDX).length; let zona=0, tot=0;
-  try{ if(gpsOk()||EXTRA.length){ const v=voluti(); tot=v.length; zona=v.filter(x=>IDX[x]>now-CFG.giorni*864e5).length; } }catch(e){}
+  try{ if(gpsOk()||EXTRA.length){ const v=voluti(); tot=v.length; zona=v.filter(x=>fresco(x,now)).length; } }catch(e){}
   return {n,zona,tot,busy:RETE.busy,attesa:Math.max(0,RETE.poi-now),falliti:RETE.falliti,mem:MEM.size,best:BEST?BEST.list.length:0,err:RETE.err||'',errT:RETE.errT||0,fatti:RETE.fatti,pronti:RETE.pronti,miei:MIEI.length,byte:RETE.byte,last:RETE.last,forza:now-RETE.forza<600000,
     qui:gpsOk()?!!IDX[chiave(S.lat,S.lon)]:null,planata:!!PH.glideOn,livello:!(PH.lyr&&PH.lyr.prati===false)}; };
-PH.pratiScarica=function(){ RETE.forza=Date.now(); RETE.poi=0; RETE.falliti=0; RETE.err=''; RETE.byte=0; RETE.male.clear(); try{ rete(); }catch(e){} };
+// «Scarica»: si rilegge subito anche l'elenco di GitHub (di solito una volta al giorno), così si vedono i riquadri corretti da poco
+PH.pratiScarica=function(){ RETE.forza=Date.now(); RETE.poi=0; RETE.falliti=0; RETE.err=''; RETE.byte=0; RETE.male.clear(); IND.t=0; GH.prova=0; GH.giu=0;
+  indice().catch(()=>{}).then(()=>{ try{ rete(); }catch(e){} }); };
 PH.pratiCfg=CFG;
 if(PH.renderImp){ const orig=PH.renderImp; PH.renderImp=function(){ orig.apply(this,arguments);
   try{ const h=[...document.querySelectorAll('#phImpBody section')].find(s=>s.dataset.t==='Volare senza internet'||(s.querySelector('h3')&&s.querySelector('h3').textContent==='Volare senza internet')); if(!h) return;
