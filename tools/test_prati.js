@@ -213,6 +213,10 @@ uguale(PP.chiaviZona({sud:45.43,ovest:7.83,nord:45.44,est:7.84}),['454_78'],'zon
     uguale(chiesti.join(','),'454_79','dopo 12 ore si riprova solo quello che mancava'); uguale(l2('indice.json').riquadri['454_79'].sat,0,'e stavolta risulta incrociato');
     orologio+=8*864e5; chiamate=[]; r2=await PP.prepara(Object.assign({},b2,{satellite:true,limite:1}),Object.assign({fetch:finto(()=>risp(200,RISPOSTA)),raster:async()=>mappa(10)},zitto));
     const kNuovo=chiamate[0].k; uguale(l2(kNuovo+'.json').ok.length,1,'riquadro rifatto con --satellite: incrociato subito'); ok(/ESA WorldCover/.test(l2('indice.json').fonte),'elenco: la fonte cita ESA WorldCover');
+    // corsa normale a gruppi (--limite 1 per Overpass): l'incrocio dei riquadri già pronti si fa comunque tutto
+    const d3=fs.mkdtempSync(path.join(os.tmpdir(),'prati-sat3-')), b3=Object.assign({},base,{uscita:d3}); await PP.prepara(b3,Object.assign({fetch:finto(()=>risp(200,RISPOSTA))},zitto));
+    chiesti=[]; await PP.prepara(Object.assign({},b3,{satellite:true,limite:1}),Object.assign({fetch:finto(()=>risp(200,RISPOSTA)),raster:async k=>{ chiesti.push(k); return mappa(30); }},zitto));
+    uguale(chiesti.length,4,'--satellite con --limite 1: i riquadri già pronti si incrociano tutti, il limite vale solo per Overpass'); fs.rmSync(d3,{recursive:true,force:true});
     fs.rmSync(d2,{recursive:true,force:true}); }
   Date.now=vero; fs.rmSync(dir,{recursive:true,force:true});
   console.log(rotte?`PROVE DEI PRATI: ${rotte} ROTTE su ${prove}`:`Prove dei prati: ${prove} su ${prove} passate`);
