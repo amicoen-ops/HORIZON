@@ -74,8 +74,9 @@ async function satellite(k,rec,raster,dice){
   let R=null; try{ R=await raster(k); }catch(e){ dice(`    satellite ${k}: ritaglio non riuscito (${String(e&&e.message||e).slice(0,90)})`); return null; }
   if(!R){ dice(`    satellite ${k}: nessun ritaglio`); return null; }
   const prima=rec.ok.length, e=PD.incrocia(rec,R);
-  if(e.dubbio){ dice(`    satellite ${k}: DUBBIO, toglierebbe troppe aree su ${prima}: non tolgo niente`); return null; }
-  dice(`    satellite ${k}: ${prima} aree, ${e.viste} giudicate, ${e.tolte} tolte, ${e.nonGiudicate} non giudicate`); return e.tolte; }
+  const conf=`boschi, paesi e acque della mappa confermati dal satellite: ${e.noConfermate} su ${e.noViste}`;
+  if(e.dubbio){ dice(`    satellite ${k}: DUBBIO su ${prima} aree (${conf}): non tolgo niente`); return null; }
+  dice(`    satellite ${k}: ${prima} aree, ${e.viste} giudicate, ${e.tolte} tolte, ${e.nonGiudicate} non giudicate · ${conf}`); return e.tolte; }
 
 async function prepara(o,strumenti){
   const prendi=(strumenti&&strumenti.fetch)||fetch, aspetta=(strumenti&&strumenti.dormi)||dormi, dice=(strumenti&&strumenti.log)||console.log;

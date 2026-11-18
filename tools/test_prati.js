@@ -186,6 +186,12 @@ uguale(PP.chiaviZona({sud:45.43,ovest:7.83,nord:45.44,est:7.84}),['454_78'],'zon
     const e=PD.incrocia(rec,R);
     uguale(rec.ok.map(o=>o[0]).join(','),'1,3,5','satellite: tolte le aree smentite, restano erba, campo di volo e area troppo piccola per giudicare');
     uguale([e.viste,e.tolte,e.nonGiudicate,e.dubbio].join(','),'3,2,1,false','satellite: conteggi dell\'incrocio');
+    // controllo di allineamento con i boschi della mappa: confermati → si toglie anche quasi tutto; smentiti → niente
+    const bosco=(n,lo)=>{ const L=[]; for(let i=0;i<n;i++) L.push([100+i,'b',q(LA-0.05+0.006*i,lo,0.004)]); return L; };
+    const u=PD.nuovo('x'); for(let i=0;i<12;i++) u.ok.push([i,0,q(LA+0.006*i,LO+0.03,0.004)]); u.no=bosco(6,LO+0.04); const eu=PD.incrocia(u,R);
+    ok(!eu.dubbio&&u.ok.length===0&&eu.noConfermate===6,'satellite: boschi della mappa confermati, si tolgono anche tutte le aree smentite');
+    const w=PD.nuovo('x'); for(let i=0;i<4;i++) w.ok.push([i,0,q(LA+0.006*i,LO+0.03,0.004)]); w.no=bosco(6,LO-0.05); const ew=PD.incrocia(w,R);
+    ok(ew.dubbio&&w.ok.length===4&&ew.noConfermate===0,'satellite: boschi della mappa NON confermati (ritaglio spostato), non si toglie niente');
     const z=PD.nuovo('x'); z.ok=[[1,0,q(LA,LO-0.05,0.004)]]; uguale(PD.incrocia(z,mappa(0)).nonGiudicate,1,'satellite: ritaglio senza dati, non si giudica e non si toglie'); uguale(z.ok.length,1,'satellite: senza dati l\'area resta');
     const t=PD.nuovo('x'); for(let i=0;i<12;i++) t.ok.push([i,0,q(LA+0.006*i,LO-0.05,0.004)]); const et=PD.incrocia(t,mappa(10));
     ok(et.dubbio&&t.ok.length===12,'satellite: se toglierebbe quasi tutto il riquadro non toglie niente e lo dice');
