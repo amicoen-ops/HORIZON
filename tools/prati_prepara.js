@@ -104,7 +104,8 @@ async function prepara(o,strumenti){
   // arrivato): si incrociano adesso, senza richiedere niente a Overpass. È veloce, quindi si fa prima del resto.
   let satFatti=0;
   if(o.satellite){ const mai=Object.keys(ind.riquadri).filter(k=>ind.riquadri[k].sat==null&&chiaviZona(o.zona).includes(k)&&ora0-(Date.parse(ind.riquadri[k].satT)||0)>12*36e5);
-    for(const k of mai){ if(satFatti>=o.limite||Date.now()>fine) break; const f=path.join(dir,k+'.json'); let rec=null; try{ rec=JSON.parse(fs.readFileSync(f,'utf8')); }catch(e){ continue; }
+    // --limite vale per Overpass; qui conta solo nella prova (--solo-satellite): l'incrocio è veloce e si fa tutto
+    for(const k of mai){ if((o.soloSatellite&&satFatti>=o.limite)||Date.now()>fine) break; const f=path.join(dir,k+'.json'); let rec=null; try{ rec=JSON.parse(fs.readFileSync(f,'utf8')); }catch(e){ continue; }
       if(!PD.riquadroBuono(rec,k)) continue;
       const sat=await satellite(k,rec,raster,dice); satFatti++; ind.riquadri[k].satT=new Date(Date.now()).toISOString();
       if(sat!=null){ const testo=JSON.stringify(rec); scrivi(f,testo); Object.assign(ind.riquadri[k],{ok:rec.ok.length,kb:Math.round(testo.length/1024),sat}); }
