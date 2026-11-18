@@ -83,5 +83,34 @@ function riquadroBuono(rec,k){
   return rec.ok.every(o=>Array.isArray(o)&&o.length===3&&coppie(o[2])) && rec.no.every(o=>Array.isArray(o)&&o.length===3&&/^[pba]$/.test(o[1])&&coppie(o[2])) &&
     rec.li.every(o=>Array.isArray(o)&&o.length===2&&coppie(o[1])) && rec.pl.every(o=>Array.isArray(o)&&o.length===3&&isFinite(o[0])&&isFinite(o[1])); }
 
-return {CELLA,AREA_MIN,VERSIONE,SERVIZI,PRONTI,D2R,M_LAT,M_LON,chiave,bordi,chiaveBuona,dPS,semplifica,areaLL,pacco,domanda,rispostaBuona,classe,nuovo,aggiungi,converti,riquadroBuono};
+// ---- incrocio con il satellite (solo nella preparazione su GitHub: tools/prati_satellite.js) ----
+// R è il ritaglio della mappa di copertura del suolo ESA WorldCover (10 m) sopra il riquadro:
+//   {ovest, nord, passo (gradi per punto), w, h, d: un byte per punto, da nord a sud e da ovest a est}
+// Classi WorldCover: 10 alberi, 20 arbusti, 30 erba, 40 coltivi, 50 costruito, 60 terreno nudo, 70 neve e ghiaccio,
+// 80 acqua, 90 palude, 95 mangrovie, 100 muschi; 0 = nessun dato.
+// Per ogni area «adatta» si guardano i punti dentro il contorno: se almeno metà è alberi, arbusti, costruito, acqua, palude o
+// ghiaccio, il satellite smentisce la mappa e l'area si toglie. I campi di volo non si toccano mai. Con pochi punti letti
+// (meno di SAT_MIN) non si giudica. Se il satellite toglierebbe più del 60% delle aree di un riquadro (almeno 10) qualcosa
+// non torna (ritaglio spostato, mappa vecchia): non si toglie niente e lo si dice.
+const SAT_NO=new Set([10,20,50,70,80,90,95]), SAT_QUOTA=0.5, SAT_MIN=20, SAT_MAX_TOLTE=0.6;
+function satArea(co,R){
+  const n=co.length/2; let s=90,w=180,nn=-90,e=-180; for(let i=0;i<n;i++){ const la=co[2*i]/1e5, lo=co[2*i+1]/1e5; if(la<s) s=la; if(la>nn) nn=la; if(lo<w) w=lo; if(lo>e) e=lo; }
+  let j0=Math.max(0,Math.floor((R.nord-nn)/R.passo)), j1=Math.min(R.h-1,Math.floor((R.nord-s)/R.passo)), i0=Math.max(0,Math.floor((w-R.ovest)/R.passo)), i1=Math.min(R.w-1,Math.floor((e-R.ovest)/R.passo));
+  if(j1<j0||i1<i0) return {punti:0,no:0};
+  const salto=Math.max(1,Math.floor(Math.sqrt((j1-j0+1)*(i1-i0+1)/4000)));          // aree grandi: un punto ogni tanti, al massimo ~4000 letture
+  let punti=0, no=0;
+  for(let j=j0;j<=j1;j+=salto){ const la=(R.nord-(j+0.5)*R.passo)*1e5;
+    for(let i=i0;i<=i1;i+=salto){ const lo=(R.ovest+(i+0.5)*R.passo)*1e5; let dentro=false;
+      for(let a=0,b=n-1;a<n;b=a++){ const ya=co[2*a], xa=co[2*a+1], yb=co[2*b], xb=co[2*b+1]; if(((ya>la)!==(yb>la))&&(lo<(xb-xa)*(la-ya)/(yb-ya)+xa)) dentro=!dentro; }
+      if(!dentro) continue; const c=R.d[j*R.w+i]; if(!c) continue; punti++; if(SAT_NO.has(c)) no++; } }
+  return {punti,no}; }
+function incrocia(rec,R){
+  const esito={viste:0,tolte:0,nonGiudicate:0,dubbio:false}; if(!rec||!Array.isArray(rec.ok)||!R||!R.d||!(R.w>0)||!(R.h>0)) return esito;
+  const via=new Set();
+  for(const o of rec.ok){ if(o[1]) continue; const a=satArea(o[2],R); if(a.punti<SAT_MIN){ esito.nonGiudicate++; continue; } esito.viste++; if(a.no/a.punti>=SAT_QUOTA) via.add(o); }
+  if(via.size>=10 && via.size>rec.ok.length*SAT_MAX_TOLTE){ esito.dubbio=true; return esito; }
+  if(via.size){ rec.ok=rec.ok.filter(o=>!via.has(o)); esito.tolte=via.size; }
+  return esito; }
+
+return {SAT_QUOTA,SAT_MIN,satArea,incrocia,CELLA,AREA_MIN,VERSIONE,SERVIZI,PRONTI,D2R,M_LAT,M_LON,chiave,bordi,chiaveBuona,dPS,semplifica,areaLL,pacco,domanda,rispostaBuona,classe,nuovo,aggiungi,converti,riquadroBuono};
 });

@@ -175,6 +175,39 @@ uguale(PP.chiaviZona({sud:45.43,ovest:7.83,nord:45.44,est:7.84}),['454_78'],'zon
   // un file dell'elenco sparito dalla cartella non resta nell'elenco
   fs.unlinkSync(path.join(v1,'454_79.json')); orologio+=1000; r=await PP.prepara(Object.assign({},base,{limite:1,freschi:9999}),Object.assign({fetch:finto(()=>risp(200,RISPOSTA))},zitto));
   ok(fs.existsSync(path.join(v1,'454_79.json')),'un riquadro dell\'elenco senza file viene rifatto per primo');
+  // ---- incrocio con il satellite (copertura del suolo finta) ----
+  { const mappa=cl=>({ovest:LO-0.1,nord:LA+0.1,passo:1/12000,w:2400,h:2400,d:new Uint8Array(2400*2400).fill(cl)});
+    const q=(la,lo,d)=>PD.pacco([[la,lo],[la,lo+d],[la+d*0.7,lo+d],[la+d*0.7,lo],[la,lo]]);
+    // metà ovest erba, metà est alberi
+    const R=mappa(30); for(let j=0;j<R.h;j++) for(let i=R.w/2;i<R.w;i++) R.d[j*R.w+i]=10;
+    const rec=PD.nuovo('x'); rec.ok=[[1,0,q(LA,LO-0.05,0.004)],[2,0,q(LA,LO+0.03,0.004)],[3,1,q(LA+0.01,LO+0.03,0.004)],[4,0,q(LA+0.02,LO-0.002,0.004)],[5,0,q(LA+0.03,LO-0.05,0.0003)]];
+    uguale(PD.satArea(rec.ok[0][2],R).no,0,'satellite: prato sull\'erba, nessun punto da evitare');
+    const a2=PD.satArea(rec.ok[1][2],R); ok(a2.punti>1000&&a2.no===a2.punti,'satellite: prato sugli alberi, tutti i punti da evitare');
+    const e=PD.incrocia(rec,R);
+    uguale(rec.ok.map(o=>o[0]).join(','),'1,3,5','satellite: tolte le aree smentite, restano erba, campo di volo e area troppo piccola per giudicare');
+    uguale([e.viste,e.tolte,e.nonGiudicate,e.dubbio].join(','),'3,2,1,false','satellite: conteggi dell\'incrocio');
+    const z=PD.nuovo('x'); z.ok=[[1,0,q(LA,LO-0.05,0.004)]]; uguale(PD.incrocia(z,mappa(0)).nonGiudicate,1,'satellite: ritaglio senza dati, non si giudica e non si toglie'); uguale(z.ok.length,1,'satellite: senza dati l\'area resta');
+    const t=PD.nuovo('x'); for(let i=0;i<12;i++) t.ok.push([i,0,q(LA+0.006*i,LO-0.05,0.004)]); const et=PD.incrocia(t,mappa(10));
+    ok(et.dubbio&&t.ok.length===12,'satellite: se toglierebbe quasi tutto il riquadro non toglie niente e lo dice');
+    uguale(PD.incrocia(PD.nuovo('x'),null).tolte,0,'satellite: senza ritaglio non succede niente');
+    ok(PD.riquadroBuono(Object.assign(rec,{k:'454_78'}),'454_78'),'satellite: il riquadro incrociato ha ancora il formato giusto');
+    // dentro lo script: riquadri nuovi incrociati, ritaglio che non arriva, riquadri già pronti incrociati senza Overpass
+    const d2=fs.mkdtempSync(path.join(os.tmpdir(),'prati-sat-')), l2=f=>JSON.parse(fs.readFileSync(path.join(d2,'v1',f),'utf8')), b2=Object.assign({},base,{uscita:d2});
+    let r2=await PP.prepara(b2,Object.assign({fetch:finto(()=>risp(200,RISPOSTA))},zitto));
+    const prima=l2('454_78.json').ok.length; ok(prima>=2&&l2('indice.json').riquadri['454_78'].sat===undefined,'senza --satellite niente incrocio ('+prima+' aree adatte)');
+    let chiesti=[]; chiamate=[];
+    r2=await PP.prepara(Object.assign({},b2,{satellite:true,soloSatellite:true}),Object.assign({fetch:finto(()=>risp(200,RISPOSTA)),raster:async k=>{ chiesti.push(k); if(k==='454_79') throw new Error('rete'); return mappa(k==='454_80'?30:10); }},zitto));
+    uguale(chiamate.length,0,'--solo-satellite: nessuna richiesta a Overpass'); uguale(chiesti.length,4,'--solo-satellite: un ritaglio per ogni riquadro già pronto');
+    const i2=l2('indice.json').riquadri; uguale(l2('454_78.json').ok.length,1,'riquadro sugli alberi: resta solo il campo di volo'); uguale(i2['454_78'].sat,prima-1,'elenco: quante aree ha tolto il satellite'); uguale(i2['454_78'].ok,1,'elenco: conteggio delle aree aggiornato');
+    uguale(l2('454_80.json').ok.length,prima,'riquadro sull\'erba: niente tolto'); uguale(i2['454_80'].sat,0,'elenco: sat 0 = incrociato, niente da togliere');
+    ok(i2['454_79'].sat==null&&l2('454_79.json').ok.length===prima,'ritaglio non arrivato: il riquadro resta com\'era e si riproverà');
+    chiesti=[]; r2=await PP.prepara(Object.assign({},b2,{satellite:true,soloSatellite:true}),Object.assign({fetch:finto(()=>risp(200,RISPOSTA)),raster:async k=>{ chiesti.push(k); return mappa(30); }},zitto));
+    uguale(chiesti.length,0,'il ritaglio non arrivato si riprova dopo 12 ore, non subito');
+    orologio+=13*36e5; chiesti=[]; r2=await PP.prepara(Object.assign({},b2,{satellite:true,soloSatellite:true}),Object.assign({fetch:finto(()=>risp(200,RISPOSTA)),raster:async k=>{ chiesti.push(k); return mappa(30); }},zitto));
+    uguale(chiesti.join(','),'454_79','dopo 12 ore si riprova solo quello che mancava'); uguale(l2('indice.json').riquadri['454_79'].sat,0,'e stavolta risulta incrociato');
+    orologio+=8*864e5; chiamate=[]; r2=await PP.prepara(Object.assign({},b2,{satellite:true,limite:1}),Object.assign({fetch:finto(()=>risp(200,RISPOSTA)),raster:async()=>mappa(10)},zitto));
+    const kNuovo=chiamate[0].k; uguale(l2(kNuovo+'.json').ok.length,1,'riquadro rifatto con --satellite: incrociato subito'); ok(/ESA WorldCover/.test(l2('indice.json').fonte),'elenco: la fonte cita ESA WorldCover');
+    fs.rmSync(d2,{recursive:true,force:true}); }
   Date.now=vero; fs.rmSync(dir,{recursive:true,force:true});
   console.log(rotte?`PROVE DEI PRATI: ${rotte} ROTTE su ${prove}`:`Prove dei prati: ${prove} su ${prove} passate`);
   process.exit(rotte?1:0);
