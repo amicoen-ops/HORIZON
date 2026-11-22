@@ -4633,6 +4633,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.206","HORIZON 2: ora controlla davvero se c'è una versione nuova e la fa scaricare da Info. Prima non controllava niente e scriveva comunque «Hai l'ultima versione», quindi restava ferma."],
   ["1.0.205","Diario di volo: «Importa GPX». Una traccia registrata da un'altra app (SkyDemon, orologio, GPS) entra nel diario come volo, con decollo e atterraggio riconosciuti come dal vivo. Serve a rimettere un volo che HORIZON non ha registrato."],
   ["1.0.204","Orizzonte con il motore acceso: le vibrazioni non lo fanno più andare alla deriva. Prima il tremolio di accelerometro e giroscopio faceva scartare la correzione dell'orizzonte, che restava affidato al solo giroscopio e scivolava di molti gradi; in volo l'effetto era più forte perché la compensazione di virata moltiplicava il rumore per la velocità. Ora la correzione usa valori mediati su 0,2 secondi, senza perdere prontezza. Anche LIVELLA prende la gravità da una media di 2 secondi: con il motore acceso non viene più storta."],
   ["1.0.203","Diario di volo: un volo non si perde più. Se l'app viene chiusa o si addormenta in volo (schermo spento) e la riapri più tardi, il volo va nel diario fino all'ultimo punto registrato, segnato «interrotto»; prima, dopo 15 minuti, spariva. Il volo in corso si salva ogni 10 secondi. Novità: ALTRO › SCHERMO SPENTO oscura lo schermo ma lascia l'app accesa, così GPS, diario e avvisi a voce continuano; un avviso di terreno lo riaccende da solo. Spegnendo lo schermo con il tasto del telefono, invece, Android ferma l'app e la traccia si interrompe."],
@@ -4789,7 +4790,17 @@ PH.checkUpdate=async function(manual){
       const r=await U.playCheck();
       if(r.error && !r.available){ out.state='errore'; out.msg=r.error; }
       else Object.assign(out,{state:r.available?'nuova':'ok',build:r.versionCode||0,latest:r.available?'1.0.'+r.versionCode:b.version,stale:r.staleDays}); }
-    else if(b.channel==='h2'){ out.state='ok'; out.msg='HORIZON 2 (prova): le versioni nuove sono su GitHub, Release «HORIZON 2»'; }
+    else if(b.channel==='h2'){
+      // HORIZON 2 esce come «pre-release» horizon2-N: «releases/latest» di GitHub non le vede, quindi si legge l'elenco e si
+      // prende il numero più alto. Prima qui non si controllava niente e Info diceva comunque «Hai l'ultima versione».
+      const r=await window.IA517.http(PH_INFO.releases.replace(/\/latest$/,'?per_page=40'));
+      if(r.status!==200){ out.state='errore'; out.msg='risposta '+r.status; }
+      else { const cur=parseInt(b.build)||0; let top=null, n=0;
+        for(const j of JSON.parse(r.text)||[]){ const m=/^horizon2-(\d+)$/.exec(String(j&&j.tag_name||'')); if(m&&!j.draft&&+m[1]>n){ n=+m[1]; top=j; } }
+        if(!top){ out.state='errore'; out.msg='nessuna versione di HORIZON 2 trovata'; }
+        else { const apk=(top.assets||[]).find(a=>/\.apk$/i.test(a.name));
+          // apk:false: l'APK si scarica dal browser e lo installa il pilota (HORIZON 2 non ha il permesso di installare da sé)
+          Object.assign(out,{state:n>cur?'nuova':'ok',latest:'2.0.'+n,build:n,url:apk?apk.browser_download_url:top.html_url,apk:false,size:apk?apk.size:0,date:top.published_at,notes:top.body||''}); } } }
     else if(b.channel==='web'){
       const r=await fetch('version.js?chk='+Date.now(),{cache:'no-store'}); if(!r.ok) throw new Error('risposta '+r.status);
       const t=await r.text(), bu=(t.match(/build:'([^']*)'/)||[])[1]||'', ve=(t.match(/version:'([^']*)'/)||[])[1]||'';
@@ -4857,7 +4868,7 @@ PH.doUpdate=async function(u,msg,btn){
       if(!U) throw new Error('aggiorna dal Play Store');
       say('Apro l\'aggiornamento del Play Store…'); await U.playStart(); say('Segui le istruzioni del Play Store.'); return; }
     // APK di GitHub
-    if(!U || !u.apk){ window.open(u.url,'_blank'); say('Si apre la pagina della versione: scarica l\'APK e installalo.'); return; }
+    if(!U || !u.apk){ window.open(u.url,'_blank'); say(u.channel==='h2'?'Si scarica l\'APK di HORIZON 2: aprilo dalle notifiche per installarlo sopra questa versione (i dati restano).':'Si apre la pagina della versione: scarica l\'APK e installalo.'); return; }
     let lis=null, fatti=0;
     try{ if(msg){ bar=msg._bar&&msg._bar.isConnected?msg._bar:(msg._bar=document.createElement('div')); msg.after(bar); } }catch(e){}
     // il peso viene dal modulo (Content-Length) o, se manca, dalla scheda della versione su GitHub
@@ -4973,7 +4984,7 @@ PH.renderInfo=function(){
   box.innerHTML=`
   <section class="ph-hero"><img src="icon-192.png" alt="" width="64" height="64"><div><b>HORIZON · strumento di volo</b><span>${PH_INFO.author}</span><span class="ph-sub">© 2026 ${PH_INFO.owner} · Tutti i diritti riservati</span></div></section>
   <section><h3>Versione</h3>
-    <div class="ph-row"><span>Installata</span><small><b>${b.version}</b> · build ${b.build} · ${b.channel==='apk'?'app Android':(b.channel==='play'?'Play Store':'app dal browser')}</small></div>
+    <div class="ph-row"><span>Installata</span><small><b>${b.version}</b> · build ${b.build} · ${b.channel==='apk'?'app Android':(b.channel==='play'?'Play Store':(b.channel==='h2'?'HORIZON 2, APK di prova':'app dal browser'))}</small></div>
     <div class="ph-row"><span>Installata o aggiornata il</span><small>${dt(h[0]&&h[0].t)}</small></div>
     ${h[1]?`<div class="ph-row"><span>Versione precedente</span><small>${h[1].v} · fino al ${dt(h[0].t)}</small></div>`:''}
     <div class="ph-row"><span>Avvertenze accettate</span><small>${acc?dt(acc.t):'no'}</small></div>
