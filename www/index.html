@@ -2394,8 +2394,10 @@ PhMahony.prototype.levelFrom=function(fx,fy,fz){
   this.q0=cr*cp; this.q1=sr*cp; this.q2=cr*sp; this.q3=-sr*sp; this.ix=this.iy=this.iz=0; };
 PhMahony.prototype.down=function(){ const a=this;
   return [2*(a.q1*a.q3-a.q0*a.q2), 2*(a.q0*a.q1+a.q2*a.q3), a.q0*a.q0-a.q1*a.q1-a.q2*a.q2+a.q3*a.q3]; };
-PhMahony.prototype.update=function(gx,gy,gz,fx,fy,fz,dt){
-  const mag=Math.hypot(fx,fy,fz), rate=Math.hypot(gx,gy,gz);
+// rateT (facoltativo): velocità di rotazione da usare per la FIDUCIA nell'accelerometro. Con le vibrazioni del motore quella
+// istantanea è piena di rumore e azzererebbe la fiducia a ogni lettura: PH.onMotion passa quella filtrata.
+PhMahony.prototype.update=function(gx,gy,gz,fx,fy,fz,dt,rateT){
+  const mag=Math.hypot(fx,fy,fz), rate=rateT!=null?rateT:Math.hypot(gx,gy,gz);
   const e1=(mag-1)/this.trustG, e2=rate/this.trustRate; this.trust=Math.exp(-e1*e1)*Math.exp(-e2*e2);
   if(mag>0.3 && mag<3){
     const ax=-fx/mag, ay=-fy/mag, az=-fz/mag, [vx,vy,vz]=this.down();
@@ -2493,7 +2495,8 @@ PH.toBody=function(v){ const M=PH.M; return [M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v
 // (lo scrive «Livella a terra» in Impostazioni); senza, 0 = aereo in piano (triciclo). Gli 11° sono solo dell'Avid, che è un biciclo.
 PH.gpDef=function(){ const a=PH.ac||{}, v=+a.gpitch; if(a.gpitch!=null&&a.gpitch!==''&&v===v) return Math.max(0,Math.min(25,v)); return a.id==='ac-ia517'||/avid/i.test(a.model||'')?11:0; };
 PH.level=function(groundPitchDeg){
-  const a=PH.aAvg, g=Math.hypot(a[0],a[1],a[2]); if(g<7||g>12.5){ toast('TIENI FERMO IL TELEFONO E RIPROVA'); return false; }
+  // la gravità si prende dalla media di 2 secondi, se c'è da almeno 4 secondi: quella corta trema con il motore
+  const a=(PH.aLong&&performance.now()-PH.aLongT>4000)?PH.aLong:PH.aAvg, g=Math.hypot(a[0],a[1],a[2]); if(g<7||g>12.5){ toast('TIENI FERMO IL TELEFONO E RIPROVA'); return false; }
   const dn=[-a[0]/g,-a[1]/g,-a[2]/g];                  // "giù" visto dal telefono
   let fw=[0,0,-1]; const dd=fw[0]*dn[0]+fw[1]*dn[1]+fw[2]*dn[2];
   fw=[fw[0]-dd*dn[0],fw[1]-dd*dn[1],fw[2]-dd*dn[2]];
@@ -2603,10 +2606,10 @@ PH.accCheck=function(a){
   const y=a.y||0, x=a.x||0; if(Math.abs(y)<7 || Math.abs(x)>4) return;
   const sg=Math.sign(y)*PH.accSign;                       // +1: il segno in uso è giusto
   PH.accVote=clamp(PH.accVote+sg,-60,60);
-  if(PH.accVote<=-40){ PH.accSign=-PH.accSign; PH.accVote=0; PH.ahrsInit=false; PH.attF=null; PH.aAvg=[0,0,0]; PH.act&&PH.act('segno accelerometro '+(PH.accSign<0?'invertito (iOS)':'standard')); }
+  if(PH.accVote<=-40){ PH.accSign=-PH.accSign; PH.accVote=0; PH.ahrsInit=false; PH.attF=null; PH.aAvg=[0,0,0]; PH.aLong=null; PH.act&&PH.act('segno accelerometro '+(PH.accSign<0?'invertito (iOS)':'standard')); }
 };
 PH.onRotate=function(){ const ang=PH.scrAng(); if(ang===PH.lastAng) return; PH.lastAng=ang;
-  PH.ahrsInit=false; PH.attF=null; PH.aAvg=[0,0,0]; PH.act('schermo '+ang+'°'); };
+  PH.ahrsInit=false; PH.attF=null; PH.aAvg=[0,0,0]; PH.aLong=null; PH.act('schermo '+ang+'°'); };
 PH.hdgSmoothTxt=function(){ const v=PH.hdgSmooth; return v<=0?'immediata':(v*0.25).toFixed(2).replace(/0$/,'').replace('.',',')+' s'; };
 PH.magDevTxt=function(){ const d=+PH.magDev||0, a=PH.magAutoLast, nt=PH.magNota&&Math.abs(d)>30?' NOTA: una correzione così grande vuol dire che la bussola del telefono è scalibrata. Muovi il telefono a otto per qualche secondo, lontano dal metallo; al prossimo decollo la correzione si rifà da sola.':'';
   const auto=a?` Ultima verifica al decollo: ${new Date(a.t).toLocaleString('it-IT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}, ${a.dev>0?'+':''}${a.dev}° (${a.n} campioni).`:(PH.magAutoOn?' Si correggerà da sola alla prossima corsa di decollo.':'');
@@ -2738,6 +2741,7 @@ PH.recText=function(R){ return ['REGISTRAZIONE SENSORI '+((R.rows.length/((R.end
   'ms dt_ms ax ay az alpha beta gamma rollio beccheggio vario virata',...R.rows].join('\n'); };
 
 // ---- sensori di movimento ----
+PH.VIB_TAU=0.2;          // s: media di forza e rotazione usata per correggere l'orizzonte (vedi «VIBRAZIONI DEL MOTORE» qui sotto)
 PH.onMotion=function(e){
   const a=e.accelerationIncludingGravity, r=e.rotationRate;
   if(!a || a.x==null) return;
@@ -2755,6 +2759,9 @@ PH.onMotion=function(e){
   const ts=e.timeStamp>0?e.timeStamp:now, dtTs=PH.mTs!=null?(ts-PH.mTs)/1000:NaN; PH.mTs=ts;
   const dtI=(e.interval>0?(e.interval>1?e.interval/1000:e.interval):0.016);
   let dt=(dtTs>0.001&&dtTs<0.1)?dtTs:dtI; dt=clamp(dt,0.001,0.06); PH.mDt=PH.mDt==null?dt:PH.mDt*0.98+dt*0.02; PH.mDtI=dtI;
+  // media LUNGA dell'accelerometro (2 s) per LIVELLA: con il motore acceso quella corta tremava di qualche centesimo di g,
+  // cioè di alcuni gradi, e il livellamento veniva storto di quella quantità (segnalazione dell'autore, 21/11/2026)
+  if(!PH.aLong){ PH.aLong=av.slice(); PH.aLongT=now; } else { const kl=1-Math.exp(-dt/2); for(let i=0;i<3;i++) PH.aLong[i]+=(av[i]-PH.aLong[i])*kl; }
   const fb=PH.toBody(av).map(x=>x/9.80665);               // forza specifica nel corpo, in g (fermo e livellato: 0,0,-1)
   if(r) PH.gyroLearn([ax,ay,(a.z||0)*ks],r,dt);
   const gr=r?PH.gyroRaw(r):[0,0,0], rx=gr[0]*D2R, ry=gr[1]*D2R, wd=[rx*c-ry*sn, rx*sn+ry*c, gr[2]*D2R];
@@ -2772,17 +2779,27 @@ PH.onMotion=function(e){
   // s'inclina) una parte della virata finiva sul beccheggio, l'orizzonte saliva di decine di gradi e il vario impazziva.
   if(PH.turnSrc==='gps'){ const w=PH.trkRate*D2R, ea=PH.ahrsInit?PH.ahrs.euler():[0,0], ph=ea[0]*D2R, th=ea[1]*D2R;
     wb=[-w*Math.sin(th), w*Math.sin(ph)*Math.cos(th), w*Math.cos(ph)*Math.cos(th)]; }
-  if(!PH.ahrsInit){ PH.ahrs.levelFrom(fb[0],fb[1],fb[2]); PH.ahrsInit=true; PH.attF=null; PH.hdg=S.trk!=null?S.trk:S.hdg; }
+  if(!PH.ahrsInit){ PH.ahrs.levelFrom(fb[0],fb[1],fb[2]); PH.ahrsInit=true; PH.attF=null; PH.vibF=null; PH.hdg=S.trk!=null?S.trk:S.hdg; }
+  // VIBRAZIONI DEL MOTORE. Accelerometro e giroscopio di un telefono fissato all'aereo tremano con il motore. Il tremolio ha
+  // media zero, ma prima rovinava la correzione dell'orizzonte in due modi: 1) la forza misurata non valeva quasi mai 1 g, e
+  // il filtro scartava l'accelerometro a ogni lettura, lasciando l'orizzonte al solo giroscopio, che deriva; 2) la
+  // compensazione di virata moltiplica il giroscopio per la velocità: a 100 km/h un rumore di 5°/s diventava 0,25 g di forza
+  // finta. Ora per la CORREZIONE (non per seguire i movimenti) si usano forza e rotazione mediate su 0,2 secondi, con lo
+  // stesso filtro per tutte e due, così restano coerenti tra loro. Il giroscopio che fa girare l'orizzonte resta quello
+  // istantaneo: la prontezza non cambia.
+  { const kv=1-Math.exp(-dt/(PH.VIB_TAU||0.2)); if(!PH.vibF) PH.vibF={f:fb.slice(),w:wb.slice()};
+    else for(let i=0;i<3;i++){ PH.vibF.f[i]+=(fb[i]-PH.vibF.f[i])*kv; PH.vibF.w[i]+=(wb[i]-PH.vibF.w[i])*kv; } }
+  const fm=PH.vibF.f, wm=PH.vibF.w;
   // compensazione di virata e accelerazione con la velocità GPS (come la scheda sensori con il Pitot)
   const V=(S.gpsReal && S.gs>15)?(PH.tas||S.gs/3.6):0;
   const gpsVivo=!(LIVE.gps>0 && performance.now()-LIVE.gps>3500);     // come STALE.gps
-  let fx=fb[0]-(V>0&&gpsVivo?PH.dvdt/9.80665:0), fy=fb[1]-wb[2]*V/9.80665, fz=fb[2]+wb[1]*V/9.80665;
+  let fx=fm[0]-(V>0&&gpsVivo?PH.dvdt/9.80665:0), fy=fm[1]-wm[2]*V/9.80665, fz=fm[2]+wm[1]*V/9.80665;
   // virata dal GPS: finché l'inclinazione stimata non ha raggiunto quella vera, la compensazione fatta con l'assetto stimato
   // lascia un vettore più lungo di 1 g e il filtro lo scarterebbe. Se la forza misurata è quella attesa dalla virata
   // (√(1+(V·ω/g)²), in volo come in macchina) ne tengo solo la direzione, così l'inclinazione converge da sola.
-  if(PH.turnSrc==='gps' && V>0){ const nE=Math.hypot(1,V*PH.trkRate*D2R/9.80665), nF=Math.hypot(fb[0],fb[1],fb[2]), nC=Math.hypot(fx,fy,fz);
+  if(PH.turnSrc==='gps' && V>0){ const nE=Math.hypot(1,V*PH.trkRate*D2R/9.80665), nF=Math.hypot(fm[0],fm[1],fm[2]), nC=Math.hypot(fx,fy,fz);
     if(nC>0.1){ const kc=nF/nE/nC; fx*=kc; fy*=kc; fz*=kc; } }
-  PH.ahrs.update(wb[0],wb[1],wb[2],fx,fy,fz,dt);
+  PH.ahrs.update(wb[0],wb[1],wb[2],fx,fy,fz,dt,Math.hypot(wm[0],wm[1],wm[2]));
   const [ro,pi]=PH.ahrs.euler();
   // orizzonte più morbido: filtro del primo ordine regolabile (0 = immediato, 10 = 1 s)
   const tau=clamp(PH.smooth,0,10)*0.1, kf=tau>0?1-Math.exp(-dt/tau):1;
@@ -4573,6 +4590,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.204","Orizzonte con il motore acceso: le vibrazioni non lo fanno più andare alla deriva. Prima il tremolio di accelerometro e giroscopio faceva scartare la correzione dell'orizzonte, che restava affidato al solo giroscopio e scivolava di molti gradi; in volo l'effetto era più forte perché la compensazione di virata moltiplicava il rumore per la velocità. Ora la correzione usa valori mediati su 0,2 secondi, senza perdere prontezza. Anche LIVELLA prende la gravità da una media di 2 secondi: con il motore acceso non viene più storta."],
   ["1.0.203","Diario di volo: un volo non si perde più. Se l'app viene chiusa o si addormenta in volo (schermo spento) e la riapri più tardi, il volo va nel diario fino all'ultimo punto registrato, segnato «interrotto»; prima, dopo 15 minuti, spariva. Il volo in corso si salva ogni 10 secondi. Novità: ALTRO › SCHERMO SPENTO oscura lo schermo ma lascia l'app accesa, così GPS, diario e avvisi a voce continuano; un avviso di terreno lo riaccende da solo. Spegnendo lo schermo con il tasto del telefono, invece, Android ferma l'app e la traccia si interrompe."],
   ["1.0.202","TailorFly (Impostazioni › TailorFly): una prova di 20 secondi a terra, con il telefono fermo, che misura sensori di movimento, giroscopio, bussola, barometro, GPS e velocità del disegno del tuo dispositivo. Ti dice in chiaro com'è messo e propone le regolazioni adatte (terreno 3D, barometro, bussola), che applichi con un tocco e puoi annullare. I filtri dell'orizzonte non cambiano."],
   ["1.0.201","Prati per l'emergenza: se un riquadro è stato corretto su GitHub (per esempio dopo il confronto con il satellite, che toglie boschi, case e acque), l'app lo riscarica anche se la copia sul telefono ha meno di 30 giorni. Prima «Scarica i prati della zona» non faceva niente finché la copia non scadeva."],
