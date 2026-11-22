@@ -187,6 +187,28 @@ PH.pienoSet=function(v,zitto,ripresa){ v=!!v; if(v===PH.pieno) return;
     sg.querySelectorAll('button').forEach(x=>x.onclick=()=>{ PH.pienoStile=x.dataset.st; lsSet('ia517p_pieno_stile',PH.pienoStile); sg.querySelectorAll('button').forEach(y=>y.setAttribute('aria-pressed',y===x)); });
     const b=document.createElement('button'); b.type='button'; b.className='ph-btn'; b.id='hzPnGo'; b.textContent='⛶ APRI SOLO ORIZZONTE'; b.onclick=()=>PH.pienoSet(true);
     const sec=ui.closest('section')||ui.parentNode; sec.appendChild(p); sec.appendChild(sg); sec.appendChild(b); }; }
+// ---- SCHERMO SPENTO (ma app accesa) ----
+// Spegnendo lo schermo con il tasto del telefono Android ferma l'app: niente GPS, niente diario, niente avvisi. Qui invece lo
+// schermo diventa nero (su uno schermo OLED vuol dire spento, e consuma pochissimo) ma l'app continua: registra il volo e
+// parla. Si riaccende tenendo premuto un secondo; un avviso rosso (terreno, traffico) lo riaccende da solo.
+PH.buio=false;
+{ const s=document.createElement('style'); s.textContent=`
+  #hzBuio{position:fixed;inset:0;z-index:2147482000;background:#000;display:none;align-items:center;justify-content:center;touch-action:none;user-select:none;-webkit-user-select:none}
+  body.hz-buio #hzBuio{display:flex}
+  #hzBuio span{font:700 15px system-ui,sans-serif;letter-spacing:.04em;color:#8a96a2;text-align:center;line-height:1.6;transition:opacity 1.5s;padding:20px}
+  #hzBuio.nero span{opacity:0} #hzBuio i{display:block;width:180px;height:6px;border-radius:3px;background:#1b2530;margin:14px auto 0;overflow:hidden;font-style:normal}
+  #hzBuio i::before{content:'';display:block;height:100%;background:#33e1ff;transform:scaleX(0);transform-origin:left} #hzBuio.hold i::before{transform:scaleX(1);transition:transform 1000ms linear}`; document.head.appendChild(s);
+  const d=document.createElement('div'); d.id='hzBuio'; d.innerHTML='<span>SCHERMO SPENTO · HORIZON È ACCESO<br>registra il volo e avvisa a voce<br>TIENI PREMUTO PER RIACCENDERE<i></i></span>'; document.body.appendChild(d);
+  let t=0, tn=0; const via=()=>{ if(t){ clearTimeout(t); t=0; } d.classList.remove('hold'); };
+  const scritta=()=>{ d.classList.remove('nero'); clearTimeout(tn); tn=setTimeout(()=>d.classList.add('nero'),6000); };
+  d.addEventListener('pointerdown',e=>{ e.preventDefault(); via(); scritta(); d.classList.add('hold'); t=setTimeout(()=>{ via(); PH.buioSet(false); },1000); });
+  for(const n of ['pointerup','pointercancel','pointerleave']) d.addEventListener(n,via);
+  PH.buioSet=function(v,perche){ v=!!v; if(v===PH.buio) return; PH.buio=v; document.body.classList.toggle('hz-buio',v); via(); if(v) scritta(); else clearTimeout(tn);
+    PH.act&&PH.act('schermo spento '+(v?'acceso':'tolto')+(perche?' ('+perche+')':'')); if(!v) toastShow(perche?'SCHERMO RIACCESO: '+perche:'SCHERMO RIACCESO'); };
+  // un avviso rosso riaccende lo schermo: il pilota deve vederlo, non solo sentirlo
+  const al=PH.alert; PH.alert=function(key,level){ if(PH.buio&&level==='W') PH.buioSet(false,'AVVISO'); return al.apply(this,arguments); };
+  const g=document.querySelector('#phMore .ph-more-g'), x=g&&g.querySelector('[data-x]');
+  if(g){ const b=document.createElement('button'); b.type='button'; b.id='hzBuioBtn'; b.innerHTML='<i>◼</i>SCHERMO SPENTO'; b.onclick=()=>{ PH.moreOpen(false); PH.buioSet(true); }; g.insertBefore(b,x||null); } }
 // ---- HORIZON 2 (in prova): ALTRO › SPAZI 3D ----
 // Pagina a parte: terreno 3D e spazi aerei 3D insieme, visti da dietro l'aereo (spazi3d.js, dentro il Piano). Solo in HORIZON 2
 // (c'è il modulo nativo «Garmin»); nel browser si accende per prova con ia517p_h2prova.

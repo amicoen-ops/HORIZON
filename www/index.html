@@ -2963,17 +2963,32 @@ PH.logFix=function(gs,tFix){
       PH.say('decollo'); PH.saveFlight();
     }
   }
+  // L'app ha dormito (schermo spento, telefono in tasca): tra l'ultimo punto e adesso c'è un buco. Se è lungo e adesso l'aereo
+  // è fermo, il volo è finito mentre l'app dormiva: si salva nel diario fino all'ultimo punto visto, segnato «interrotto».
+  { const Fb=PH.flight, lb=Fb&&Fb.pts[Fb.pts.length-1]; if(lb && now-lb[3]>300000 && kmh<20){ PH.closePartial(Fb); PH.slowSince=0; } }
   const F_=PH.flight; if(!F_) return;
   const last=F_.pts[F_.pts.length-1];
   if(!last || now-last[3]>=2000){
     if(last) F_.dist+=distBrg({lat:last[0],lon:last[1]},S).d;
     F_.pts.push([+S.lat.toFixed(6),+S.lon.toFixed(6),Math.round(S.alt),now,Math.round(kmh)]);
     F_.maxFt=Math.max(F_.maxFt,Math.round(S.alt));
-    if(F_.pts.length%10===0) PH.saveFlight();
+    if(F_.pts.length%5===0) PH.saveFlight();          // ogni 10 secondi: se l'app viene chiusa si perde al massimo quello
   }
   if(kmh<20){ if(!PH.slowSince) PH.slowSince=now; if(now-PH.slowSince>=30000){ PH.slowSince=0; PH.endFlight(now); } } else PH.slowSince=0;
 };
-PH.saveFlight=function(){ try{ localStorage.setItem('ia517p_curflight',JSON.stringify(PH.flight)); }catch(e){} };
+PH.saveFlight=function(){ try{ if(PH.flight) localStorage.setItem('ia517p_curflight',JSON.stringify(PH.flight)); }catch(e){} };
+// Un volo rimasto a metà (app chiusa o addormentata in volo e riaperta tardi) NON si butta: va nel diario fino all'ultimo punto
+// registrato, segnato «interrotto». Prima, se l'app si riapriva dopo più di 15 minuti, il volo spariva senza traccia.
+PH.closePartial=function(F_){
+  if(!F_||!Array.isArray(F_.pts)||F_.pts.length<2){ if(PH.flight===F_) PH.flight=null; try{ localStorage.removeItem('ia517p_curflight'); }catch(e){} return false; }
+  const u=F_.pts[F_.pts.length-1]; if(PH.flight===F_) PH.flight=null;
+  try{ localStorage.removeItem('ia517p_curflight'); }catch(e){}
+  let to=''; try{ const near=FIELDS.map(x=>({x,d:distBrg({lat:u[0],lon:u[1]},x).d})).sort((a,b)=>a.d-b.d)[0]; if(near&&near.d<3000) to=near.x.short; }catch(e){}
+  F_.end=u[3]; F_.to=to; F_.parziale=true; lsSet('ia517p_lastland',u[3]);
+  PH.trkPut(F_.start,F_.pts).then(ok=>{ const book=lsGet('ia517p_logbook',[]); if(book.some(b=>b.start===F_.start)) return;
+    const e=Object.assign({},F_); delete e.pts; e.trk=ok?F_.pts.length:0; book.unshift(e); book.sort((a,b)=>b.start-a.start);
+    lsSet('ia517p_logbook',book.slice(0,200)); PH.trkPrune(book); PH.renderLog&&PH.renderLog(); });
+  PH.act&&PH.act('volo interrotto salvato nel diario'); return true; };
 PH.endFlight=function(tEnd){
   const F_=PH.flight; if(!F_) return;
   // carburante corretto a mano: all'atterraggio resta il residuo (prima tornava al valore impostato, senza il consumo del volo)
@@ -3675,7 +3690,7 @@ PH.renderLog=function(){
     `<div class="ph-btns"><button class="ph-btn" id="phTrkAll">Seleziona tutte</button><button class="ph-btn pri" id="phTrkGpx">Esporta GPX</button><button class="ph-btn" id="phTrkKml">Esporta KML (Google Earth)</button></div><p class="ph-sub" id="phTrkMsg"></p>`+
     book.slice(0,60).map((f,i)=>{
     const d=new Date(f.start), m=Math.round((f.end-f.start)/60000), on=PH.trackShow&&PH.trackShow.k===f.start;
-    return `<div class="ph-row">${has(f)?`<input type="checkbox" class="ph-trkSel" data-i="${i}" aria-label="Seleziona il volo">`:'<span style="width:20px"></span>'}<span style="flex:1"><b>${d.toLocaleDateString('it-IT')} ${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</b><br><small>${f.ac?f.ac+' · ':''}${f.from||'?'} → ${f.to||'?'} · ${Math.floor(m/60)}:${String(m%60).padStart(2,'0')} · ${(f.dist/1000).toFixed(0)} km · max ${f.maxFt} ft${has(f)?'':' · senza traccia'}</small></span>`+
+    return `<div class="ph-row">${has(f)?`<input type="checkbox" class="ph-trkSel" data-i="${i}" aria-label="Seleziona il volo">`:'<span style="width:20px"></span>'}<span style="flex:1"><b>${d.toLocaleDateString('it-IT')} ${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</b><br><small>${f.ac?f.ac+' · ':''}${f.from||'?'} → ${f.to||'?'} · ${Math.floor(m/60)}:${String(m%60).padStart(2,'0')} · ${(f.dist/1000).toFixed(0)} km · max ${f.maxFt} ft${has(f)?'':' · senza traccia'}${f.parziale?' · <b style="color:#ffc531">interrotto</b>':''}</small></span>`+
       (has(f)?`<button class="ph-btn" data-show="${i}">${on?'Nascondi':'Sulla mappa'}</button>`:'')+`</div>`; }).join('')+
     `<div class="ph-btns"><button class="ph-btn" id="phCsv">Esporta diario (CSV)</button></div>`;
   const ptsOf=async f=>f.pts||await PH.trkGet(f.start)||[];
@@ -4272,6 +4287,9 @@ PH.act=function(a){ if(!PH) return; const t=new Date(); PH.trail.push(t.toTimeSt
   // volo interrotto (app chiusa o telefono riavviato in volo): si riprende
   const cur=lsGet('ia517p_curflight',null);
   if(cur && cur.pts && cur.pts.length && Date.now()-cur.pts[cur.pts.length-1][3]<15*60000){ PH.flight=cur; NAV.airborne=true; }
+  else if(cur && cur.pts){ if(PH.closePartial(cur)) setTimeout(()=>{ try{ toast('VOLO INTERROTTO SALVATO NEL DIARIO'); }catch(e){} },2500); }
+  // l'app va in secondo piano o lo schermo si spegne: si salva subito il volo in corso
+  for(const ev of ['visibilitychange','pagehide']) addEventListener(ev,()=>{ if(ev==='pagehide'||document.hidden) PH.saveFlight(); });
   // si parte con i sensori veri: finché non arrivano, le bandierine rosse lo dicono
   S.auto=false; el('auto').checked=false; LIVE.any=true;
   if(window.speechSynthesis) try{ speechSynthesis.getVoices(); }catch(e){}
@@ -4555,6 +4573,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.203","Diario di volo: un volo non si perde più. Se l'app viene chiusa o si addormenta in volo (schermo spento) e la riapri più tardi, il volo va nel diario fino all'ultimo punto registrato, segnato «interrotto»; prima, dopo 15 minuti, spariva. Il volo in corso si salva ogni 10 secondi. Novità: ALTRO › SCHERMO SPENTO oscura lo schermo ma lascia l'app accesa, così GPS, diario e avvisi a voce continuano; un avviso di terreno lo riaccende da solo. Spegnendo lo schermo con il tasto del telefono, invece, Android ferma l'app e la traccia si interrompe."],
   ["1.0.202","TailorFly (Impostazioni › TailorFly): una prova di 20 secondi a terra, con il telefono fermo, che misura sensori di movimento, giroscopio, bussola, barometro, GPS e velocità del disegno del tuo dispositivo. Ti dice in chiaro com'è messo e propone le regolazioni adatte (terreno 3D, barometro, bussola), che applichi con un tocco e puoi annullare. I filtri dell'orizzonte non cambiano."],
   ["1.0.201","Prati per l'emergenza: se un riquadro è stato corretto su GitHub (per esempio dopo il confronto con il satellite, che toglie boschi, case e acque), l'app lo riscarica anche se la copia sul telefono ha meno di 30 giorni. Prima «Scarica i prati della zona» non faceva niente finché la copia non scadeva."],
   ["1.0.199","Corretto del tutto il difetto del tasto PIANO sparito: chi aveva il solo orizzonte aperto al momento dell'aggiornamento restava ancora nell'interfaccia semplice, senza PIANO e senza SIMULA. Ora torna la completa, da sola."],
