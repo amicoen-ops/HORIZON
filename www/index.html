@@ -3048,6 +3048,38 @@ PH.gpx=function(F_){
   const pts=(F_.pts||[]).map(p=>`<trkpt lat="${p[0]}" lon="${p[1]}"><ele>${(p[2]*FT2M).toFixed(1)}</ele><time>${new Date(p[3]).toISOString()}</time></trkpt>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="HORIZON" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>${esc(name)}</name><trkseg>\n${pts}\n</trkseg></trk>\n</gpx>\n`;
 };
+// IMPORTA GPX: una traccia registrata da un'altra app (SkyDemon, orologio, GPS) entra nel diario. Serve a rimettere un volo che
+// HORIZON non ha registrato. I voli si riconoscono con la stessa regola del diario dal vivo: decollo oltre 55 km/h per 5 secondi,
+// atterraggio sotto 20 km/h per 30 secondi; il rullaggio prima e dopo resta fuori. Un volo che si sovrappone a uno già nel
+// diario non si aggiunge due volte. Ritorna {voli, punti, doppi} oppure lancia un errore con il motivo.
+PH.gpxParse=function(text){ const P=[], re=/<trkpt\b([^>]*)>([\s\S]*?)<\/trkpt>/g; let m;
+  while((m=re.exec(text))){ const la=/\blat="([^"]+)"/.exec(m[1]), lo=/\blon="([^"]+)"/.exec(m[1]), el=/<ele>([^<]+)</.exec(m[2]), tm=/<time>([^<]+)</.exec(m[2]);
+    const lat=la?+la[1]:NaN, lon=lo?+lo[1]:NaN, t=tm?Date.parse(tm[1]):NaN; if(!(lat===lat&&lon===lon&&t===t)||Math.abs(lat)>90||Math.abs(lon)>180) continue;
+    P.push([+lat.toFixed(6),+lon.toFixed(6),el&&isFinite(+el[1])?Math.round(+el[1]/FT2M):0,t,0]); }
+  P.sort((a,b)=>a[3]-b[3]);
+  for(let i=1;i<P.length;i++){ const dt=(P[i][3]-P[i-1][3])/1000, d=distBrg({lat:P[i-1][0],lon:P[i-1][1]},{lat:P[i][0],lon:P[i][1]}).d; P[i][4]=dt>0.4?Math.min(600,Math.round(d/dt*3.6)):P[i-1][4]; }
+  return P; };
+PH.gpxFlights=function(P){ const out=[]; let F_=null, fast=0, slow=0;
+  const chiudi=i=>{ if(F_&&F_.pts.length>=5){ F_.end=F_.pts[F_.pts.length-1][3]; out.push(F_); } F_=null; fast=0; slow=0; };
+  for(let i=0;i<P.length;i++){ const p=P[i], t=p[3], kmh=p[4];
+    if(F_&&i&&t-P[i-1][3]>300000){ chiudi(); }                     // buco di oltre 5 minuti nella traccia: il volo finisce lì
+    if(!F_){ if(kmh>55){ if(!fast) fast=t; } else fast=0;
+      if(fast&&t-fast>=5000){ F_={start:fast,pts:[],maxFt:0,dist:0}; slow=0; for(let j=i;j>=0&&P[j][3]>=fast;j--) F_.pts.unshift(P[j]); for(const q of F_.pts) F_.maxFt=Math.max(F_.maxFt,q[2]); fast=0; continue; }
+      continue; }
+    const u=F_.pts[F_.pts.length-1]; F_.dist+=distBrg({lat:u[0],lon:u[1]},{lat:p[0],lon:p[1]}).d; F_.pts.push(p); F_.maxFt=Math.max(F_.maxFt,p[2]);
+    if(kmh<20){ if(!slow) slow=t; if(t-slow>=30000) chiudi(); } else slow=0; }
+  chiudi(); return out; };
+PH.gpxImport=async function(text,nome){
+  const P=PH.gpxParse(String(text||'')); if(P.length<10) throw new Error('nel file non ci sono punti con posizione e ora');
+  const V=PH.gpxFlights(P); if(!V.length) throw new Error('nella traccia non c\'è un decollo (mai oltre 55 km/h per 5 secondi)');
+  const book=lsGet('ia517p_logbook',[]); let nuovi=0, doppi=0;
+  const vicino=p=>{ try{ const n=FIELDS.map(x=>({x,d:distBrg({lat:p[0],lon:p[1]},x).d})).sort((a,b)=>a.d-b.d)[0]; return n&&n.d<3000?n.x.short:''; }catch(e){ return ''; } };
+  for(const F_ of V){
+    if(book.some(b=>b.start<F_.end&&b.end>F_.start)){ doppi++; continue; }                  // c'è già un volo in quell'orario
+    F_.from=vicino(F_.pts[0]); F_.to=vicino(F_.pts[F_.pts.length-1]); F_.ac=(PH.ac&&PH.ac.reg)||''; F_.importato=String(nome||'GPX').slice(0,60);
+    const ok=await PH.trkPut(F_.start,F_.pts); const e=Object.assign({},F_); delete e.pts; e.trk=ok?F_.pts.length:0; book.push(e); nuovi++; }
+  book.sort((a,b)=>b.start-a.start); lsSet('ia517p_logbook',book.slice(0,200)); PH.trkPrune(book); PH.act&&PH.act('gpx importato: '+nuovi+' voli');
+  return {voli:nuovi,doppi,punti:P.length}; };
 PH.download=async function(name,text,type){
   if(PH.native&&PH.native.fs){
     try{ const r=await PH.native.fs.writeFile({path:name,data:text,directory:'CACHE',encoding:'utf8'});
@@ -3701,13 +3733,18 @@ PH.wakeLock=async function(){
 PH.renderLog=function(){
   const box=el('phLog'); if(!box) return;
   const book=lsGet('ia517p_logbook',[]);
-  if(!book.length){ box.innerHTML='<p class="ph-sub">Nessun volo registrato. Il diario parte da solo al decollo (oltre 55 km/h) e si chiude 30 s dopo l\'arresto. Le tracce degli ultimi '+PH.TRK_KEEP+' voli restano nel telefono.</p>'; return; }
+  if(!book.length){ box.innerHTML='<p class="ph-sub">Nessun volo registrato. Il diario parte da solo al decollo (oltre 55 km/h) e si chiude 30 s dopo l\'arresto. Le tracce degli ultimi '+PH.TRK_KEEP+' voli restano nel telefono. Per rimettere un volo registrato da un\'altra app usa «Importa GPX».</p><div class="ph-btns"><button class="ph-btn" id="phTrkImp">Importa GPX</button><input type="file" id="phTrkFile" accept=".gpx,application/gpx+xml,text/xml,application/xml,application/octet-stream" hidden></div><p class="ph-sub" id="phTrkMsg"></p>';
+    el('phTrkImp').onclick=()=>el('phTrkFile').click();
+    el('phTrkFile').onchange=async ev=>{ const f=ev.target.files&&ev.target.files[0]; if(!f) return; let testo='';
+      try{ const r=await PH.gpxImport(await f.text(),f.name); PH.renderLog(); testo=`${r.voli} ${r.voli===1?'volo aggiunto':'voli aggiunti'} al diario.`; }catch(e){ PH.renderLog(); testo='GPX non importato: '+String(e&&e.message||e)+'.'; }
+      const m=el('phTrkMsg'); if(m) m.textContent=testo; };
+    return; }
   const tot=book.reduce((s,f)=>s+(f.end-f.start),0)/60000, has=f=>f.trk||f.pts;
   box.innerHTML=`<p class="ph-sub">${book.length} voli · ${Math.floor(tot/60)} h ${Math.round(tot%60)} min in tutto · tracce degli ultimi ${PH.TRK_KEEP} voli nel telefono. Spunta i voli da esportare.</p>`+
-    `<div class="ph-btns"><button class="ph-btn" id="phTrkAll">Seleziona tutte</button><button class="ph-btn pri" id="phTrkGpx">Esporta GPX</button><button class="ph-btn" id="phTrkKml">Esporta KML (Google Earth)</button></div><p class="ph-sub" id="phTrkMsg"></p>`+
+    `<div class="ph-btns"><button class="ph-btn" id="phTrkAll">Seleziona tutte</button><button class="ph-btn pri" id="phTrkGpx">Esporta GPX</button><button class="ph-btn" id="phTrkKml">Esporta KML (Google Earth)</button><button class="ph-btn" id="phTrkImp">Importa GPX</button><input type="file" id="phTrkFile" accept=".gpx,application/gpx+xml,text/xml,application/xml,application/octet-stream" hidden></div><p class="ph-sub" id="phTrkMsg"></p>`+
     book.slice(0,60).map((f,i)=>{
     const d=new Date(f.start), m=Math.round((f.end-f.start)/60000), on=PH.trackShow&&PH.trackShow.k===f.start;
-    return `<div class="ph-row">${has(f)?`<input type="checkbox" class="ph-trkSel" data-i="${i}" aria-label="Seleziona il volo">`:'<span style="width:20px"></span>'}<span style="flex:1"><b>${d.toLocaleDateString('it-IT')} ${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</b><br><small>${f.ac?f.ac+' · ':''}${f.from||'?'} → ${f.to||'?'} · ${Math.floor(m/60)}:${String(m%60).padStart(2,'0')} · ${(f.dist/1000).toFixed(0)} km · max ${f.maxFt} ft${has(f)?'':' · senza traccia'}${f.parziale?' · <b style="color:#ffc531">interrotto</b>':''}</small></span>`+
+    return `<div class="ph-row">${has(f)?`<input type="checkbox" class="ph-trkSel" data-i="${i}" aria-label="Seleziona il volo">`:'<span style="width:20px"></span>'}<span style="flex:1"><b>${d.toLocaleDateString('it-IT')} ${d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'})}</b><br><small>${f.ac?f.ac+' · ':''}${f.from||'?'} → ${f.to||'?'} · ${Math.floor(m/60)}:${String(m%60).padStart(2,'0')} · ${(f.dist/1000).toFixed(0)} km · max ${f.maxFt} ft${has(f)?'':' · senza traccia'}${f.parziale?' · <b style="color:#ffc531">interrotto</b>':''}${f.importato?' · importato':''}</small></span>`+
       (has(f)?`<button class="ph-btn" data-show="${i}">${on?'Nascondi':'Sulla mappa'}</button>`:'')+`</div>`; }).join('')+
     `<div class="ph-btns"><button class="ph-btn" id="phCsv">Esporta diario (CSV)</button></div>`;
   const ptsOf=async f=>f.pts||await PH.trkGet(f.start)||[];
@@ -3720,6 +3757,12 @@ PH.renderLog=function(){
     if(kind==='gpx') PH.download(name+'.gpx',PH.gpxMulti(full),'application/gpx+xml'); else PH.download(name+'.kml',PH.kml(full),'application/vnd.google-earth.kml+xml');
     msg.textContent=`${fs.length} ${fs.length===1?'volo esportato':'voli esportati'}.`; };
   el('phTrkGpx').onclick=()=>exp('gpx'); el('phTrkKml').onclick=()=>exp('kml');
+  el('phTrkImp').onclick=()=>el('phTrkFile').click();
+  el('phTrkFile').onchange=async ev=>{ const f=ev.target.files&&ev.target.files[0]; if(!f) return; let testo='';
+    try{ if(f.size>20e6) throw new Error('file troppo grande'); const r=await PH.gpxImport(await f.text(),f.name); PH.renderLog();
+      testo=r.voli?`${r.voli} ${r.voli===1?'volo aggiunto':'voli aggiunti'} al diario da ${PH.esc?PH.esc(f.name):f.name}.`:'Nessun volo aggiunto.'; if(r.doppi) testo+=` ${r.doppi} ${r.doppi===1?'era':'erano'} già nel diario.`; }
+    catch(e){ PH.renderLog(); testo='GPX non importato: '+String(e&&e.message||e)+'.'; }
+    const m=el('phTrkMsg'); if(m) m.innerHTML=testo; };
   box.querySelectorAll('[data-show]').forEach(b=>b.addEventListener('click',async()=>{ const f=book[+b.dataset.show];
     if(PH.trackShow&&PH.trackShow.k===f.start){ PH.trackShow=null; PH.renderLog(); return; }
     const pts=await ptsOf(f); if(pts.length<2){ toast('TRACCIA VUOTA'); return; }
@@ -4590,6 +4633,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.205","Diario di volo: «Importa GPX». Una traccia registrata da un'altra app (SkyDemon, orologio, GPS) entra nel diario come volo, con decollo e atterraggio riconosciuti come dal vivo. Serve a rimettere un volo che HORIZON non ha registrato."],
   ["1.0.204","Orizzonte con il motore acceso: le vibrazioni non lo fanno più andare alla deriva. Prima il tremolio di accelerometro e giroscopio faceva scartare la correzione dell'orizzonte, che restava affidato al solo giroscopio e scivolava di molti gradi; in volo l'effetto era più forte perché la compensazione di virata moltiplicava il rumore per la velocità. Ora la correzione usa valori mediati su 0,2 secondi, senza perdere prontezza. Anche LIVELLA prende la gravità da una media di 2 secondi: con il motore acceso non viene più storta."],
   ["1.0.203","Diario di volo: un volo non si perde più. Se l'app viene chiusa o si addormenta in volo (schermo spento) e la riapri più tardi, il volo va nel diario fino all'ultimo punto registrato, segnato «interrotto»; prima, dopo 15 minuti, spariva. Il volo in corso si salva ogni 10 secondi. Novità: ALTRO › SCHERMO SPENTO oscura lo schermo ma lascia l'app accesa, così GPS, diario e avvisi a voce continuano; un avviso di terreno lo riaccende da solo. Spegnendo lo schermo con il tasto del telefono, invece, Android ferma l'app e la traccia si interrompe."],
   ["1.0.202","TailorFly (Impostazioni › TailorFly): una prova di 20 secondi a terra, con il telefono fermo, che misura sensori di movimento, giroscopio, bussola, barometro, GPS e velocità del disegno del tuo dispositivo. Ti dice in chiaro com'è messo e propone le regolazioni adatte (terreno 3D, barometro, bussola), che applichi con un tocco e puoi annullare. I filtri dell'orizzonte non cambiano."],
