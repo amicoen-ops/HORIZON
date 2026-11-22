@@ -3723,6 +3723,10 @@ PH.renderImp=function(){
     <div class="ph-seg" id="phUi">${[['full','Completa'],['simple','Semplice']].map(([k2,l])=>`<button data-u="${k2}" aria-pressed="${PH.ui===k2}">${l}</button>`).join('')}</div>
     <p class="ph-sub"><b>Semplice</b>: solo l'orizzonte, come uno strumento di bordo classico, con velocità, quota, vario, prua, vento e tempo di volo. Niente mappa, rotte e simulazione. Gli avvisi di terreno e di spazio aereo restano attivi. <b>Completa</b>: tutto.</p>
   </section>
+  <section><h3>TailorFly</h3>
+    <p class="ph-sub">Una prova di 20 secondi, a terra e con il telefono fermo sul supporto, che misura sensori, bussola, barometro, GPS e velocità del disegno di <b>questo dispositivo</b>, ti dice com'è messo e propone le regolazioni adatte. Niente esce dal telefono. I filtri dell'orizzonte non cambiano.</p>
+    <div class="ph-btns"><button class="ph-btn" id="phTailorGo">Apri TailorFly</button></div>
+  </section>
   <section><h3>Simulazione</h3>
     <p class="ph-sub">Un volo finto con gli avvisi veri, per provare lo strumento a terra: direct to un campo, una rotta salvata o un volo libero. Nell'interfaccia completa lo trovi anche in ALTRO › SIMULA; da qui si apre in tutte e due le interfacce.</p>
     <div class="ph-btns"><button class="ph-btn" id="phSimOpen">▶ Apri SIMULA</button></div>
@@ -3832,7 +3836,7 @@ PH.renderImp=function(){
   PH.acSectionWire&&PH.acSectionWire();
   el('phTq').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.terrQ=b.dataset.q; lsSet('ia517p_terrq',PH.terrQ); el('phTq').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.tqNow(); });
   PH.tqNow();
-  { const so=el('phSimOpen'); if(so) so.onclick=()=>PH.show('sim'); }
+  { const so=el('phSimOpen'); if(so) so.onclick=()=>PH.show('sim'); const tf=el('phTailorGo'); if(tf) tf.onclick=()=>PH.tailorOpen&&PH.tailorOpen(); }
   el('phUi').querySelectorAll('button').forEach(b=>b.onclick=()=>{ PH.setUi(b.dataset.u); el('phUi').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
   el('phFlType').querySelectorAll('button').forEach(b=>b.onclick=()=>{ IA517_RULES.set(b.dataset.p); el('phFlType').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); PH.renderAsp();
     try{ const w=el('phAppFrame').contentWindow; w.IA517_profChanged&&w.IA517_profChanged(); }catch(e){} const pr=IA517_RULES.PROFILES[b.dataset.p]; toast('TIPO DI VOLO: '+(pr?pr.short:b.dataset.p)); });
@@ -4551,6 +4555,7 @@ const PH_INFO={
   impronta:'HZ·ED·2026·DA8A3A7ED40C',                    // impronta dell'autore: nelle segnalazioni, in Info e nella filigrana
 };
 const PH_CHANGES=[
+  ["1.0.202","TailorFly (Impostazioni › TailorFly): una prova di 20 secondi a terra, con il telefono fermo, che misura sensori di movimento, giroscopio, bussola, barometro, GPS e velocità del disegno del tuo dispositivo. Ti dice in chiaro com'è messo e propone le regolazioni adatte (terreno 3D, barometro, bussola), che applichi con un tocco e puoi annullare. I filtri dell'orizzonte non cambiano."],
   ["1.0.201","Prati per l'emergenza: se un riquadro è stato corretto su GitHub (per esempio dopo il confronto con il satellite, che toglie boschi, case e acque), l'app lo riscarica anche se la copia sul telefono ha meno di 30 giorni. Prima «Scarica i prati della zona» non faceva niente finché la copia non scadeva."],
   ["1.0.199","Corretto del tutto il difetto del tasto PIANO sparito: chi aveva il solo orizzonte aperto al momento dell'aggiornamento restava ancora nell'interfaccia semplice, senza PIANO e senza SIMULA. Ora torna la completa, da sola."],
   ["1.0.197","La simulazione si apre anche da Impostazioni › Simulazione, in tutte e due le interfacce: nella semplice il tasto SIMULA di ALTRO non c'è."],
@@ -5663,6 +5668,7 @@ requestAnimationFrame(frame);
 <script src="livelli.js"></script>
 <script src="note.js"></script>
 <script src="schermo.js"></script>
+<script src="tailorfly.js"></script>
 <script src="carta.js"></script>
 <script src="vento.js"></script>
 <script src="schede.js"></script>

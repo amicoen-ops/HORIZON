@@ -1,0 +1,41 @@
+name: Quote dei campi contro il terreno
+
+# Confronta la quota di ogni campo dell'elenco dell'app con il rilievo (tools/quote_campi.js, stesso metodo dell'app: mediana
+# di 9 punti attorno al campo). NON corregge niente: scrive il rapporto nel riepilogo della corsa e lo allega, da guardare a
+# mano. Si lancia a mano («Run workflow») e gira da solo il primo del mese.
+on:
+  workflow_dispatch:
+    inputs:
+      soglia:
+        description: "Scarto in metri oltre il quale un campo entra nell'elenco"
+        required: false
+        default: "50"
+  schedule:
+    - cron: "41 4 1 * *"
+
+permissions:
+  contents: read
+
+jobs:
+  quote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Prove dello strumento
+        run: node tools/test_quote_campi.js
+      - name: Confronto con il rilievo
+        env:
+          SOGLIA: ${{ github.event.inputs.soglia }}
+        run: |
+          case "${SOGLIA:-50}" in *[!0-9]*) echo "::error::La soglia deve essere un numero di metri"; exit 2 ;; esac
+          node tools/quote_campi.js --soglia "${SOGLIA:-50}" --uscita quote-campi.md
+          head -c 900000 quote-campi.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quote-campi
+          path: quote-campi.md
+          retention-days: 90
