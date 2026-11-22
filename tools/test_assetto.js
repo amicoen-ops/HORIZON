@@ -113,8 +113,8 @@ const P = [
   ['Aereo livellato, GPS perso mentre accelerava (2 m/s² rimasti in memoria)', { V: 32, virata: 0, gpsPerso: 2, daT: 8 }],
   ['Aereo, virata coordinata a destra 30°, giroscopio', { V: 32, aereo: 30, atteso: { roll: 30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
   ['Aereo, virata coordinata a sinistra 30°, giroscopio', { V: 32, aereo: -30, atteso: { roll: -30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
-  ['Aereo, virata coordinata a destra 30°, virata dal GPS', { V: 32, aereo: 30, senzaGiro: true, atteso: { roll: 30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
-  ['Aereo, virata coordinata a sinistra 30°, virata dal GPS', { V: 32, aereo: -30, senzaGiro: true, atteso: { roll: -30 }, limiti: { roll: 3, pitch: 3, aUp: 0.6 } }],
+  ['Aereo, virata coordinata a destra 30°, virata dal GPS', { V: 32, aereo: 30, senzaGiro: true, atteso: { roll: 30 }, limiti: { roll: 4, pitch: 3, aUp: 0.6 } }],   // 4° (era 3°): senza giroscopio l'inclinazione arriva dalla forza mediata su 0,2 s; nel moto simulato cambia di colpo
+  ['Aereo, virata coordinata a sinistra 30°, virata dal GPS', { V: 32, aereo: -30, senzaGiro: true, atteso: { roll: -30 }, limiti: { roll: 4, pitch: 3, aUp: 0.6 } }],
 ];
 let tutti = true; for (const [n, o] of P) tutti = prova(n, o) && tutti;
 
@@ -174,6 +174,45 @@ function provaSegno() {
   return ok;
 }
 tutti = provaSegno() && tutti;
+// ---- vibrazioni del motore (segnalazione dell'autore, volo del 21/11/2026: «troppo rumore, sballava anche dopo il livellamento») ----
+// Due minuti di volo a 108 km/h con il telefono che vibra: accelerometro con rumore di 0,3 g per asse, giroscopio con 5°/s
+// per asse più una piccola deriva. Profilo: livellato 20 s, virata coordinata a destra di 30° per 60 s, livellato 40 s.
+// L'orizzonte deve restare entro pochi gradi dal vero, e in virata NON deve raddrizzarsi da solo.
+function provaVibra(nome, o) {
+  const ctx = { D2R, R2D, clamp, angDiff, wrap360, performance, PH: {}, S: {}, LIVE: {} }, app = load(ctx);
+  const V = 30, HZ = o.hz || 100;
+  S = { gpsReal: true, gs: V * 3.6, roll: 0, hdg: 0, trk: 0 }; LIVE = {};
+  PH = { M: VERTICALE, accSign: 1, aAvg: [0, 0, 0], mCount: 0, mT0: 0, demo: false, scrAng: () => 0, accCheck: () => {},
+    gyroLearn: () => {}, gyroRaw: r => [r.beta || 0, r.gamma || 0, r.alpha || 0],
+    ahrs: new app.PhMahony(), ahrsInit: false, attF: null, smooth: 3, tas: null, dvdt: 0, trkRate: 0, trkRateT: -1e9, slipF: 0, hdg: 0,
+    magInUse: () => false, mag: {}, act: () => {}, vario: { a: 0, predict(a) { this.a = a; } } };
+  PH.toBody = app.toBody; PH.onMotion = app.onMotion; app.bind(PH, S, LIVE);
+  let seme = o.seme || 4242; const rnd = () => (seme = (seme * 16807) % 2147483647) / 2147483647;
+  const gs = () => { let u = 0, v = 0; while (!u) u = rnd(); while (!v) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const toScr = v => [0, 1, 2].map(j => VERTICALE[0][j] * v[0] + VERTICALE[1][j] * v[1] + VERTICALE[2][j] * v[2]);
+  const sa = (o.acc != null ? o.acc : 0.3) * G, sg = (o.giro != null ? o.giro : 5) * D2R, bias = [0.004, -0.003, 0.002];
+  let peggioL = 0, peggioV = 0, peggioP = 0, sommaJ = 0, nJ = 0, prec = null;
+  for (let i = 0; i < HZ * 120; i++) {
+    T = i * 1000 / HZ; const t = T / 1000, inV = t >= 20 && t < 80, ph = inV ? 30 * D2R : 0, wt = G * Math.tan(ph) / V;
+    const f = [sa * gs(), sa * gs(), -G / Math.cos(ph) + sa * gs()], w = [sg * gs() + bias[0], wt * Math.sin(ph) + sg * gs() + bias[1], wt * Math.cos(ph) + sg * gs() + bias[2]];
+    const fd = toScr(f), wd = toScr(w);
+    PH.trkRate = wt * R2D; PH.trkRateT = T; S.roll = PH.attF ? PH.attF[0] : 0;
+    PH.onMotion({ accelerationIncludingGravity: { x: fd[0], y: fd[1], z: fd[2] }, rotationRate: { alpha: wd[2] * R2D, beta: wd[0] * R2D, gamma: wd[1] * R2D }, interval: 1 / HZ, timeStamp: T });
+    const eR = Math.abs(S.roll - (inV ? 30 : 0));
+    if ((t > 8 && t < 20) || t > 92) peggioL = Math.max(peggioL, eR);            // livellato (dopo l'assestamento)
+    if (t > 32 && t < 80) peggioV = Math.max(peggioV, eR);                          // in virata stabile
+    if (t > 8 && !(t >= 20 && t < 32) && !(t >= 80 && t < 92)) peggioP = Math.max(peggioP, Math.abs(S.pitch));
+    if (prec != null && t > 8) { sommaJ += Math.abs(S.roll - prec); nJ++; } prec = S.roll;
+  }
+  const trem = sommaJ / nJ * HZ, lim = o.limiti || { livellato: 4, virata: 6, pitch: 5 };
+  const ok = peggioL <= lim.livellato && peggioV <= lim.virata && peggioP <= lim.pitch;
+  console.log(`${ok ? 'OK  ' : 'FAIL'} ${nome.padEnd(58)} errore max: rollio livellato ${peggioL.toFixed(1)}° · rollio in virata ${peggioV.toFixed(1)}° · beccheggio ${peggioP.toFixed(1)}° · tremolio ${trem.toFixed(1)}°/s`);
+  return ok;
+}
+tutti = provaVibra('Volo con vibrazioni forti del motore (0,3 g · 5°/s), 100 Hz', {}) && tutti;
+tutti = provaVibra('Volo con vibrazioni forti del motore, sensori a 200 Hz', { hz: 200, seme: 99 }) && tutti;
+tutti = provaVibra('Volo con vibrazioni molto forti (0,5 g · 10°/s)', { acc: 0.5, giro: 10, seme: 7, limiti: { livellato: 6, virata: 8, pitch: 7 } }) && tutti;
+tutti = provaVibra('Volo senza vibrazioni (riferimento)', { acc: 0.01, giro: 0.05, seme: 3 }) && tutti;
 
 const dirReg = path.join(__dirname, 'registrazioni');
 if (fs.existsSync(dirReg)) for (const f of fs.readdirSync(dirReg).filter(f => f.endsWith('.txt')).sort()) {
